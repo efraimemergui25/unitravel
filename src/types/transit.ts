@@ -10,9 +10,12 @@ export interface TransitSegment {
   cost:        number;
   departTime?: string;
   arriveTime?: string;
+  walkEffort?: WalkEffort;   // populated when mode === 'walk'
 }
 
 export type ComfortLevel = 1 | 2 | 3 | 4 | 5;
+
+export type WalkEffort = 'flat' | 'gentle' | 'moderate' | 'steep';
 
 export interface RouteOption {
   id:            string;
@@ -26,6 +29,19 @@ export interface RouteOption {
   isFastest:     boolean;
   isCheapest:    boolean;
   tags:          string[];
+  surgeInfo?:    SurgeInfo;   // attached when a rideshare segment has surge
+}
+
+export interface SurgeInfo {
+  provider:                  string;
+  multiplier:                number;
+  active:                    boolean;
+  normalPriceUSD?:           number;
+  surgePriceUSD?:            number;
+  estimatedMinutesUntilNormal?: number;
+  alternativeMode?:          TransitMode;
+  alternativeLabel?:         string;
+  alternativeSavingsUSD?:    number;
 }
 
 export interface TransitQuery {

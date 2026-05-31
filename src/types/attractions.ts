@@ -3,13 +3,15 @@ export type WeatherDependency = 'none' | 'low' | 'moderate' | 'high';
 export type DayTimePreference = 'morning' | 'afternoon' | 'evening' | 'anytime';
 
 export interface WeatherMatch {
-  dayIndex:  number;
-  dayLabel:  string;
-  city:      string;
-  condition: string;
-  tempC:     number;
-  icon:      string;
-  quality:   'perfect' | 'good' | 'fair';
+  dayIndex:            number;
+  dayLabel:            string;
+  city:                string;
+  condition:           string;
+  tempC:               number;
+  icon:                string;
+  quality:             'perfect' | 'good' | 'fair' | 'warning';
+  precipProbability?:  number;   // 0–100; populated when quality === 'warning'
+  suggestedDayLabel?:  string;   // e.g. "Fri, Oct 5" — best AI-suggested alternative
 }
 
 export interface AttractionEntity {
@@ -19,6 +21,8 @@ export interface AttractionEntity {
   type:              ExperienceType;
   destination:       string;
   city:              string;
+  lat?:              number;
+  lon?:              number;
   durationHours:     number;
   groupSizeMax:      number;
   pricePerPerson:    number;

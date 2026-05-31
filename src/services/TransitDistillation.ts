@@ -309,3 +309,7 @@ function buildQuery(template: Omit<TransitQuery, 'options'>, engineIds: string[]
 export function distillTransit(activeEngineIds: string[]): TransitQuery[] {
   return ROUTE_TEMPLATES.map(t => buildQuery(t, activeEngineIds));
 }
+
+export const DEMO_TRANSIT_QUERIES: TransitQuery[] = distillTransit([
+  'rome2rio', 'google-maps-t', 'uber', 'lyft', 'citymapper', 'trainline', 'turo', 'omio',
+]);

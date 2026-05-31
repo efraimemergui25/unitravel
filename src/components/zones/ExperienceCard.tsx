@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { AttractionEntity, ExperienceType, WeatherMatch } from '@/types/attractions';
 
 const SPRING = { type: 'spring', stiffness: 420, damping: 28 } as const;
@@ -16,7 +16,7 @@ const TYPE_COLORS: Record<ExperienceType, { bg: string; fg: string; label: strin
   wellness:  { bg: '#00C7BE18', fg: '#00C7BE', label: 'Wellness'  },
 };
 
-// ── Weather badge ─────────────────────────────────────────────────────────────
+// ── Weather badge (perfect / good) ────────────────────────────────────────────
 
 const WeatherBadge = memo(function WeatherBadge({ match }: { match: WeatherMatch }) {
   const isPerfect = match.quality === 'perfect';
@@ -60,13 +60,58 @@ const WeatherBadge = memo(function WeatherBadge({ match }: { match: WeatherMatch
           </motion.span>
         )}
         <span style={{ fontSize: 9, color: '#fff', fontWeight: 700 }}>
-          {isPerfect ? `Perfect · ${match.dayLabel}` : `${match.dayLabel}`}
+          {isPerfect ? `Perfect · ${match.dayLabel}` : match.dayLabel}
         </span>
         <span style={{ fontSize: 9 }}>{match.icon}</span>
         <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
           {match.tempC}°C
         </span>
       </motion.div>
+    </motion.div>
+  );
+});
+
+// ── Rain warning badge ────────────────────────────────────────────────────────
+// Rendered when weather cross-reference detects high rain probability on the
+// scheduled activity day. AI suggests the best clear-sky alternative.
+
+const RainWarningBadge = memo(function RainWarningBadge({ match }: { match: WeatherMatch }) {
+  const prob = match.precipProbability ?? 70;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={SPRING}
+      style={{
+        display:              'flex',
+        alignItems:           'flex-start',
+        gap:                  6,
+        paddingBlock:         8,
+        paddingInline:        10,
+        borderRadius:         10,
+        background:           'rgba(255,159,10,0.10)',
+        backdropFilter:       'blur(16px) saturate(1.6)',
+        WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+        border:               '1px solid rgba(255,159,10,0.30)',
+      }}
+    >
+      <motion.span
+        animate={{ opacity: [1, 0.55, 1] }}
+        transition={{ duration: 1.8, repeat: Infinity }}
+        style={{ fontSize: 13, flexShrink: 0, marginBlockStart: 1 }}
+      >
+        🌧
+      </motion.span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color: '#FF9F0A', letterSpacing: '-0.02em' }}>
+          {prob}% rain probability on {match.dayLabel}
+        </span>
+        <span style={{ fontSize: 9.5, fontWeight: 500, color: '#636366', lineHeight: 1.35 }}>
+          {match.suggestedDayLabel
+            ? `AI suggests moving this to ${match.suggestedDayLabel} for clear skies.`
+            : 'Check back — AI is finding the best alternative day.'}
+        </span>
+      </div>
     </motion.div>
   );
 });
@@ -90,7 +135,7 @@ const ProviderDots = memo(function ProviderDots({ providers }: { providers: stri
       {providers.length > 5 && (
         <span style={{ fontSize: 8, color: '#8E8E93' }}>+{providers.length - 5}</span>
       )}
-      <span style={{ fontSize: 9, color: '#AEAEB2', marginLeft: 2 }}>
+      <span style={{ fontSize: 9, color: '#AEAEB2', marginInlineStart: 2 }}>
         {providers.length} platform{providers.length !== 1 ? 's' : ''}
       </span>
     </div>
@@ -113,7 +158,9 @@ export const ExperienceCard = memo(function ExperienceCard({
   entity: AttractionEntity;
   index:  number;
 }) {
-  const typeStyle = TYPE_COLORS[entity.type];
+  const typeStyle  = TYPE_COLORS[entity.type];
+  const isWarning  = entity.weatherMatch?.quality === 'warning';
+  const showBadge  = entity.weatherMatch?.quality === 'perfect' || entity.weatherMatch?.quality === 'good';
 
   return (
     <motion.div
@@ -121,23 +168,26 @@ export const ExperienceCard = memo(function ExperienceCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...SPRING, delay: index * 0.06 }}
       style={{
-        background:          'rgba(255,255,255,0.84)',
-        backdropFilter:      'blur(32px) saturate(1.8)',
-        WebkitBackdropFilter:'blur(32px) saturate(1.8)',
-        borderRadius:        16,
-        border:              '1px solid rgba(255,255,255,0.72)',
-        boxShadow:           '0 2px 14px rgba(0,0,0,0.06)',
-        overflow:            'hidden',
-        display:             'flex',
-        flexDirection:       'column',
+        background:           'rgba(255,255,255,0.84)',
+        backdropFilter:       'blur(32px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(32px) saturate(1.8)',
+        borderRadius:         16,
+        border:               isWarning
+          ? '1px solid rgba(255,159,10,0.30)'
+          : '1px solid rgba(255,255,255,0.72)',
+        boxShadow:            isWarning
+          ? '0 2px 14px rgba(255,159,10,0.12)'
+          : '0 2px 14px rgba(0,0,0,0.06)',
+        overflow:             'hidden',
+        display:              'flex',
+        flexDirection:        'column',
       }}
     >
       {/* Gradient image area */}
       <div style={{ position: 'relative', height: 86, background: entity.gradient, flexShrink: 0 }}>
-        {/* Overlay shimmer */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.35) 100%)' }} />
 
-        {/* Type badge (bottom-left of image) */}
+        {/* Type badge */}
         <div style={{
           position:     'absolute', insetBlockEnd: 8, insetInlineStart: 10,
           background:   typeStyle.bg, border: `1px solid ${typeStyle.fg}40`,
@@ -148,8 +198,8 @@ export const ExperienceCard = memo(function ExperienceCard({
           {typeStyle.label}
         </div>
 
-        {/* Weather badge (top-right) */}
-        {entity.weatherMatch && (entity.weatherMatch.quality === 'perfect' || entity.weatherMatch.quality === 'good') && (
+        {/* Perfect / good weather badge */}
+        {showBadge && entity.weatherMatch && (
           <div style={{ position: 'absolute', insetBlockStart: 8, insetInlineEnd: 8 }}>
             <WeatherBadge match={entity.weatherMatch} />
           </div>
@@ -170,18 +220,16 @@ export const ExperienceCard = memo(function ExperienceCard({
 
       {/* Content */}
       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-        {/* Title */}
         <div style={{ fontSize: 13, fontWeight: 800, color: '#1C1C1E', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
           {entity.title}
         </div>
 
-        {/* Provider dots */}
         <ProviderDots providers={entity.providers} />
 
         {/* Stats row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, color: '#636366' }}>⏱ {entity.durationHours}h</span>
-          <span style={{ fontSize: 9, color: DIFF_STYLE[entity.difficulty].color, fontWeight: 600 }}>
+          <span style={{ fontSize: 9, color: DIFF_STYLE[entity.difficulty]?.color ?? '#636366', fontWeight: 600 }}>
             {entity.difficulty}
           </span>
           <span style={{ fontSize: 9, color: '#636366' }}>
@@ -190,7 +238,7 @@ export const ExperienceCard = memo(function ExperienceCard({
           </span>
         </div>
 
-        {/* AI highlight (truncated) */}
+        {/* AI highlight */}
         <p style={{
           fontSize: 10, color: '#636366', lineHeight: 1.4, margin: 0,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -199,8 +247,22 @@ export const ExperienceCard = memo(function ExperienceCard({
           {entity.aiHighlight}
         </p>
 
+        {/* Rain warning — inlined below highlight */}
+        <AnimatePresence>
+          {isWarning && entity.weatherMatch && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <RainWarningBadge match={entity.weatherMatch} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Price + CTA */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBlockStart: 'auto' }}>
           <div>
             <span style={{ fontSize: 15, fontWeight: 800, color: '#1C1C1E', letterSpacing: '-0.03em' }}>
               ${entity.pricePerPerson.toLocaleString()}
@@ -211,6 +273,7 @@ export const ExperienceCard = memo(function ExperienceCard({
             fontSize: 10, fontWeight: 700, color: typeStyle.fg,
             background: typeStyle.bg, border: `1px solid ${typeStyle.fg}30`,
             borderRadius: 8, paddingBlock: 5, paddingInline: 12, cursor: 'pointer',
+            fontFamily: 'inherit',
           }}>
             {entity.instantBook ? 'Book →' : 'Check →'}
           </button>

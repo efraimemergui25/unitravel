@@ -13,6 +13,35 @@ export type { CrisisEvent, TimelineMutation } from '@/services/CrisisManager';
 
 export type EntityCategory = 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport';
 
+// ── Categorical Chat Memory ───────────────────────────────────────────────────
+
+export type ChatCategory =
+  | 'aviation' | 'lodging' | 'culinary' | 'budget'
+  | 'destinations' | 'activities' | 'general';
+
+export interface CategorizedMessage {
+  id:         string;
+  sessionId:  string;
+  role:       'user' | 'assistant';
+  text:       string;
+  category:   ChatCategory;
+  toolsUsed?: string[];
+  timestamp:  number;
+  entityRef?: { id: string; title: string; price: number; dayId?: string };
+}
+
+export function inferChatCategory(text: string, toolsUsed: string[]): ChatCategory {
+  if (toolsUsed.some(t => /financial|budget|adjust/i.test(t))) return 'budget';
+  const l = text.toLowerCase();
+  if (/flight|airline|airport|layover|non.?stop|departure|arrival|cabin|economy|business/.test(l)) return 'aviation';
+  if (/hotel|lodge|villa|resort|airbnb|hostel|room|suite|check.?in|check.?out|nights/.test(l))    return 'lodging';
+  if (/restaurant|food|dining|michelin|cuisine|eat|lunch|dinner|chef|reservation|tasting/.test(l)) return 'culinary';
+  if (/budget|price|cost|expensive|cheap|afford|spend|total|breakdown/.test(l))                   return 'budget';
+  if (/activity|tour|experience|attraction|museum|hike|excursion|adventure|snorkel/.test(l))      return 'activities';
+  if (/destination|city|country|region|tulum|cabo|cdmx|cancun|riviera|mexico/.test(l))            return 'destinations';
+  return 'general';
+}
+
 export interface PlacedEntity {
   id:            string;
   sourceId:      string;
@@ -84,6 +113,7 @@ export interface TravelEngineState {
   burnSchedule:       BurnSchedule | null;
   onboardingComplete: boolean;
   crisisHistory:      CrisisEvent[];
+  chatHistory:        CategorizedMessage[];
 }
 
 // ── Initial mock days ────────────────────────────────────────────────────────
@@ -161,6 +191,9 @@ interface TravelEngineActions {
   // Crisis / mutation
   applyMutations: (mutations: TimelineMutation[], event: CrisisEvent) => void;
   revertCrisis:   (crisisId: string) => void;
+  // Chat memory
+  addChatMessage:   (msg: Omit<CategorizedMessage, 'timestamp'>) => void;
+  clearChatHistory: () => void;
 }
 
 type TravelEngineStore = TravelEngineState & TravelEngineActions;
@@ -195,6 +228,7 @@ export const useTravelEngine = create<TravelEngineStore>()(
     burnSchedule:       null,
     onboardingComplete: false,
     crisisHistory:      [],
+    chatHistory:        [],
 
     // ── AI Pipeline ──────────────────────────────────────────────────────────
     runAIPipeline: async () => {
@@ -313,6 +347,13 @@ export const useTravelEngine = create<TravelEngineStore>()(
       }
       s.crisisHistory.push(event);
     }),
+
+    // ── Chat memory ──────────────────────────────────────────────────────────
+    addChatMessage: (msg) => set(s => {
+      s.chatHistory.push({ ...msg, timestamp: Date.now() });
+    }),
+
+    clearChatHistory: () => set(s => { s.chatHistory = []; }),
 
     revertCrisis: (crisisId) => set(s => {
       const crisis = s.crisisHistory.find(c => c.id === crisisId);

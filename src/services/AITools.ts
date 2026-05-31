@@ -1,13 +1,19 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { OmniAggregator, AggregatedResult } from '@/services/OmniAggregator';
+import { runOrchestratorSearch } from '@/services/OrchestratorService';
+import type { TravelEntity } from '@/services/OrchestratorService';
+
+// ── Output shapes ─────────────────────────────────────────────────────────────
 
 interface OmniSearchOutput {
-  category:       string;
-  results:        AggregatedResult[];
-  count:          number;
-  sourcesQueried: number;
-  processingMs:   number;
+  category:          string;
+  results:           TravelEntity[];
+  distilledTop3:     TravelEntity[];
+  count:             number;
+  sourcesQueried:    number;
+  successfulSources: number;
+  processingMs:      number;
+  warnings:          string[];
 }
 
 interface MutateOutput {
@@ -26,68 +32,105 @@ interface FinancialOutput {
   status:   string;
 }
 
+interface DNAOutput {
+  adjusted: boolean;
+  field:    string;
+  value:    number;
+  reason:   string;
+}
+
 // ── Tool 1: Omni Search ────────────────────────────────────────────────────────
+// Calls OrchestratorService which fans out to 30 real API endpoints in parallel,
+// applies DNA-aware scoring, and returns distilled top 3. Zero hallucination.
 
 export const executeOmniSearch = tool<
   {
-    origin: string; destination: string; departDate: string;
-    returnDate?: string; cabinClass?: string; passengers?: number;
-    maxResults?: number; category?: string;
+    origin:      string;
+    destination: string;
+    departDate:  string;
+    returnDate?: string;
+    cabinClass?: string;
+    passengers?: number;
+    maxResults?: number;
+    category?:   string;
+    tier?:       string;
   },
   OmniSearchOutput
 >({
   description:
-    'Autonomously trigger the 30-engine Omni search to find flights, hotels, or dining. ' +
-    'Call this immediately when the user asks to find, search, or compare travel options. ' +
-    'Do not ask clarifying questions first.',
+    'Autonomously trigger the 30-engine OmniOrchestrator to find flights, hotels, or dining. ' +
+    'Call IMMEDIATELY when the user asks to search, find, or compare options. ' +
+    'Results are DNA-ranked — no hallucination, every result comes from a real source fetch.',
   inputSchema: z.object({
-    origin:      z.string().describe('Origin city or IATA code (e.g. "MEX", "Mexico City")'),
-    destination: z.string().describe('Destination city or IATA code (e.g. "CUN", "Cancun")'),
-    departDate:  z.string().describe('Departure date in YYYY-MM-DD format'),
+    origin:      z.string().describe('Origin city or IATA (e.g. "TLV", "Tel Aviv")'),
+    destination: z.string().describe('Destination city or IATA (e.g. "CUN", "Tulum")'),
+    departDate:  z.string().describe('Departure date YYYY-MM-DD'),
     returnDate:  z.string().optional().describe('Return date YYYY-MM-DD for round-trip'),
-    cabinClass:  z.string().optional().describe('Cabin class: Economy, PremiumEconomy, Business, First'),
-    passengers:  z.number().int().min(1).max(9).optional().describe('Passenger count'),
-    maxResults:  z.number().int().min(1).max(10).optional().describe('Max results to return'),
-    category:    z.string().optional().describe('Search category: flights, hotels, dining, all'),
+    cabinClass:  z.string().optional().describe('Economy | PremiumEconomy | Business | First'),
+    passengers:  z.number().int().min(1).max(9).optional(),
+    maxResults:  z.number().int().min(1).max(10).optional(),
+    category:    z.string().optional().describe('flights | hotels | restaurants | activities | all'),
+    tier:        z.string().optional().describe('economy | premium | luxury | ultra-luxury'),
   }),
-  execute: async ({ maxResults, category }): Promise<OmniSearchOutput> => {
-    const limit = maxResults ?? 5;
-    const cat   = category ?? 'flights';
-    const batch = await OmniAggregator.aggregate();
 
-    if (cat === 'hotels') {
-      return { category: 'hotels', results: batch.lodging.slice(0, limit),
-        count: batch.lodging.length, sourcesQueried: batch.sourcesQueried, processingMs: batch.processingMs };
-    }
-    if (cat === 'dining') {
-      return { category: 'dining', results: batch.dining.slice(0, limit),
-        count: batch.dining.length, sourcesQueried: batch.sourcesQueried, processingMs: batch.processingMs };
-    }
-    return { category: 'flights', results: batch.flights.slice(0, limit),
-      count: batch.flights.length, sourcesQueried: batch.sourcesQueried, processingMs: batch.processingMs };
+  execute: async ({ destination, category, tier, cabinClass, passengers }): Promise<OmniSearchOutput> => {
+    const intent =
+      category === 'hotels'      ? 'hotels'      as const :
+      category === 'restaurants' ? 'restaurants' as const :
+      category === 'activities'  ? 'activities'  as const :
+      category === 'all'         ? 'all'          as const :
+      'flights'                                   as const;
+
+    const resolvedTier =
+      tier === 'ultra-luxury'                                    ? 'ultra-luxury' as const :
+      tier === 'luxury'                                          ? 'luxury'       as const :
+      tier === 'premium'                                         ? 'premium'      as const :
+      cabinClass === 'Business' || cabinClass === 'First'        ? 'luxury'       as const :
+                                                                   'premium'      as const;
+
+    const response = await runOrchestratorSearch({
+      intent,
+      destination,
+      adults:   passengers ?? 2,
+      tier:     resolvedTier,
+      freeText: [cabinClass, tier].filter(Boolean).join(' ') || undefined,
+    });
+
+    return {
+      category:          intent,
+      results:           response.results,
+      distilledTop3:     response.distilledTop3,
+      count:             response.results.length,
+      sourcesQueried:    response.totalSources,
+      successfulSources: response.successfulSources,
+      processingMs:      response.processingMs,
+      warnings:          response.warnings,
+    };
   },
 });
 
 // ── Tool 2: Timeline Mutation ─────────────────────────────────────────────────
 
 export const mutateTimeline = tool<
-  { dayId: string; category: string; title: string; subtitle: string;
-    price: number; time?: string; reason: string; sourceId?: string },
+  {
+    dayId: string; category: string; title: string; subtitle: string;
+    price: number; time?: string; reason: string; sourceId?: string;
+  },
   MutateOutput
 >({
   description:
-    'Directly offer to place a highly recommended item into the user\'s travel timeline. ' +
-    'Only call this when aiConfidence is very high (>0.88) and the item perfectly fits the Travel DNA. ' +
-    'Requires user confirmation before placement — the UI will present a confirmation card.',
+    'Offer to place a high-confidence item into the travel timeline. ' +
+    'Only call when confidence > 0.88 and the item matches Travel DNA perfectly. ' +
+    'The UI presents a draggable confirmation card — user drags it to commit.',
   inputSchema: z.object({
-    dayId:    z.string().describe('Target day ID in format "day-N" (e.g. "day-3")'),
-    category: z.string().describe('Category: flight, hotel, restaurant, activity, transport'),
-    title:    z.string().describe('Display title for the item'),
-    subtitle: z.string().describe('Supporting details (e.g. "Business · 2h 30m · Non-stop")'),
-    price:    z.number().describe('Price in USD'),
-    time:     z.string().optional().describe('Time in HH:MM 24h format'),
-    reason:   z.string().describe('Concise reason why this matches the user\'s Travel DNA'),
-    sourceId: z.string().optional().describe('Source entity ID for deduplication'),
+    dayId:    z.string().describe('Target day "day-N" (e.g. "day-3")'),
+    category: z.string().describe('flight | hotel | restaurant | activity | transport'),
+    title:    z.string(),
+    subtitle: z.string(),
+    price:    z.number().describe('USD price'),
+    time:     z.string().optional().describe('HH:MM 24h'),
+    reason:   z.string().describe('Why this matches Travel DNA'),
+    sourceId: z.string().optional(),
   }),
   execute: async (params): Promise<MutateOutput> => ({
     requiresConfirmation: true,
@@ -103,15 +146,14 @@ export const adjustFinancialModel = tool<
   FinancialOutput
 >({
   description:
-    'Proactively update the predictive budget engine when identifying cost savings, ' +
-    'overruns, or reallocation opportunities. Call after any significant placement ' +
-    '(>$500) or when burn rate exceeds 80%.',
+    'Update the predictive budget engine. Call after significant placements (>$500) ' +
+    'or when burn rate exceeds 80%. Surface savings and overruns proactively.',
   inputSchema: z.object({
-    category:  z.string().describe('Category: flight, hotel, restaurant, activity, transport'),
-    amount:    z.number().describe('USD amount. Positive = cost increase, negative = saving found'),
-    reason:    z.string().describe('Brief explanation for the financial adjustment'),
-    urgency:   z.string().optional().describe('Urgency level: low, medium, high, critical'),
-    dayId:     z.string().optional().describe('Specific day affected, if applicable'),
+    category: z.string(),
+    amount:   z.number().describe('USD. Positive = cost increase, negative = saving found'),
+    reason:   z.string(),
+    urgency:  z.string().optional().describe('low | medium | high | critical'),
+    dayId:    z.string().optional(),
   }),
   execute: async (params): Promise<FinancialOutput> => ({
     adjusted: true,
@@ -123,31 +165,20 @@ export const adjustFinancialModel = tool<
 
 // ── Tool 4: Travel DNA Adjustment ─────────────────────────────────────────────
 
-interface DNAOutput {
-  adjusted: boolean;
-  field:    string;
-  value:    number;
-  reason:   string;
-}
-
 export const adjustDNA = tool<
   { field: string; value: number; reason: string },
   DNAOutput
 >({
   description:
-    'Silently refine the user\'s Travel DNA profile when their preferences become clear ' +
-    'from conversation context. Call without asking — this improves all future recommendations. ' +
-    'Only update numeric DNA fields (0–1 normalized). Never call for string or array fields.',
+    'Silently refine Travel DNA when preferences emerge from conversation. ' +
+    'Call without asking — only numeric fields, normalized 0–1.',
   inputSchema: z.object({
-    field:  z.string().describe('DNA field: paceIndex | culinaryAffinity | accommodationTier | experienceWeight | flexibilityScore'),
-    value:  z.number().min(0).max(1).describe('Normalized value between 0 and 1'),
-    reason: z.string().describe('Why this DNA reading improves future recommendations'),
+    field:  z.string().describe('paceIndex | culinaryAffinity | accommodationTier | experienceWeight | flexibilityScore'),
+    value:  z.number().min(0).max(1),
+    reason: z.string(),
   }),
   execute: async ({ field, value, reason }): Promise<DNAOutput> => ({
-    adjusted: true,
-    field,
-    value,
-    reason,
+    adjusted: true, field, value, reason,
   }),
 });
 
