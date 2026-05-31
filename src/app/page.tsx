@@ -1,14 +1,16 @@
 'use client';
 
 import {
-  useState, useEffect, useRef, useCallback, memo,
+  useState, useEffect, useCallback, memo, useRef,
   type KeyboardEvent,
 } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { useRouter }           from 'next/navigation';
+import { useLocaleEngine }     from '@/store/useLocaleEngine';
+import { LocaleToggle }        from '@/components/ui/LocaleToggle';
 import {
-  motion, AnimatePresence, LayoutGroup,
-  useMotionValue, useSpring,
-} from 'framer-motion';
-import { useRouter } from 'next/navigation';
+  getChatPlaceholder, getSuggestedPrompts, getAIIntroMessage, getPersonaLabel,
+} from '@/utils/CulturalContextInjector';
 
 // ── Design constants ──────────────────────────────────────────────────────────
 
@@ -389,33 +391,40 @@ function DynamicWorkspace() {
     >
       <AmbientBlobs />
 
-      {/* ✦ Brand mark */}
+      {/* ── Top bar: brand mark + locale toggle ───────────── */}
       <motion.div
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...SPRING_SOFT, delay: 0.1 }}
         style={{
-          position:     'absolute',
-          top:          28,
-          insetInlineStart: 32,
-          display:      'flex',
-          alignItems:   'center',
-          gap:          8,
-          zIndex:       10,
+          position:         'absolute',
+          top:              22,
+          insetInlineStart: 28,
+          insetInlineEnd:   28,
+          display:          'flex',
+          alignItems:       'center',
+          justifyContent:   'space-between',
+          zIndex:           10,
         }}
       >
-        <span style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.04em', color: 'var(--text-primary)' }}>
-          Unitravel
-        </span>
-        <span style={{
-          fontSize: 9, fontWeight: 800, color: AZURE,
-          background: 'rgba(0,122,255,0.08)',
-          border: '1px solid rgba(0,122,255,0.2)',
-          borderRadius: 5, paddingBlock: 2, paddingInline: 5,
-          letterSpacing: '0.04em',
-        }}>
-          AI
-        </span>
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.04em', color: 'var(--text-primary)' }}>
+            Unitravel
+          </span>
+          <span style={{
+            fontSize: 8, fontWeight: 800, color: AZURE,
+            background: 'rgba(0,122,255,0.08)',
+            border: '1px solid rgba(0,122,255,0.2)',
+            borderRadius: 5, paddingBlock: 2, paddingInline: 5,
+            letterSpacing: '0.06em',
+          }}>
+            AI
+          </span>
+        </div>
+
+        {/* Locale toggle — floats top-end */}
+        <LocaleToggle />
       </motion.div>
 
       {/* Hero quote */}
@@ -503,16 +512,38 @@ const AIMessage = memo(function AIMessage({
 function AIBrainPanel() {
   const [input,   setInput]   = useState('');
   const [focused, setFocused] = useState(false);
-  const router = useRouter();
+  const router   = useRouter();
+  const { profile, formatPrice } = useLocaleEngine();
+  const locale   = profile.locale;
+  const isHe     = locale === 'he-IL';
+
+  const placeholder     = getChatPlaceholder(locale);
+  const suggestedPrompts = getSuggestedPrompts(locale);
+  const introMessage    = getAIIntroMessage(locale);
+  const persona         = getPersonaLabel(locale);
+
+  // Locale-aware AI insight cards
+  const aiCards = isHe
+    ? [
+        { id: 'a1', text: `מצאתי 94 טיסות למקסיקו סיטי. אירומקסיקו מציעים את מחלקת העסקים הטובה ביותר הלילה — ${formatPrice(890)}.`, icon: '✈' },
+        { id: 'a2', text: `לאחת הצימרים שבחרת יש עמלת אתר נסתרת. מצאתי את אותו חדר ב-Booking.com ב-18% פחות.`, icon: '🔍' },
+        { id: 'a3', text: `פוחול מציע בטעות ב-4 בערב של יום 4 בשעה 19:30 — מישלן ✦✦. מתאים לתוכנית שלך.`, icon: '🌟' },
+      ]
+    : [
+        { id: 'a1', text: `I've found 94 flights to Mexico City across 12 engines. Aeromexico has the best business class seat tonight — from ${formatPrice(890)}.`, icon: '✈' },
+        { id: 'a2', text: `Your Tulum eco-lodge has a hidden resort fee. I found the same room on Booking.com for 18% less.`, icon: '🔍' },
+        { id: 'a3', text: `Pujol has a cancellation on Day 4 at 19:30. Michelin ✦✦ — it matches your schedule perfectly.`, icon: '🌟' },
+      ];
 
   const handleSubmit = useCallback(() => {
     if (!input.trim()) return;
     const v = input.toLowerCase();
     const zone =
-      v.includes('flight') || v.includes('fly') ? 'flights'  :
-      v.includes('hotel')                        ? 'lodging'  :
-      v.includes('eat')    || v.includes('food') ? 'dining'   :
-      v.includes('tour')                         ? 'attractions' :
+      v.includes('flight') || v.includes('fly')  || v.includes('טיסה')  ? 'flights'     :
+      v.includes('hotel')  || v.includes('stay')  || v.includes('מלון')  ? 'lodging'     :
+      v.includes('eat')    || v.includes('food')  || v.includes('אוכל')  ? 'dining'      :
+      v.includes('tour')   || v.includes('visit') || v.includes('סיור')  ? 'attractions' :
+      v.includes('bus')    || v.includes('train') || v.includes('רכבת')  ? 'transit'     :
       'flights';
     router.push(`/zone/${zone}`);
   }, [input, router]);
@@ -569,10 +600,10 @@ function AIBrainPanel() {
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-                AI Concierge
+                {persona.name}
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                Unitravel Intelligence
+                {persona.tagline}
               </div>
             </div>
           </div>
@@ -625,13 +656,15 @@ function AIBrainPanel() {
             border:       '1px solid rgba(0,122,255,0.10)',
             borderRadius: 14,
             padding:      '10px 13px',
+            direction:    isHe ? 'rtl' : 'ltr',
+            textAlign:    isHe ? 'right' : 'left',
           }}
         >
-          Hi. I've scanned 94 travel engines this morning. Here are three things you should know before planning your next trip.
+          {introMessage}
         </motion.div>
 
-        {/* AI insight cards (draggable to workspace) */}
-        {AI_PREVIEW.map((msg, i) => (
+        {/* AI insight cards (draggable to workspace, locale-aware) */}
+        {aiCards.map((msg, i) => (
           <AIMessage key={msg.id} msg={msg} delay={0.55 + i * 0.12} />
         ))}
 
@@ -688,7 +721,7 @@ function AIBrainPanel() {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            placeholder="Ask me anything about your trip…"
+            placeholder={placeholder}
             style={{
               flex:         1,
               background:   'none',
@@ -727,7 +760,7 @@ function AIBrainPanel() {
 
         {/* Suggested prompts */}
         <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
-          {['Mexico honeymoon', 'Business class deals', 'Michelin ✦✦✦'].map(prompt => (
+          {suggestedPrompts.map(prompt => (
             <button
               key={prompt}
               onClick={() => setInput(prompt)}
