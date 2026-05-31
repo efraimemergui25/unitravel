@@ -10,6 +10,7 @@ import { useTravelEngine }               from '@/store/useTravelEngine';
 import type { PlacedEntity, EngineDay }  from '@/store/useTravelEngine';
 import { handleEntityDrop }              from '@/utils/TimelineSync';
 import type { TimelineDropPayload }      from '@/utils/TimelineSync';
+import { GapFiller }                     from '@/components/management/GapFiller';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -196,19 +197,24 @@ function DayCard({
 }) {
   // Local entity order — syncs from Zustand when new entities arrive
   const [entities, setEntities] = useState<PlacedEntity[]>(() => [...day.entities]);
+  const reorderDayEntities = useTravelEngine(s => s.reorderDayEntities);
 
   useEffect(() => {
     setEntities(prev => {
-      const prevIds = new Set(prev.map(e => e.id));
-      // append new arrivals, remove deleted
+      const prevIds    = new Set(prev.map(e => e.id));
       const zustandIds = new Set(day.entities.map(e => e.id));
-      const merged = prev.filter(e => zustandIds.has(e.id));
+      const merged     = prev.filter(e => zustandIds.has(e.id));
       for (const e of day.entities) {
         if (!prevIds.has(e.id)) merged.push(e);
       }
       return merged;
     });
   }, [day.entities]);
+
+  const handleReorder = useCallback((newEntities: PlacedEntity[]) => {
+    setEntities(newEntities);
+    reorderDayEntities(day.id, newEntities);
+  }, [day.id, reorderDayEntities]);
 
   const destColor = DEST_COLORS[day.destination] ?? AZURE;
 
@@ -339,7 +345,7 @@ function DayCard({
             as="div"
             axis="y"
             values={entities}
-            onReorder={setEntities}
+            onReorder={handleReorder}
             style={{
               display:      'flex',
               flexDirection: 'column',
@@ -386,6 +392,9 @@ function DayCard({
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {/* Gap filler — shows breathable AI-fill button for free slots > 3h */}
+      {isActive && <GapFiller dayId={day.id} />}
     </motion.div>
   );
 }

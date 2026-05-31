@@ -191,6 +191,8 @@ interface TravelEngineActions {
   // Crisis / mutation
   applyMutations: (mutations: TimelineMutation[], event: CrisisEvent) => void;
   revertCrisis:   (crisisId: string) => void;
+  // Intra-day reorder with time-slot redistribution
+  reorderDayEntities: (dayId: string, newOrder: PlacedEntity[]) => void;
   // Chat memory
   addChatMessage:   (msg: Omit<CategorizedMessage, 'timestamp'>) => void;
   clearChatHistory: () => void;
@@ -346,6 +348,24 @@ export const useTravelEngine = create<TravelEngineStore>()(
         if (mutation.field === 'duration') entity.duration = mutation.newValue;
       }
       s.crisisHistory.push(event);
+    }),
+
+    reorderDayEntities: (dayId, newOrder) => set(s => {
+      const day = s.days.find(d => d.id === dayId);
+      if (!day) return;
+      // Collect original time slots sorted chronologically
+      const sortedSlots = [...day.entities]
+        .filter(e => e.time)
+        .sort((a, b) => a.time!.localeCompare(b.time!))
+        .map(e => e.time!);
+      // Redistribute time slots to entities in their new visual order
+      let slotIdx = 0;
+      day.entities = newOrder.map(entity => {
+        if (entity.time !== undefined && slotIdx < sortedSlots.length) {
+          return { ...entity, time: sortedSlots[slotIdx++] };
+        }
+        return entity;
+      });
     }),
 
     // ── Chat memory ──────────────────────────────────────────────────────────
