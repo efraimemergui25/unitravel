@@ -1,26 +1,257 @@
 @import "tailwindcss";
 
+@theme {
+  --color-glass-white:  rgba(255, 255, 255, 0.06);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-glass-hover:  rgba(255, 255, 255, 0.10);
+  --color-glass-strong: rgba(255, 255, 255, 0.14);
+  --color-brand-azure:   #007AFF;
+  --color-brand-teal:    #00C7BE;
+  --color-brand-gold:    #FFD60A;
+  --color-brand-coral:   #FF6B6B;
+  --color-brand-emerald: #30D158;
+  --color-brand-indigo:  #5E5CE6;
+  --color-surface-deep:  #080B14;
+  --color-surface-mid:   #0D1220;
+  --color-surface-card:  #111827;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-inter:  'Inter', system-ui, sans-serif;
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+  --font-mono:   'JetBrains Mono', monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #080B14;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-inter);
+  overflow-x: hidden;
+}
+
+/* ── Custom scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.24); }
+
+/* ── Glassmorphism primitives ─────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(40px) saturate(2);
+  -webkit-backdrop-filter: blur(40px) saturate(2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.glass-deep {
+  background: rgba(8, 11, 20, 0.75);
+  backdrop-filter: blur(48px) saturate(1.5);
+  -webkit-backdrop-filter: blur(48px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ── Specular highlight (top-edge light bleed) ────────── */
+.specular::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.12) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(255,255,255,0.04) 100%
+  );
+  pointer-events: none;
+}
+
+/* ── Ambient glow blobs (behind panels) ───────────────── */
+.ambient-blue  { background: radial-gradient(circle, rgba(0,122,255,0.18) 0%, transparent 70%); }
+.ambient-teal  { background: radial-gradient(circle, rgba(0,199,190,0.15) 0%, transparent 70%); }
+.ambient-gold  { background: radial-gradient(circle, rgba(255,214,10,0.12) 0%, transparent 70%); }
+
+/* ── Category color tokens ────────────────────────────── */
+.cat-flight    { --cat: #007AFF; }
+.cat-hotel     { --cat: #00C7BE; }
+.cat-restaurant{ --cat: #FFD60A; }
+.cat-activity  { --cat: #30D158; }
+.cat-transport { --cat: #5E5CE6; }
+
+/* ── Drag drop ring ───────────────────────────────────── */
+.drop-ring {
+  outline: 2px dashed rgba(0,122,255,0.6);
+  outline-offset: 4px;
+  box-shadow: 0 0 24px rgba(0,122,255,0.3);
+}
+
+/* ── Text gradients ───────────────────────────────────── */
+.text-gradient-azure {
+  background: linear-gradient(135deg, #007AFF 0%, #00C7BE 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #FFD60A 0%, #FF6B6B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Loading shimmer ──────────────────────────────────── */
+.shimmer {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.5s linear infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+/* ── Timeline connector line ──────────────────────────── */
+.timeline-connector {
+  position: relative;
+}
+.timeline-connector::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  width: 1px;
+  height: 60%;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.12), transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Apple-Light Glassmorphism — Phase 6
+   ═══════════════════════════════════════════════════════════ */
+
+/* Light surface tokens */
+:root {
+  --light-bg:          #F5F5F7;
+  --light-bg-elevated: #FBFBFD;
+  --light-text:        #1D1D1F;
+  --light-text-2:      #6E6E73;
+  --light-text-3:      #AEAEB2;
+  --light-border:      rgba(0, 0, 0, 0.08);
+  --light-shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --light-shadow-md:   0 4px 16px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  --light-shadow-lg:   0 8px 40px rgba(0,0,0,0.09), 0 2px 8px rgba(0,0,0,0.06);
+  --light-shadow-xl:   0 16px 60px rgba(0,0,0,0.11), 0 4px 16px rgba(0,0,0,0.07);
+}
+
+/* Light glassmorphic surfaces */
+.light-glass {
+  background:           rgba(255, 255, 255, 0.72);
+  backdrop-filter:      blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border:               1px solid rgba(255, 255, 255, 0.90);
+  box-shadow:           var(--light-shadow-md), inset 0 1px 0 rgba(255,255,255,1);
+}
+
+.light-glass-elevated {
+  background:           rgba(255, 255, 255, 0.88);
+  backdrop-filter:      blur(48px) saturate(2);
+  -webkit-backdrop-filter: blur(48px) saturate(2);
+  border:               1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:           var(--light-shadow-lg), inset 0 1px 0 rgba(255,255,255,1);
+}
+
+.light-glass-deep {
+  background:           rgba(245, 245, 247, 0.82);
+  backdrop-filter:      blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border:               1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:           var(--light-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+/* Engine toggle in light mode */
+.engine-toggle {
+  transition:    all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor:        pointer;
+  user-select:   none;
+  -webkit-user-select: none;
+}
+.engine-toggle:hover {
+  transform: translateY(-2px);
+}
+.engine-toggle-active {
+  background:  rgba(0, 122, 255, 0.09) !important;
+  border:      1px solid rgba(0, 122, 255, 0.32) !important;
+  box-shadow:  0 0 20px rgba(0, 122, 255, 0.14), var(--light-shadow-sm) !important;
+}
+
+/* Light shimmer (for loading states in light zones) */
+.shimmer-light {
+  background: linear-gradient(90deg,
+    rgba(0,0,0,0.03) 0%,
+    rgba(0,0,0,0.07) 50%,
+    rgba(0,0,0,0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Scrollbar for light surfaces */
+.light-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+.light-scroll::-webkit-scrollbar-track { background: transparent; }
+.light-scroll::-webkit-scrollbar-thumb {
+  background:    rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
+.light-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.22); }
+
+/* Colored accent glows for light mode */
+.ambient-blue-light  { background: radial-gradient(circle, rgba(0,122,255,0.07) 0%, transparent 70%); }
+.ambient-teal-light  { background: radial-gradient(circle, rgba(0,199,190,0.06) 0%, transparent 70%); }
+.ambient-gold-light  { background: radial-gradient(circle, rgba(255,214,10,0.06) 0%, transparent 70%); }
+
+/* Text gradients for light mode (same colors, still vivid) */
+.text-gradient-azure-light {
+  background: linear-gradient(135deg, #007AFF 0%, #5E5CE6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

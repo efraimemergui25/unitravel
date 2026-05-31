@@ -1,65 +1,149 @@
-import Image from "next/image";
+'use client';
+
+import dynamic from 'next/dynamic';
+import { useEffect, useRef }                    from 'react';
+import { LayoutGroup, motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext, DragEndEvent, DragStartEvent, DragOverlay,
+  PointerSensor, useSensor, useSensors, closestCenter,
+} from '@dnd-kit/core';
+import { NeuralStream }             from '@/components/NeuralStream';
+import { LiquidTimeline }           from '@/components/LiquidTimeline';
+import { DragOverlayEntity }        from '@/components/DraggableEntity';
+import { LocaleToggle }             from '@/components/LocaleToggle';
+import { NeuralOnboarding }         from '@/components/NeuralOnboarding';
+import { AnticipatoryToastStack }   from '@/components/AnticipatoryToast';
+import { HubNavigator }             from '@/components/HubNavigator';
+import { PlanningBoard }            from '@/components/PlanningBoard';
+import { LiveCursors }              from '@/components/LiveCursors';
+import { useTravelEngine }          from '@/store/useTravelEngine';
+import { useNavigationStore }       from '@/store/useNavigationStore';
+import { CrisisManager }            from '@/services/CrisisManager';
+import { useToastStore }            from '@/store/useToastStore';
+import { handleMasterEntityDrop }   from '@/utils/DropCascade';
+import { AggregatedResult }         from '@/services/OmniAggregator';
+
+const MexicoTerrain = dynamic(
+  () => import('@/components/background/MexicoTerrain').then(m => ({ default: m.MexicoTerrain })),
+  { ssr: false }
+);
+
+function UnitravelApp() {
+  const { setDragging, dragging, onboardingComplete } = useTravelEngine();
+  const { openHub } = useNavigationStore();
+  const managerRef  = useRef<CrisisManager | null>(null);
+
+  useEffect(() => {
+    if (!onboardingComplete) return;
+
+    const manager = new CrisisManager(
+      () => useTravelEngine.getState().days,
+      (event, mutations) => {
+        useTravelEngine.getState().applyMutations(mutations, event);
+        useToastStore.getState().addToast(event);
+      },
+    );
+    managerRef.current = manager;
+    manager.start(55_000);
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'K') manager.simulateCrisis();
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      manager.stop();
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onboardingComplete]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragStart = (e: DragStartEvent) => {
+    const { source } = e.active.data.current as { source: AggregatedResult };
+    if (source) setDragging(source);
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    setDragging(null);
+    const { over, active } = e;
+    if (!over) return;
+    const { source } = active.data.current as { source: AggregatedResult };
+    if (!source) return;
+
+    handleMasterEntityDrop(source, over.id as string).catch(console.error);
+  };
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <LayoutGroup>
+        <main className="relative flex h-screen w-screen overflow-hidden">
+          <MexicoTerrain />
+
+          <AnimatePresence>
+            {onboardingComplete && (
+              <motion.div
+                key="app-content"
+                className="contents"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                <div className="fixed top-4 z-50" style={{ insetInlineEnd: 80 }}>
+                  <LocaleToggle />
+                </div>
+                {/* Search button — floating top-start */}
+                <motion.button
+                  className="fixed top-4 z-50 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black"
+                  style={{
+                    insetInlineStart: 20,
+                    background:       'rgba(0,122,255,0.90)',
+                    backdropFilter:   'blur(20px)',
+                    boxShadow:        '0 4px 16px rgba(0,122,255,0.35)',
+                    color:            '#ffffff',
+                  }}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.4 }}
+                  whileHover={{ scale: 1.04, boxShadow: '0 6px 24px rgba(0,122,255,0.45)' }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={openHub}
+                >
+                  <span>✦</span>
+                  <span>Search</span>
+                </motion.button>
+                <NeuralStream />
+                <LiquidTimeline />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+      </LayoutGroup>
+
+      <AnimatePresence>
+        {!onboardingComplete && <NeuralOnboarding />}
+      </AnimatePresence>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.18,0.67,0.6,1.22)' }}>
+        {dragging && 'sourceCount' in dragging && (
+          <DragOverlayEntity entity={dragging as AggregatedResult} />
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <>
+      <UnitravelApp />
+      <AnticipatoryToastStack />
+      <HubNavigator />
+      <AnimatePresence>
+        <PlanningBoard />
+      </AnimatePresence>
+      <LiveCursors />
+    </>
   );
 }
