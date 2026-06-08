@@ -9,37 +9,31 @@ import { ZONE_ENGINES } from '@/lib/zoneEngines';
 type Mode = 'ai' | 'god';
 
 const SPRING     = { type: 'spring', stiffness: 400, damping: 25 } as const;
-const SPRING_POP = { type: 'spring', stiffness: 460, damping: 22 } as const;
+const SPRING_POP = { type: 'spring', stiffness: 480, damping: 22 } as const;
 const COLOR      = '#00C7BE';
 const GRADIENT   = 'linear-gradient(135deg, #00C7BE 0%, #007AFF 100%)';
 
-// AI curated for Tulum · Riviera Maya · Cabo · CDMX luxury honeymoon
 const AI_PICKS = new Set([
-  'booking', 'airbnb', 'hotels-com', 'expedia-h', 'marriott',
-  'four-seasons', 'rosewood', 'one-only', 'mr-mrs-smith', 'design-hotels',
+  'amadeus-hotels', 'booking', 'airbnb', 'hotels-com', 'expedia-h',
+  'marriott', 'four-seasons', 'rosewood', 'one-only', 'mr-mrs-smith',
+  'design-hotels',
 ]);
 
-const ENGINES    = ZONE_ENGINES['lodging'];
-
-const TIER_LABELS: Record<1 | 2 | 3, string> = {
-  1: '⭐ Global Leaders',
-  2: '◉ Luxury & Boutique',
-  3: '·  Extended Network',
-};
+const ENGINES = ZONE_ENGINES['lodging'];
 
 // ── Mode toggle ───────────────────────────────────────────────────────────────
 
 function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   return (
-    <LayoutGroup id="lodg-mode">
+    <LayoutGroup id="lodg-mode-strip">
       <div
         role="group"
         aria-label="Engine selection mode"
         style={{
           display:      'flex',
           padding:      3,
-          background:   'rgba(0,0,0,0.065)',
-          borderRadius: 12,
+          background:   'rgba(0,0,0,0.055)',
+          borderRadius: 10,
           gap:          2,
           flexShrink:   0,
         }}
@@ -52,13 +46,12 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
               role="radio"
               aria-checked={isActive}
               onClick={() => onChange(m)}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.95 }}
               transition={SPRING}
               style={{
-                flex:             1,
-                paddingBlock:     8,
-                paddingInline:    10,
-                borderRadius:     9,
+                paddingBlock:     7,
+                paddingInline:    12,
+                borderRadius:     7,
                 border:           'none',
                 cursor:           'pointer',
                 fontSize:         11,
@@ -71,15 +64,16 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
                 WebkitUserSelect: 'none',
                 zIndex:           1,
                 letterSpacing:    '-0.01em',
+                whiteSpace:       'nowrap',
               }}
             >
               {isActive && (
                 <motion.div
-                  layoutId="lodg-mode-pill"
+                  layoutId="lodg-mode-pill-strip"
                   style={{
                     position:     'absolute',
                     inset:        0,
-                    borderRadius: 9,
+                    borderRadius: 7,
                     background:   'rgba(255,255,255,0.95)',
                     boxShadow:    '0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1)',
                     zIndex:       -1,
@@ -87,7 +81,7 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
                   transition={SPRING}
                 />
               )}
-              {m === 'ai' ? '✦ AI Concierge' : '⚡ God-Mode'}
+              {m === 'ai' ? '✦ AI Pick' : '⚡ God Mode'}
             </motion.button>
           );
         })}
@@ -96,69 +90,60 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   );
 }
 
-// ── Engine button ─────────────────────────────────────────────────────────────
+// ── Glass Pill engine button ───────────────────────────────────────────────────
 
-const EngineButton = memo(function EngineButton({
+const GlassPill = memo(function GlassPill({
   id, name, icon, isActive, isAIPick, onToggle,
 }: {
-  id:       string;
-  name:     string;
-  icon:     string;
-  isActive: boolean;
-  isAIPick: boolean;
+  id: string; name: string; icon: string;
+  isActive: boolean; isAIPick: boolean;
   onToggle: () => void;
 }) {
   return (
     <motion.button
       onClick={onToggle}
       aria-pressed={isActive}
-      whileHover={{ scale: 1.05, y: -1 }}
-      whileTap={{ scale: 0.93 }}
-      animate={{
-        background: isActive ? `${COLOR}14` : 'rgba(0,0,0,0.04)',
-        boxShadow: isActive
-          ? `inset 0 0 0 1.5px ${COLOR}58,
-             inset 0 1px 0 rgba(255,255,255,0.88),
-             0 0 15px rgba(255,255,255,0.60),
-             0 4px 18px ${COLOR}22`
-          : 'inset 0 0 0 1px rgba(0,0,0,0.07)',
-        color:      isActive ? COLOR : '#3C3C43',
-        fontWeight: isActive ? 700 : 500,
+      whileHover={{ scale: 1.06, y: -1 }}
+      whileTap={{ scale: 0.94 }}
+      animate={isActive ? {
+        boxShadow: 'inset 0 0 10px rgba(255,255,255,0.8), 0 4px 14px rgba(0,199,190,0.16)',
+      } : {
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)',
       }}
-      transition={{ ...SPRING, boxShadow: { duration: 0.22 } }}
+      transition={{ ...SPRING_POP, boxShadow: { duration: 0.18 } }}
+      className={[
+        'px-5 py-2.5 rounded-full border backdrop-blur-md shadow-sm transition-all flex items-center gap-2 cursor-pointer font-medium',
+        isActive
+          ? 'bg-white/70 border-white shadow-[inset_0_2px_10px_rgba(255,255,255,1),0_4px_15px_rgba(0,0,0,0.05)]'
+          : 'bg-white/30 border-white/50 text-slate-700 hover:bg-white/50 hover:-translate-y-0.5',
+      ].join(' ')}
       style={{
-        position:           'relative',
-        display:            'flex',
-        alignItems:         'center',
-        gap:                4,
-        paddingBlock:       7,
-        paddingInlineStart: 7,
-        paddingInlineEnd:   isActive ? 5 : 8,
-        borderRadius:       9,
-        border:             'none',
-        cursor:             'pointer',
-        fontSize:           11,
-        letterSpacing:      '-0.01em',
-        userSelect:         'none',
-        WebkitUserSelect:   'none',
-        whiteSpace:         'nowrap',
-        fontFamily:         'inherit',
-        overflow:           'hidden',
-        minWidth:           0,
+        display:          'flex',
+        alignItems:       'center',
+        gap:              5,
+        fontSize:         11,
+        fontWeight:       isActive ? 700 : 500,
+        color:            isActive ? COLOR : '#3C3C43',
+        cursor:           'pointer',
+        fontFamily:       'inherit',
+        userSelect:       'none',
+        WebkitUserSelect: 'none',
+        whiteSpace:       'nowrap',
+        flexShrink:       0,
       }}
     >
       {isAIPick && (
         <motion.span
-          animate={{ color: isActive ? COLOR : '#C7C7CC' }}
-          style={{ fontSize: 7, flexShrink: 0, lineHeight: 1 }}
+          animate={{ color: isActive ? COLOR : 'rgba(174,174,178,0.7)', scale: isActive ? 1 : 0.8 }}
+          transition={SPRING}
+          style={{ fontSize: 7, lineHeight: 1, display: 'inline-block' }}
           aria-hidden
         >
           ✦
         </motion.span>
       )}
-      <span style={{ fontSize: 12, lineHeight: 1, flexShrink: 0 }} aria-hidden>{icon}</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{name}</span>
-
+      <span style={{ fontSize: 13, lineHeight: 1 }} aria-hidden>{icon}</span>
+      <span>{name}</span>
       <AnimatePresence>
         {isActive && (
           <motion.span
@@ -172,7 +157,7 @@ const EngineButton = memo(function EngineButton({
               width:          14,
               height:         14,
               borderRadius:   '50%',
-              background:     COLOR,
+              background:     GRADIENT,
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'center',
@@ -181,6 +166,7 @@ const EngineButton = memo(function EngineButton({
               color:          'white',
               flexShrink:     0,
               lineHeight:     1,
+              boxShadow:      `0 2px 6px ${COLOR}44`,
             }}
           >
             ✓
@@ -191,7 +177,7 @@ const EngineButton = memo(function EngineButton({
   );
 });
 
-// ── LodgingControl ────────────────────────────────────────────────────────────
+// ── LodgingControl — horizontal strip ────────────────────────────────────────
 
 export interface LodgingControlProps {
   onSearch:    (engineIds: string[]) => void;
@@ -205,8 +191,7 @@ export function LodgingControl({ onSearch, isSearching }: LodgingControlProps) {
   const toggleEngine = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }, []);
@@ -224,338 +209,195 @@ export function LodgingControl({ onSearch, isSearching }: LodgingControlProps) {
   const count = selected.size;
 
   return (
-    <motion.aside
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ ...SPRING, delay: 0.05 }}
-      style={{
-        width:                360,
-        minWidth:             360,
-        height:               '100%',
-        display:              'flex',
-        flexDirection:        'column',
-        background:           'rgba(255,255,255,0.90)',
-        backdropFilter:       'blur(48px) saturate(2)',
-        WebkitBackdropFilter: 'blur(48px) saturate(2)',
-        borderInlineEnd:      '1px solid rgba(0,0,0,0.06)',
-        boxShadow:            '2px 0 24px rgba(0,0,0,0.04)',
-        flexShrink:           0,
-        zIndex:               10,
-        position:             'relative',
-        overflow:             'hidden',
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...SPRING, delay: 0.08 }}
+      className="glass-panel mx-4 flex-shrink-0 overflow-hidden"
     >
-      {/* Ambient zone glow */}
+      {/* ── Controls bar ── */}
       <div
-        aria-hidden
         style={{
-          position:         'absolute',
-          insetBlockStart:  -60,
-          insetInlineStart: -60,
-          width:            260,
-          height:           260,
-          borderRadius:     '50%',
-          background:       `radial-gradient(circle, ${COLOR}10 0%, transparent 70%)`,
-          pointerEvents:    'none',
+          display:        'flex',
+          alignItems:     'center',
+          gap:            8,
+          paddingInline:  14,
+          paddingBlock:   10,
+          borderBlockEnd: '1px solid rgba(0,0,0,0.05)',
+          flexWrap:       'wrap',
+          rowGap:         8,
         }}
-      />
+      >
+        <ModeToggle mode={mode} onChange={handleModeChange} />
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-        {/* ── Header ────────────────────────────────────────────────── */}
-        <div
+        {/* Count badge */}
+        <motion.div
+          key={count}
+          initial={{ scale: 0.82 }}
+          animate={{ scale: 1 }}
+          transition={SPRING_POP}
+          aria-live="polite"
           style={{
-            paddingInline:     16,
-            paddingBlockStart: 16,
-            paddingBlockEnd:   14,
-            borderBlockEnd:    '1px solid rgba(0,0,0,0.05)',
-            background:        `linear-gradient(180deg, ${COLOR}09 0%, transparent 100%)`,
-            flexShrink:        0,
+            display:       'flex',
+            alignItems:    'center',
+            gap:           4,
+            paddingBlock:  4,
+            paddingInline: 9,
+            borderRadius:  999,
+            background:    count > 0 ? `${COLOR}14` : 'rgba(0,0,0,0.05)',
+            border:        `1.5px solid ${count > 0 ? `${COLOR}40` : 'rgba(0,0,0,0.08)'}`,
+            fontSize:      11,
+            fontWeight:    800,
+            color:         count > 0 ? COLOR : '#AEAEB2',
+            flexShrink:    0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBlockEnd: 14 }}>
+          {count > 0 && (
             <motion.span
-              animate={{ scale: [1, 1.10, 1] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.6, repeat: Infinity }}
+              style={{ width: 5, height: 5, borderRadius: '50%', background: COLOR, display: 'inline-block', flexShrink: 0 }}
               aria-hidden
-            >
-              🏨
-            </motion.span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                Hospitality Matrix
-              </p>
-              <p style={{ fontSize: 11, color: '#6E6E73', marginBlockStart: 2 }}>
-                30 global lodging engines · AI dedup
-              </p>
-            </div>
+            />
+          )}
+          {count}/30
+        </motion.div>
 
-            {/* Live count */}
-            <motion.div
-              key={count}
-              initial={{ scale: 0.82 }}
-              animate={{ scale: 1 }}
-              transition={SPRING_POP}
-              style={{
-                display:       'flex',
-                alignItems:    'center',
-                gap:           4,
-                paddingBlock:  4,
-                paddingInline: 9,
-                borderRadius:  999,
-                background:    count > 0 ? `${COLOR}16` : 'rgba(0,0,0,0.05)',
-                border:        `1.5px solid ${count > 0 ? `${COLOR}44` : 'rgba(0,0,0,0.09)'}`,
-                fontSize:      12,
-                fontWeight:    800,
-                color:         count > 0 ? COLOR : '#AEAEB2',
-                flexShrink:    0,
-                transition:    'all 0.22s ease',
-              }}
-              aria-live="polite"
-            >
-              {count > 0 && (
-                <motion.span
-                  animate={{ opacity: [0.4, 1, 0.4] }}
-                  transition={{ duration: 1.6, repeat: Infinity }}
-                  style={{ width: 5, height: 5, borderRadius: '50%', background: COLOR, display: 'inline-block', flexShrink: 0 }}
-                  aria-hidden
-                />
-              )}
-              {count}/30
-            </motion.div>
-          </div>
+        <div aria-hidden style={{ flex: 1 }} />
 
-          <ModeToggle mode={mode} onChange={handleModeChange} />
+        {/* AI Pick shortcut */}
+        <motion.button
+          onClick={() => { setMode('ai'); setSelected(new Set(AI_PICKS)); }}
+          whileHover={{ scale: 1.04, background: `${COLOR}10` }}
+          whileTap={{ scale: 0.96 }}
+          transition={SPRING}
+          style={{
+            paddingBlock: 6, paddingInline: 11, borderRadius: 8,
+            fontSize: 11, fontWeight: 700, color: COLOR,
+            background: `${COLOR}0A`, border: `1px solid ${COLOR}22`,
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          ✦ AI Pick
+        </motion.button>
 
-          <AnimatePresence mode="wait">
-            {mode === 'ai' ? (
-              <motion.p
-                key="ai"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                style={{ fontSize: 10.5, color: COLOR, lineHeight: 1.5, marginBlockStart: 10, fontWeight: 500 }}
-              >
-                ✦ Curated for Tulum · Riviera Maya · Cabo · CDMX luxury stays.
-                10 highest-trust engines selected. Duplicates auto-merged.
-              </motion.p>
-            ) : (
-              <motion.p
-                key="god"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                style={{ fontSize: 10.5, color: '#6E6E73', lineHeight: 1.5, marginBlockStart: 10 }}
-              >
-                Full manual control. Toggle any of the 30 global hospitality engines.
-              </motion.p>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* All 30 */}
+        <motion.button
+          onClick={() => setSelected(new Set(ENGINES.map(e => e.id)))}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          transition={SPRING}
+          style={{
+            paddingBlock: 6, paddingInline: 11, borderRadius: 8,
+            fontSize: 11, fontWeight: 700, color: '#3C3C43',
+            background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.08)',
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          All 30
+        </motion.button>
 
-        {/* ── Action strip ────────────────────────────────────────── */}
-        <div
+        {/* Clear */}
+        <motion.button
+          onClick={() => setSelected(new Set())}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          animate={{ color: count > 0 ? '#FF3B30' : '#AEAEB2', background: count > 0 ? 'rgba(255,59,48,0.07)' : 'rgba(0,0,0,0.04)' }}
+          transition={SPRING}
+          style={{
+            paddingBlock: 6, paddingInline: 11, borderRadius: 8,
+            fontSize: 11, fontWeight: 700,
+            border: `1px solid ${count > 0 ? 'rgba(255,59,48,0.18)' : 'rgba(0,0,0,0.07)'}`,
+            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+          }}
+        >
+          Clear
+        </motion.button>
+
+        {/* ── Launch search ── */}
+        <motion.button
+          onClick={handleSearch}
+          disabled={count === 0 || isSearching}
+          whileHover={count > 0 && !isSearching ? { scale: 1.04, boxShadow: `0 6px 20px ${COLOR}44` } : {}}
+          whileTap={count > 0 && !isSearching ? { scale: 0.97 } : {}}
+          animate={{ opacity: count > 0 ? 1 : 0.42 }}
+          transition={SPRING}
           style={{
             display:        'flex',
-            gap:            5,
-            paddingInline:  12,
-            paddingBlock:   9,
-            borderBlockEnd: '1px solid rgba(0,0,0,0.05)',
+            alignItems:     'center',
+            gap:            6,
+            paddingBlock:   8,
+            paddingInline:  18,
+            borderRadius:   10,
+            fontSize:       12,
+            fontWeight:     800,
+            color:          'white',
+            background:     count > 0 ? GRADIENT : 'rgba(0,0,0,0.12)',
+            border:         'none',
+            cursor:         count > 0 && !isSearching ? 'pointer' : 'default',
+            boxShadow:      count > 0 ? `0 3px 12px ${COLOR}38` : 'none',
+            letterSpacing:  '-0.01em',
+            fontFamily:     'inherit',
             flexShrink:     0,
+            whiteSpace:     'nowrap',
           }}
         >
-          <motion.button
-            onClick={() => setSelected(new Set(ENGINES.map(e => e.id)))}
-            whileHover={{ scale: 1.03, boxShadow: `0 5px 18px ${COLOR}44` }}
-            whileTap={{ scale: 0.97 }}
-            transition={SPRING}
-            style={{
-              flex:           1,
-              paddingBlock:   7,
-              paddingInline:  10,
-              borderRadius:   9,
-              fontSize:       11,
-              fontWeight:     800,
-              color:          'white',
-              background:     GRADIENT,
-              border:         'none',
-              cursor:         'pointer',
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              gap:            5,
-              boxShadow:      `0 3px 10px ${COLOR}38`,
-              letterSpacing:  '-0.01em',
-              fontFamily:     'inherit',
-            }}
-          >
+          {isSearching ? (
             <motion.span
               animate={{ rotate: [0, 360] }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
-              style={{ display: 'inline-block', fontSize: 10 }}
+              transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
+              style={{ display: 'inline-block', fontSize: 11 }}
               aria-hidden
-            >
-              ✦
-            </motion.span>
-            Omni-Search
-          </motion.button>
-
-          <motion.button
-            onClick={() => { setMode('ai'); setSelected(new Set(AI_PICKS)); }}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            transition={SPRING}
-            style={{
-              paddingBlock:  7,
-              paddingInline: 10,
-              borderRadius:  9,
-              fontSize:      11,
-              fontWeight:    700,
-              color:         '#1D1D1F',
-              background:    'rgba(0,0,0,0.05)',
-              border:        '1px solid rgba(0,0,0,0.08)',
-              cursor:        'pointer',
-              fontFamily:    'inherit',
-              whiteSpace:    'nowrap',
-            }}
-          >
-            AI Pick
-          </motion.button>
-
-          <motion.button
-            onClick={() => setSelected(new Set())}
-            whileHover={{ scale: 1.04, background: 'rgba(255,59,48,0.10)', color: '#FF3B30' }}
-            whileTap={{ scale: 0.96 }}
-            transition={SPRING}
-            animate={{
-              color:      count > 0 ? '#FF3B30' : '#AEAEB2',
-              background: count > 0 ? 'rgba(255,59,48,0.07)' : 'rgba(0,0,0,0.04)',
-            }}
-            style={{
-              paddingBlock:  7,
-              paddingInline: 10,
-              borderRadius:  9,
-              fontSize:      11,
-              fontWeight:    700,
-              border:        `1px solid ${count > 0 ? 'rgba(255,59,48,0.18)' : 'rgba(0,0,0,0.08)'}`,
-              cursor:        'pointer',
-              fontFamily:    'inherit',
-            }}
-          >
-            Clear
-          </motion.button>
-        </div>
-
-        {/* ── Engine grid ─────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 11px 6px', minHeight: 0 }}>
-          {([1, 2, 3] as const).map(tier => {
-            const tierEngines = ENGINES.filter(e => e.tier === tier);
-            return (
-              <div key={tier} style={{ marginBlockEnd: 12 }}>
-                <p
-                  style={{
-                    fontSize:       9,
-                    fontWeight:     700,
-                    color:          '#AEAEB2',
-                    textTransform:  'uppercase',
-                    letterSpacing:  '0.07em',
-                    paddingInline:  3,
-                    marginBlockEnd: 6,
-                  }}
-                >
-                  {TIER_LABELS[tier]}
-                </p>
-                <div
-                  style={{
-                    display:             'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))',
-                    gap:                 4,
-                  }}
-                >
-                  {tierEngines.map(engine => (
-                    <EngineButton
-                      key={engine.id}
-                      id={engine.id}
-                      name={engine.name}
-                      icon={engine.icon}
-                      isActive={selected.has(engine.id)}
-                      isAIPick={AI_PICKS.has(engine.id)}
-                      onToggle={() => toggleEngine(engine.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── Launch CTA ───────────────────────────────────────────── */}
-        <div
-          style={{
-            paddingInline:    12,
-            paddingBlock:     12,
-            borderBlockStart: '1px solid rgba(0,0,0,0.05)',
-            flexShrink:       0,
-          }}
-        >
-          <motion.button
-            onClick={handleSearch}
-            disabled={count === 0 || isSearching}
-            whileHover={count > 0 && !isSearching ? { scale: 1.02, boxShadow: `0 8px 28px ${COLOR}4C` } : {}}
-            whileTap={count > 0 && !isSearching ? { scale: 0.98 } : {}}
-            animate={{ opacity: count > 0 ? 1 : 0.46 }}
-            transition={SPRING}
-            style={{
-              width:          '100%',
-              paddingBlock:   14,
-              borderRadius:   14,
-              fontSize:       13,
-              fontWeight:     800,
-              color:          'white',
-              background:     count > 0 ? GRADIENT : 'rgba(0,0,0,0.12)',
-              border:         'none',
-              cursor:         count > 0 && !isSearching ? 'pointer' : 'default',
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              gap:            8,
-              boxShadow:      count > 0 ? `0 4px 18px ${COLOR}38` : 'none',
-              letterSpacing:  '-0.01em',
-              fontFamily:     'inherit',
-              transition:     'background 0.25s ease',
-            }}
-          >
-            {isSearching ? (
-              <>
-                <motion.span
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
-                  style={{ display: 'inline-block', fontSize: 12 }}
-                  aria-hidden
-                >
-                  ✦
-                </motion.span>
-                Scanning {count} engines…
-              </>
-            ) : count > 0 ? (
-              <>
-                <motion.span
-                  animate={{ scale: [1, 1.5, 1], opacity: [0.7, 1, 0.7] }}
-                  transition={{ duration: 1.6, repeat: Infinity }}
-                  style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'inline-block', flexShrink: 0 }}
-                  aria-hidden
-                />
-                Search {count} engines →
-              </>
-            ) : (
-              'Select engines to search'
-            )}
-          </motion.button>
-        </div>
+            >✦</motion.span>
+          ) : (
+            <motion.span
+              animate={{ scale: [1, 1.4, 1], opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 1.6, repeat: Infinity }}
+              style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'inline-block', flexShrink: 0 }}
+              aria-hidden
+            />
+          )}
+          {isSearching ? `Scanning ${count}…` : `Search ${count} hotels`}
+        </motion.button>
       </div>
-    </motion.aside>
+
+      {/* ── Glass pills strip ── */}
+      <div
+        className="flex flex-row overflow-x-auto gap-2 no-scrollbar"
+        style={{ paddingInline: 14, paddingBlock: 10 }}
+        aria-label="Hotel engine selector"
+      >
+        {ENGINES.map(engine => (
+          <GlassPill
+            key={engine.id}
+            id={engine.id}
+            name={engine.name}
+            icon={engine.icon}
+            isActive={selected.has(engine.id)}
+            isAIPick={AI_PICKS.has(engine.id)}
+            onToggle={() => toggleEngine(engine.id)}
+          />
+        ))}
+      </div>
+
+      {/* AI caption */}
+      <AnimatePresence mode="wait">
+        {mode === 'ai' && (
+          <motion.p
+            key="ai-cap"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              fontSize: 10, color: COLOR, fontWeight: 500,
+              paddingInline: 14, paddingBlockEnd: 10, lineHeight: 1.6,
+            }}
+          >
+            ✦ AI optimized: {AI_PICKS.size} top-trust lodging engines selected.
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

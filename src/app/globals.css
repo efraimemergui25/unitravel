@@ -71,12 +71,25 @@ html {
 }
 
 body {
-  background:  var(--surface-base);
+  background:  linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   color:       var(--text-primary);
   font-family: var(--font-sans);
   overflow:    hidden;
   height:      100dvh;
   width:       100vw;
+}
+
+/* ── Glass Panel — the core surface unit ─────────────────── */
+@layer utilities {
+  .glass-panel {
+    background-color: rgba(255, 255, 255, 0.45);
+    backdrop-filter:  blur(40px) saturate(150%);
+    border:           1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:       0 8px 32px 0 rgba(31, 38, 135, 0.05);
+    border-radius:    1.5rem;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 /* ── Scrollbars ───────────────────────────────────────────── */

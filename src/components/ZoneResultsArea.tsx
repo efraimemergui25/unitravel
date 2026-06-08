@@ -53,6 +53,7 @@ const MOCK_RESULTS: Record<ZoneId, Array<{ id: string; title: string; subtitle: 
     { id: 't5', title: 'Private Driver Package',      subtitle: 'Tulum 3-day',          price: 350, badge: 'Premium',     confidence: 0.90 },
     { id: 't6', title: 'LATAM Shuttle Cancún',        subtitle: 'Airport→resort',       price: 32,  badge: undefined,     confidence: 0.79 },
   ],
+  map: [],
 };
 
 // ── ShimmerCard ───────────────────────────────────────────────────────────────

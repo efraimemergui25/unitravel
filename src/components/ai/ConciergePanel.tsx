@@ -19,17 +19,6 @@ import { ChatHistoryAccordion } from './ChatHistoryAccordion';
 const AZURE  = '#007AFF';
 const SPRING = { type: 'spring', stiffness: 280, damping: 28 } as const;
 
-const TRIP_CONTEXT = {
-  tripTitle:   'Mexico 2026',
-  travelers:   ['Effi', 'Nofar'],
-  destination: 'Mexico City',
-  startDate:   'Oct 1, 2026',
-  endDate:     'Oct 14, 2026',
-  budget:      { total: 14000, spent: 4200, burnRate: 0.30, projected: 11200 },
-  dnaProfile:  null,
-  activeDay:   null,
-} as const;
-
 // ── Map DynamicToolUIPart state → ExecutionPill ExecState ─────────────────────
 
 function toExecState(state: string): 'executing' | 'done' | 'error' {
@@ -40,13 +29,17 @@ function toExecState(state: string): 'executing' | 'done' | 'error' {
 
 // ── DraggableEntityCard ───────────────────────────────────────────────────────
 
+type SuggestedEntity = {
+  title: string; subtitle: string; price: number;
+  category: string; dayId: string; reason: string; sourceId?: string;
+};
+
 function DraggableEntityCard({
   entity,
+  onPlace,
 }: {
-  entity: {
-    title: string; subtitle: string; price: number;
-    category: string; dayId: string; reason: string;
-  };
+  entity: SuggestedEntity;
+  onPlace: (entity: SuggestedEntity) => void;
 }) {
   return (
     <motion.div
@@ -54,14 +47,7 @@ function DraggableEntityCard({
       dragElastic={0.18}
       dragMomentum={false}
       whileDrag={{ scale: 1.04, boxShadow: '0 12px 40px rgba(0,122,255,0.22)' }}
-      onDragEnd={() =>
-        document.dispatchEvent(new CustomEvent('unitravel:zone-drag-commit', {
-          detail: {
-            type: 'flight', title: entity.title, subtitle: entity.subtitle,
-            price: entity.price, currency: 'USD', sourceZone: entity.category,
-          },
-        }))
-      }
+      onDragEnd={() => onPlace(entity)}
       style={{
         padding: '10px 13px', borderRadius: 14,
         background: 'rgba(255,255,255,0.92)',
@@ -89,12 +75,22 @@ function DraggableEntityCard({
           ${entity.price.toLocaleString()}
         </div>
       </div>
-      <div style={{
-        marginTop: 7, fontSize: 9.5, color: 'var(--text-tertiary)',
-        display: 'flex', alignItems: 'center', gap: 4,
-      }}>
-        <span style={{ opacity: 0.6 }}>⠿</span>
-        <span>Drag to timeline</span>
+      <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 9.5, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ opacity: 0.6 }}>⠿</span>
+          Drag or
+        </span>
+        <button
+          onClick={() => onPlace(entity)}
+          style={{
+            fontSize: 9, fontWeight: 700, paddingBlock: 3, paddingInline: 8,
+            borderRadius: 7, cursor: 'pointer',
+            background: 'rgba(0,122,255,0.09)', border: '1px solid rgba(0,122,255,0.20)',
+            color: '#007AFF',
+          }}
+        >
+          Add to Day {entity.dayId.replace('day-', '')}
+        </button>
       </div>
     </motion.div>
   );
@@ -109,9 +105,11 @@ function TextBubble({
     <div style={{
       maxWidth: '86%', padding: '9px 13px',
       borderRadius: isUser ? '14px 14px 4px 14px' : '4px 14px 14px 14px',
-      background:   isUser ? 'rgba(0,122,255,0.92)' : 'rgba(255,255,255,0.90)',
-      border:       isUser ? 'none' : '1px solid rgba(0,0,0,0.06)',
-      boxShadow:    isUser ? '0 3px 12px rgba(0,122,255,0.28)' : 'var(--shadow-sm)',
+      background:   isUser ? 'rgba(0,122,255,0.92)' : 'rgba(255,255,255,0.50)',
+      backdropFilter: isUser ? undefined : 'blur(12px)',
+      WebkitBackdropFilter: isUser ? undefined : 'blur(12px)',
+      border:       isUser ? 'none' : '1px solid rgba(255,255,255,0.40)',
+      boxShadow:    isUser ? '0 3px 12px rgba(0,122,255,0.28)' : '0 2px 8px rgba(0,0,0,0.04)',
       fontSize: 12.5, lineHeight: 1.6, fontWeight: 500,
       color: isUser ? '#fff' : 'var(--text-primary)',
       letterSpacing: '-0.01em', direction: isHe ? 'rtl' : 'ltr', whiteSpace: 'pre-wrap',
@@ -123,7 +121,7 @@ function TextBubble({
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export function ConciergePanel() {
+export function ConciergePanel({ fitParent = false }: { fitParent?: boolean }) {
   const router               = useRouter();
   const { profile }             = useLocaleEngine();
   const locale                  = profile.locale;
@@ -131,10 +129,38 @@ export function ConciergePanel() {
   const [inputVal, setInputVal] = useState('');
   const [focused, setFocused]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const messagesEndRef          = useRef<HTMLDivElement>(null);
-  const navigatedRef            = useRef(new Set<string>());
-  const syncedMsgIds            = useRef(new Set<string>());
-  const addChatMessage          = useTravelEngine(s => s.addChatMessage);
+  const messagesEndRef              = useRef<HTMLDivElement>(null);
+  const navigatedRef                = useRef(new Set<string>());
+  const syncedMsgIds                = useRef(new Set<string>());
+  const appliedToolCalls            = useRef(new Set<string>());
+  const addChatMessage              = useTravelEngine(s => s.addChatMessage);
+  const placeEntity                 = useTravelEngine(s => s.placeEntity);
+  const calculatePredictiveBudget   = useTravelEngine(s => s.calculatePredictiveBudget);
+  const patchDNA                    = useTravelEngine(s => s.patchDNA);
+  const trip                        = useTravelEngine(s => s.trip);
+  const budget                      = useTravelEngine(s => s.budget);
+  const dnaProfile                  = useTravelEngine(s => s.dnaProfile);
+  const activeDay                   = useTravelEngine(s => s.activeDay);
+  const days                        = useTravelEngine(s => s.days);
+
+  // Build live trip context from store — never hardcoded
+  const uniqueDestinations = [...new Set(days.map(d => d.destination))].filter(Boolean);
+  const tripContext = {
+    tripTitle:   trip.title  || 'New Trip',
+    travelers:   trip.travelers,
+    destination: uniqueDestinations[0] ?? '',
+    startDate:   trip.startDate,
+    endDate:     trip.endDate,
+    budget:      {
+      total:       budget.total,
+      spent:       budget.spent,
+      burnRate:    budget.burnRate,
+      projected:   budget.projected,
+      overBudgetBy: budget.overBudgetBy,
+    },
+    dnaProfile,
+    activeDay,
+  };
 
   const placeholder      = getChatPlaceholder(locale);
   const suggestedPrompts = getSuggestedPrompts(locale);
@@ -144,7 +170,7 @@ export function ConciergePanel() {
   const { messages, sendMessage, status, stop } = useChat<UIMessage>({
     transport: new DefaultChatTransport({
       api:  '/api/chat',
-      body: { context: TRIP_CONTEXT },
+      body: { context: tripContext },
     }),
     messages: [{
       id:    'aria-intro',
@@ -174,6 +200,67 @@ export function ConciergePanel() {
       }
     }
   }, [messages, router]);
+
+  // Apply AI tool results to Zustand store
+  useEffect(() => {
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue;
+      for (const part of msg.parts) {
+        if (part.type !== 'dynamic-tool') continue;
+        const dp = part as DynamicToolUIPart;
+        if (dp.state !== 'output-available') continue;
+        const key = dp.toolCallId;
+        if (appliedToolCalls.current.has(key)) continue;
+        appliedToolCalls.current.add(key);
+
+        if (dp.toolName === 'adjustFinancialModel') {
+          calculatePredictiveBudget();
+        }
+        if (dp.toolName === 'adjustDNA') {
+          const output = dp.output as { field: string; value: number } | undefined;
+          if (output?.field && typeof output.value === 'number') {
+            patchDNA(output.field, output.value);
+          }
+        }
+      }
+    }
+  }, [messages, calculatePredictiveBudget, patchDNA]);
+
+  // handlePlace: build a synthetic AggregatedResult and call placeEntity
+  const handlePlace = useCallback((entity: SuggestedEntity) => {
+    const storeState = useTravelEngine.getState();
+    const targetDayId = entity.dayId;
+    if (!storeState.days.some(d => d.id === targetDayId)) return;
+
+    const syntheticSource = {
+      id:                   entity.sourceId ?? `ai-placed-${Date.now()}`,
+      category:             (entity.category === 'hotel' ? 'hotel' : entity.category === 'restaurant' ? 'restaurant' : 'flight') as 'flight' | 'hotel' | 'restaurant',
+      airline:              entity.title,
+      route:                entity.subtitle,
+      price:                entity.price,
+      departure:            '10:00',
+      arrival:              '12:00',
+      durationMin:          0,
+      durationLabel:        '',
+      stops:                0,
+      class:                'Economy' as const,
+      aiConfidence:         0.9,
+      tags:                 [],
+      sourceCount:          1,
+      sources:              ['AI Concierge'],
+      origin:               '',
+      destination:          '',
+      carbonKg:             0,
+      carbonLabel:          '',
+      carbonAlternative:    '',
+      priceRange:           [entity.price, entity.price] as [number, number],
+      priceDropProbability: 0,
+      seats:                0,
+      refundable:           false,
+      flightNumber:         '',
+    };
+    placeEntity(targetDayId, syntheticSource as Parameters<typeof placeEntity>[1]);
+  }, [placeEntity]);
 
   // Sync new messages to categorical chat memory in Zustand
   useEffect(() => {
@@ -226,17 +313,13 @@ export function ConciergePanel() {
       animate={{ x: 0, opacity: 1 }}
       transition={{ ...SPRING, delay: 0.15 }}
       style={{
-        flex:                 '0 0 clamp(280px, 32%, 400px)',
-        display:              'flex',
-        flexDirection:        'column',
-        height:               '100dvh',
-        background:           'rgba(255,255,255,0.78)',
-        backdropFilter:       'blur(48px) saturate(1.9)',
-        WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
-        borderInlineStart:    '1px solid rgba(0,0,0,0.06)',
-        boxShadow:            'inset 1px 0 0 rgba(255,255,255,1)',
-        position:             'relative',
-        overflow:             'hidden',
+        flex:     fitParent ? '1 1 auto' : undefined,
+        width:    fitParent ? undefined : '100%',
+        display:  'flex',
+        flexDirection: 'column',
+        height:   '100%',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Specular top highlight */}
@@ -348,11 +431,11 @@ export function ConciergePanel() {
                   const dp    = part as DynamicToolUIPart;
                   const state = toExecState(dp.state);
 
-                  // mutateTimeline confirmed → draggable card
+                  // mutateTimeline confirmed → draggable card with direct place
                   if (dp.toolName === 'mutateTimeline' && state === 'done') {
                     const res = dp.output as {
                       requiresConfirmation: boolean;
-                      entity: Parameters<typeof DraggableEntityCard>[0]['entity'];
+                      entity: SuggestedEntity;
                     } | undefined;
                     if (res?.requiresConfirmation && res.entity) {
                       return (
@@ -363,7 +446,7 @@ export function ConciergePanel() {
                             state={state}
                             result={dp.output}
                           />
-                          <DraggableEntityCard entity={res.entity} />
+                          <DraggableEntityCard entity={res.entity} onPlace={handlePlace} />
                         </div>
                       );
                     }

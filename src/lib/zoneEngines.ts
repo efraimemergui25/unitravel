@@ -1,6 +1,6 @@
 // Zone engine definitions — pure data, no React/UI imports.
 
-export type ZoneId = 'flights' | 'lodging' | 'dining' | 'attractions' | 'transit';
+export type ZoneId = 'flights' | 'lodging' | 'dining' | 'attractions' | 'transit' | 'map';
 
 export interface Engine {
   id:   string;
@@ -15,6 +15,7 @@ export const ZONE_META: Record<ZoneId, { label: string; icon: string; color: str
   dining:      { label: 'Dining',      icon: '🍽',  color: '#FF9F0A', gradient: 'linear-gradient(135deg, #FF9F0A, #FF6B6B)' },
   attractions: { label: 'Attractions', icon: '🎭',  color: '#30D158', gradient: 'linear-gradient(135deg, #30D158, #00C7BE)' },
   transit:     { label: 'Transit',     icon: '🚗',  color: '#BF5AF2', gradient: 'linear-gradient(135deg, #BF5AF2, #5E5CE6)' },
+  map:         { label: 'Map',         icon: '🗺',  color: '#5E5CE6', gradient: 'linear-gradient(135deg, #5E5CE6, #007AFF)' },
 };
 
 export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
@@ -22,6 +23,7 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Flights ──────────────────────────────────────────────────────────────────
 
   flights: [
+    { id: 'amadeus',         name: 'Amadeus GDS',     icon: '✈️', tier: 1 },
     { id: 'google-flights',  name: 'Google Flights',  icon: '🔍', tier: 1 },
     { id: 'kayak',           name: 'Kayak',           icon: '🎯', tier: 1 },
     { id: 'skyscanner',      name: 'Skyscanner',      icon: '🛸', tier: 1 },
@@ -57,6 +59,7 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Lodging ───────────────────────────────────────────────────────────────────
 
   lodging: [
+    { id: 'amadeus-hotels',  name: 'Amadeus Hotels',  icon: '🏢', tier: 1 },
     { id: 'airbnb',          name: 'Airbnb',          icon: '🏠', tier: 1 },
     { id: 'booking',         name: 'Booking.com',     icon: '📘', tier: 1 },
     { id: 'hotels-com',      name: 'Hotels.com',      icon: '🏨', tier: 1 },
@@ -194,4 +197,5 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
     { id: 'gett',            name: 'Gett',            icon: '🟦', tier: 3 },
   ],
 
+  map: [],
 };

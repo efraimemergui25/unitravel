@@ -195,9 +195,10 @@ function DayCard({
   isLocked:   boolean;
   onActivate: () => void;
 }) {
-  // Local entity order — syncs from Zustand when new entities arrive
   const [entities, setEntities] = useState<PlacedEntity[]>(() => [...day.entities]);
+  const [isHovered, setIsHovered] = useState(false);
   const reorderDayEntities = useTravelEngine(s => s.reorderDayEntities);
+  const isDragging = useTravelEngine(s => s.dragging !== null);
 
   useEffect(() => {
     setEntities(prev => {
@@ -224,30 +225,39 @@ function DayCard({
 
   const totalDayCost = entities.reduce((s, e) => s + e.price, 0);
 
+  const dragHoverActive = isDragging && isHovered;
+
   return (
     <motion.div
       layout
       data-day-id={day.id}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       animate={{
-        scale:     isLocked ? [1, 1.018, 1] : 1,
-        boxShadow: isActive
-          ? `0 0 0 2px ${destColor}3A, 0 8px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)`
-          : `0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.85)`,
+        scale: dragHoverActive ? 1.02 : isLocked ? [1, 1.018, 1] : 1,
+        boxShadow: dragHoverActive
+          ? `inset 0 0 20px rgba(255,255,255,0.7), 0 12px 32px rgba(0,122,255,0.18), 0 0 0 2px ${destColor}55`
+          : isActive
+          ? `0 0 0 2px ${destColor}3A, 0 8px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.8)`
+          : `0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.7)`,
       }}
       transition={{
         scale:     { type: 'spring', stiffness: 540, damping: 18 },
-        boxShadow: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
+        boxShadow: { duration: 0.25, ease: [0.22, 1, 0.36, 1] },
       }}
       onClick={onActivate}
       style={{
-        background:           isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.78)',
-        backdropFilter:       'blur(32px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(32px) saturate(1.8)',
-        borderRadius:         16,
-        border:               isActive
+        background:           isActive ? 'rgba(255,255,255,0.60)' : 'rgba(255,255,255,0.30)',
+        backdropFilter:       'blur(24px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+        borderRadius:         32,
+        border:               dragHoverActive
+          ? `1.5px solid ${destColor}55`
+          : isActive
           ? `1.5px solid ${destColor}28`
-          : '1.5px solid rgba(255,255,255,0.92)',
-        padding:              '12px 12px 10px',
+          : '1.5px solid rgba(255,255,255,0.40)',
+        padding:              '24px 24px 20px',
+        minHeight:            150,
         cursor:               'pointer',
         position:             'relative',
         overflow:             'hidden',
@@ -430,7 +440,7 @@ function DestinationSection({
         position:       'sticky',
         top:            0,
         zIndex:         10,
-        background:     'linear-gradient(to bottom, var(--surface-base) 70%, transparent)',
+        background:     'linear-gradient(to bottom, rgba(242,242,247,0.94) 70%, transparent)',
       }}>
         <motion.div
           animate={{

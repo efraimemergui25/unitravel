@@ -123,7 +123,26 @@ export interface AggregatedDining {
   tags:              string[];
 }
 
-export type AggregatedResult = AggregatedFlight | AggregatedLodging | AggregatedDining;
+export interface AggregatedActivity {
+  id:            string;
+  category:      'activity';
+  sources:       string[];
+  sourceCount:   number;
+  aiConfidence:  number;
+  title:         string;
+  location:      string;
+  destination:   string;
+  type:          string;
+  durationHours: number;
+  pricePerPerson: number;
+  rating:        number;
+  difficulty:    string;
+  bestTimeOfDay: string;
+  aiHighlight:   string;
+  tags:          string[];
+}
+
+export type AggregatedResult = AggregatedFlight | AggregatedLodging | AggregatedDining | AggregatedActivity;
 
 export interface AggregationBatch {
   query:          string;

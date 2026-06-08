@@ -9,7 +9,7 @@ import { ZONE_ENGINES } from '@/lib/zoneEngines';
 type Mode = 'ai' | 'god';
 
 const SPRING     = { type: 'spring', stiffness: 400, damping: 25 } as const;
-const SPRING_POP = { type: 'spring', stiffness: 460, damping: 22 } as const;
+const SPRING_POP = { type: 'spring', stiffness: 480, damping: 22 } as const;
 const COLOR      = '#BF5AF2';
 const GRADIENT   = 'linear-gradient(135deg, #BF5AF2 0%, #5E5CE6 100%)';
 
@@ -20,24 +20,18 @@ const AI_PICKS = new Set([
 
 const ENGINES = ZONE_ENGINES['transit'];
 
-const TIER_LABELS: Record<1 | 2 | 3, string> = {
-  1: '⭐ Core Mobility Platforms',
-  2: '◉ Car Rental & Rides',
-  3: '·  Rail, Bus & Niche',
-};
-
 // ── Mode toggle ───────────────────────────────────────────────────────────────
 
 function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   return (
-    <LayoutGroup id="transit-mode">
+    <LayoutGroup id="transit-mode-strip">
       <div
         role="group"
         aria-label="Engine selection mode"
         style={{
           display: 'flex', padding: 3,
-          background: 'rgba(0,0,0,0.065)',
-          borderRadius: 12, gap: 2, flexShrink: 0,
+          background: 'rgba(0,0,0,0.055)',
+          borderRadius: 10, gap: 2, flexShrink: 0,
         }}
       >
         {(['ai', 'god'] as Mode[]).map(m => {
@@ -48,24 +42,24 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
               role="radio"
               aria-checked={isActive}
               onClick={() => onChange(m)}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.95 }}
               transition={SPRING}
               style={{
-                flex: 1, paddingBlock: 8, paddingInline: 10,
-                borderRadius: 9, border: 'none', cursor: 'pointer',
+                paddingBlock: 7, paddingInline: 12,
+                borderRadius: 7, border: 'none', cursor: 'pointer',
                 fontSize: 11, fontWeight: isActive ? 800 : 500,
                 fontFamily: 'inherit', position: 'relative',
                 background: 'none',
                 color: isActive ? COLOR : '#6E6E73',
                 userSelect: 'none', WebkitUserSelect: 'none',
-                zIndex: 1, letterSpacing: '-0.01em',
+                zIndex: 1, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
               }}
             >
               {isActive && (
                 <motion.div
-                  layoutId="transit-mode-pill"
+                  layoutId="transit-mode-pill-strip"
                   style={{
-                    position: 'absolute', inset: 0, borderRadius: 9,
+                    position: 'absolute', inset: 0, borderRadius: 7,
                     background: 'rgba(255,255,255,0.95)',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1)',
                     zIndex: -1,
@@ -82,58 +76,55 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   );
 }
 
-// ── Engine button ─────────────────────────────────────────────────────────────
+// ── Glass pill engine button ──────────────────────────────────────────────────
 
-const EngineButton = memo(function EngineButton({
+const GlassPill = memo(function GlassPill({
   id, name, icon, isActive, isAIPick, onToggle,
 }: {
-  id:       string;
-  name:     string;
-  icon:     string;
-  isActive: boolean;
-  isAIPick: boolean;
+  id: string; name: string; icon: string;
+  isActive: boolean; isAIPick: boolean;
   onToggle: () => void;
 }) {
   return (
     <motion.button
       onClick={onToggle}
       aria-pressed={isActive}
-      whileHover={{ scale: 1.05, y: -1 }}
+      whileHover={{ y: -2, scale: 1.03 }}
       whileTap={{ scale: 0.93 }}
-      animate={{
-        background: isActive ? `${COLOR}14` : 'rgba(0,0,0,0.04)',
-        boxShadow: isActive
-          ? `inset 0 0 0 1.5px ${COLOR}58, inset 0 1px 0 rgba(255,255,255,0.88), 0 0 15px rgba(255,255,255,0.60), 0 4px 18px ${COLOR}22`
-          : 'inset 0 0 0 1px rgba(0,0,0,0.07)',
-      }}
-      transition={{ ...SPRING, duration: 0.2 }}
+      transition={{ ...SPRING, duration: 0.18 }}
+      className={[
+        'px-5 py-2.5 rounded-full border backdrop-blur-md shadow-sm transition-all flex items-center gap-2 cursor-pointer font-medium',
+        isActive
+          ? 'bg-white/70 border-white shadow-[inset_0_2px_10px_rgba(255,255,255,1),0_4px_15px_rgba(0,0,0,0.05)]'
+          : 'bg-white/30 border-white/50 text-slate-700 hover:bg-white/50 hover:-translate-y-0.5',
+      ].join(' ')}
       style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        gap: 5, paddingBlock: 9, paddingInline: 7,
-        borderRadius: 12, border: 'none', cursor: 'pointer',
-        position: 'relative', fontFamily: 'inherit', minWidth: 0,
+        position: 'relative',
+        fontFamily: 'inherit',
+        flexShrink: 0,
       }}
     >
+      {/* AI-pick indicator */}
       {isAIPick && (
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={SPRING_POP}
           style={{
-            position: 'absolute', top: 4, insetInlineEnd: 4,
-            width: 7, height: 7, borderRadius: '50%',
-            background: COLOR, boxShadow: `0 0 5px ${COLOR}`,
+            position: 'absolute', top: 3, insetInlineEnd: 3,
+            width: 5, height: 5, borderRadius: '50%',
+            background: COLOR, boxShadow: `0 0 4px ${COLOR}CC`,
           }}
           aria-hidden
         />
       )}
-      <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
       <span style={{
-        fontSize: 8.5, fontWeight: isActive ? 800 : 500,
+        fontSize: 9.5,
+        fontWeight: isActive ? 800 : 500,
         color: isActive ? COLOR : '#6E6E73',
-        letterSpacing: '-0.01em', textAlign: 'center',
-        lineHeight: 1.2, whiteSpace: 'nowrap',
-        overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 58,
+        letterSpacing: '-0.01em',
+        whiteSpace: 'nowrap',
       }}>
         {name}
       </span>
@@ -156,7 +147,7 @@ export function TransitControl({ onSearch, isSearching }: TransitControlProps) {
     () => new Set(ENGINES.filter(e => AI_PICKS.has(e.id)).map(e => e.id)),
   );
 
-  const toggle = useCallback((id: string) => {
+  const toggleEngine = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -177,164 +168,144 @@ export function TransitControl({ onSearch, isSearching }: TransitControlProps) {
     onSearch([...selected]);
   }, [selected, isSearching, onSearch]);
 
-  const count  = selected.size;
-  const byTier = [1, 2, 3] as const;
+  const count = selected.size;
 
   return (
-    <motion.aside
-      initial={{ x: -24, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 28, delay: 0.08 }}
-      style={{
-        width: 360, flexShrink: 0, height: '100%',
-        display: 'flex', flexDirection: 'column',
-        background: 'rgba(255,255,255,0.82)',
-        backdropFilter: 'blur(48px) saturate(1.9)',
-        WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
-        borderInlineEnd: '1px solid rgba(0,0,0,0.06)',
-        boxShadow: 'inset -1px 0 0 rgba(255,255,255,1)',
-        overflow: 'hidden',
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...SPRING, delay: 0.06 }}
+      className="glass-panel mx-4 flex-shrink-0 overflow-hidden"
+      style={{ display: 'flex', flexDirection: 'column', gap: 0 }}
     >
-      <div aria-hidden style={{
-        position: 'absolute', insetInlineStart: 0, insetInlineEnd: 0, top: 0,
-        height: 1,
-        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)',
-        zIndex: 2,
-      }} />
-
-      {/* Header */}
-      <div style={{ padding: '22px 18px 14px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      {/* Controls bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        paddingBlock: 10, paddingInline: 14,
+        borderBlockEnd: '1px solid rgba(255,255,255,0.55)',
+        flexWrap: 'wrap', rowGap: 6,
+      }}>
+        {/* Icon + label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
           <div style={{
-            width: 38, height: 38, borderRadius: 11,
-            background: GRADIENT, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, boxShadow: `0 6px 22px ${COLOR}40`, flexShrink: 0,
+            width: 28, height: 28, borderRadius: 8,
+            background: GRADIENT,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, boxShadow: `0 4px 12px ${COLOR}40`,
           }}>
-            🚗
+            🗺
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
               Mobility Intel
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 500, letterSpacing: '-0.01em' }}>
-              {ENGINES.length} mobility networks · surge monitored
+            <div style={{ fontSize: 9.5, color: 'var(--text-tertiary)', fontWeight: 500 }}>
+              {ENGINES.length} mobility networks
             </div>
-          </div>
-          <div style={{ marginInlineStart: 'auto', flexShrink: 0 }}>
-            <AnimatePresence mode="wait">
-              {count > 0 && (
-                <motion.span
-                  key={count}
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.7, opacity: 0 }}
-                  transition={SPRING_POP}
-                  style={{
-                    fontSize: 10, fontWeight: 900,
-                    background: GRADIENT, color: '#fff',
-                    borderRadius: 8, paddingBlock: 3, paddingInline: 9,
-                    boxShadow: `0 3px 10px ${COLOR}40`,
-                    display: 'inline-block',
-                  }}
-                >
-                  {count}
-                </motion.span>
-              )}
-            </AnimatePresence>
           </div>
         </div>
 
-        <p style={{
-          fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)',
-          letterSpacing: '-0.01em', lineHeight: 1.5, marginBottom: 14,
-        }}>
-          Multi-modal routing · Live surge detection · Drag-to-timeline smart buffering
-        </p>
-
         <ModeToggle mode={mode} onChange={handleModeChange} />
-      </div>
 
-      {/* Engine grid */}
-      <div style={{
-        flex: 1, overflowY: 'auto', padding: '4px 14px 12px',
-        scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.08) transparent',
-      }}>
-        {byTier.map(tier => {
-          const engines = ENGINES.filter(e => e.tier === tier);
-          return (
-            <div key={tier} style={{ marginBottom: 16 }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, color: 'var(--text-tertiary)',
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                paddingBlock: '6px 8px', paddingInline: 4,
-              }}>
-                {TIER_LABELS[tier]}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                {engines.map(engine => (
-                  <EngineButton
-                    key={engine.id}
-                    id={engine.id}
-                    name={engine.name}
-                    icon={engine.icon}
-                    isActive={selected.has(engine.id)}
-                    isAIPick={AI_PICKS.has(engine.id)}
-                    onToggle={() => toggle(engine.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        {/* Active count */}
+        <AnimatePresence mode="wait">
+          {count > 0 && (
+            <motion.span
+              key={count}
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.7, opacity: 0 }}
+              transition={SPRING_POP}
+              style={{
+                fontSize: 10, fontWeight: 900,
+                background: GRADIENT, color: '#fff',
+                borderRadius: 7, paddingBlock: 2, paddingInline: 8,
+                boxShadow: `0 3px 10px ${COLOR}38`,
+                display: 'inline-block', flexShrink: 0,
+              }}
+            >
+              {count} active
+            </motion.span>
+          )}
+        </AnimatePresence>
 
-      {/* CTA */}
-      <div style={{
-        padding: '12px 16px 20px', flexShrink: 0,
-        borderBlockStart: '1px solid rgba(0,0,0,0.05)',
-        background: 'rgba(255,255,255,0.6)',
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-      }}>
+        {/* Search CTA */}
         <motion.button
           onClick={handleSearch}
           disabled={count === 0 || isSearching}
-          whileHover={count > 0 && !isSearching ? { scale: 1.02, boxShadow: `0 8px 28px ${COLOR}4C` } : {}}
-          whileTap={count > 0 && !isSearching ? { scale: 0.98 } : {}}
+          whileHover={count > 0 && !isSearching ? { scale: 1.03, boxShadow: `0 6px 20px ${COLOR}40` } : {}}
+          whileTap={count > 0 && !isSearching ? { scale: 0.97 } : {}}
+          transition={SPRING}
           style={{
-            width: '100%', paddingBlock: 14, paddingInline: 20,
-            borderRadius: 14, border: 'none',
-            cursor: count > 0 && !isSearching ? 'pointer' : 'not-allowed',
-            background: count > 0 ? GRADIENT : 'rgba(0,0,0,0.06)',
-            color: count > 0 ? '#fff' : '#AEAEB2',
-            fontSize: 13, fontWeight: 900, fontFamily: 'inherit',
-            letterSpacing: '-0.02em',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: count > 0 ? `0 6px 22px ${COLOR}38` : 'none',
-            transition: 'background 0.2s, box-shadow 0.2s',
+            display: 'flex', alignItems: 'center', gap: 6,
+            paddingBlock: 8, paddingInline: 18,
+            borderRadius: 10, fontSize: 12, fontWeight: 800,
+            color: 'white',
+            background: count > 0 ? GRADIENT : 'rgba(0,0,0,0.12)',
+            border: 'none',
+            cursor: count > 0 && !isSearching ? 'pointer' : 'default',
+            boxShadow: count > 0 ? `0 3px 12px ${COLOR}38` : 'none',
+            letterSpacing: '-0.01em', fontFamily: 'inherit',
+            flexShrink: 0, whiteSpace: 'nowrap',
+            marginInlineStart: 'auto',
           }}
         >
           {isSearching ? (
-            <>
-              <motion.span
-                animate={{ rotate: [0, 360] }}
-                transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
-                style={{ display: 'inline-block', fontSize: 14 }}
-                aria-hidden
-              >
-                ✦
-              </motion.span>
-              Scanning {count} networks…
-            </>
+            <motion.span
+              animate={{ rotate: [0, 360] }}
+              transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
+              style={{ display: 'inline-block', fontSize: 11 }}
+              aria-hidden
+            >✦</motion.span>
           ) : (
-            <>
-              <span aria-hidden>🗺</span>
-              {count === 0 ? 'Select networks' : `Route ${count} mobility engine${count !== 1 ? 's' : ''}`}
-            </>
+            <motion.span
+              animate={{ scale: [1, 1.4, 1], opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 1.6, repeat: Infinity }}
+              style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'inline-block', flexShrink: 0 }}
+              aria-hidden
+            />
           )}
+          {isSearching ? `Routing ${count}…` : `Route ${count} network${count !== 1 ? 's' : ''}`}
         </motion.button>
       </div>
-    </motion.aside>
+
+      {/* Glass pills strip */}
+      <div
+        className="flex flex-row overflow-x-auto gap-2 no-scrollbar"
+        style={{ paddingInline: 14, paddingBlock: 10 }}
+        aria-label="Mobility engine selector"
+      >
+        {ENGINES.map(engine => (
+          <GlassPill
+            key={engine.id}
+            id={engine.id}
+            name={engine.name}
+            icon={engine.icon}
+            isActive={selected.has(engine.id)}
+            isAIPick={AI_PICKS.has(engine.id)}
+            onToggle={() => toggleEngine(engine.id)}
+          />
+        ))}
+      </div>
+
+      {/* AI caption */}
+      <AnimatePresence mode="wait">
+        {mode === 'ai' && (
+          <motion.p
+            key="transit-ai-cap"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              margin: 0, fontSize: 10, color: COLOR, fontWeight: 500,
+              paddingInline: 14, paddingBlockEnd: 10, lineHeight: 1.6,
+            }}
+          >
+            ✦ AI optimized: {AI_PICKS.size} top-trust mobility networks · surge-monitored · timeline-safe buffering.
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

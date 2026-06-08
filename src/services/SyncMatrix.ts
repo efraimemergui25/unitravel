@@ -156,28 +156,76 @@ export function toGoogleCalendarEvent(evt: CalendarEvent, timeZone = 'America/Me
   };
 }
 
-// ── Mock sync engine (production: swap with real Google Calendar API) ────────
+// ── Real Google Calendar sync ─────────────────────────────────────────────────
+// Requires a valid OAuth access token from CalendarSync.connectGoogle().
+// If token is missing or starts with 'demo_', returns an honest "not connected" result.
 
 export async function syncToCalendar(
   events:   CalendarEvent[],
   provider: CalendarProvider,
-  _token:   string // OAuth access token
+  token:    string,
 ): Promise<SyncResult> {
-  // Simulate network latency
-  await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+  if (!token || token.startsWith('demo_') || provider !== 'google') {
+    return {
+      success:    false,
+      synced:     0,
+      failed:     events.length,
+      conflicts:  [],
+      events:     [],
+      syncedAt:   Date.now(),
+      nextSyncAt: Date.now() + 15 * 60_000,
+    };
+  }
 
-  const conflicts: SyncConflict[] = [];
-  const synced   = Math.floor(events.length * 0.95);
-  const failed   = events.length - synced;
+  const GCAL_BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+  const timeZone  = (typeof Intl !== 'undefined'
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+    : undefined) ?? 'UTC';
+
+  let synced = 0;
+  let failed = 0;
+  const syncedEvents: CalendarEvent[] = [];
+  const conflicts:    SyncConflict[]  = [];
+
+  for (const evt of events) {
+    try {
+      const googleEvt = toGoogleCalendarEvent(evt, timeZone);
+      const res = await fetch(GCAL_BASE, {
+        method:  'POST',
+        headers: {
+          Authorization:  `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(googleEvt),
+      });
+
+      if (res.ok) {
+        synced++;
+        syncedEvents.push(evt);
+      } else if (res.status === 409) {
+        failed++;
+        conflicts.push({
+          externalId:   '',
+          localEventId: evt.id ?? '',
+          type:         'DUPLICATE',
+          resolution:   'kept_local',
+        });
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+  }
 
   return {
-    success:    true,
+    success:    failed === 0,
     synced,
     failed,
     conflicts,
-    events:     events.slice(0, synced),
+    events:     syncedEvents,
     syncedAt:   Date.now(),
-    nextSyncAt: Date.now() + 15 * 60_000, // 15 min
+    nextSyncAt: Date.now() + 15 * 60_000,
   };
 }
 

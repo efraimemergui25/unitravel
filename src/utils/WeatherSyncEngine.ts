@@ -1,4 +1,5 @@
 import type { AttractionEntity, WeatherDependency, WeatherMatch } from '@/types/attractions';
+import type { EngineDay }                                        from '@/store/useTravelEngine';
 
 // ── WMO Weather Code labels ────────────────────────────────────────────────────
 // Reference: https://open-meteo.com/en/docs#weathervariables
@@ -256,3 +257,111 @@ export async function enrichAttractionsWithWeather(
     return { ...entity, weatherMatch: match };
   });
 }
+
+// ── Client-side evaluation layer ──────────────────────────────────────────────
+// Operates on existing weatherMatch data (already fetched by /api/attractions).
+// No async calls — pure synchronous intelligence for real-time UI updates.
+
+export type WeatherRiskLevel = 'none' | 'low' | 'moderate' | 'high';
+
+export interface WeatherEvalResult {
+  entityId:       string;
+  isAtRisk:       boolean;
+  riskLevel:      WeatherRiskLevel;
+  warningText:    string | null;
+  suggestionText: string | null;
+  enrichedMatch:  WeatherMatch | null;
+}
+
+const EVAL_QUALITY_SCORE: Record<WeatherMatch['quality'], number> = {
+  perfect: 100,
+  good:    72,
+  fair:    42,
+  warning: 8,
+};
+
+const EVAL_MIN_ACCEPTABLE: Record<WeatherDependency, number> = {
+  none:     0,
+  low:      20,
+  moderate: 55,
+  high:     80,
+};
+
+export function buildWarningText(
+  match:      WeatherMatch,
+  dependency: WeatherDependency,
+): string {
+  const prob  = match.precipProbability ?? 70;
+  const label = prob >= 80 ? 'Very high' : prob >= 60 ? 'High' : prob >= 40 ? 'Moderate' : 'Low';
+  return `${label} probability of rain (${prob}%) on ${match.dayLabel}. ${
+    dependency === 'high'
+      ? 'This activity may be cancelled or unsafe.'
+      : 'Outdoor conditions may be poor.'
+  }`;
+}
+
+export function buildSuggestionText(suggestedDay: string): string {
+  return `AI suggests moving this to ${suggestedDay} for clear skies.`;
+}
+
+export function evaluateWeatherForActivity(
+  entity: AttractionEntity,
+  _days:  EngineDay[],
+): WeatherEvalResult {
+  const { id, weatherDependency, weatherMatch } = entity;
+
+  const base: WeatherEvalResult = {
+    entityId:      id,
+    isAtRisk:      false,
+    riskLevel:     'none',
+    warningText:   null,
+    suggestionText: null,
+    enrichedMatch: weatherMatch,
+  };
+
+  if (!weatherMatch || weatherDependency === 'none') return base;
+
+  const score    = EVAL_QUALITY_SCORE[weatherMatch.quality];
+  const minScore = EVAL_MIN_ACCEPTABLE[weatherDependency];
+  if (score >= minScore) return base;
+
+  const riskLevel: WeatherRiskLevel =
+    score < 20 ? 'high' : score < 42 ? 'moderate' : 'low';
+
+  return {
+    entityId:       id,
+    isAtRisk:       true,
+    riskLevel,
+    warningText:    buildWarningText(weatherMatch, weatherDependency),
+    suggestionText: weatherMatch.suggestedDayLabel
+      ? buildSuggestionText(weatherMatch.suggestedDayLabel)
+      : null,
+    enrichedMatch:  { ...weatherMatch, quality: 'warning' },
+  };
+}
+
+export type EnrichedEntity = AttractionEntity & { _weatherEval: WeatherEvalResult };
+
+export function enrichEntitiesWithWeather(
+  entities: AttractionEntity[],
+  days:     EngineDay[],
+): EnrichedEntity[] {
+  return entities.map(entity => {
+    const eval_ = evaluateWeatherForActivity(entity, days);
+    return {
+      ...entity,
+      weatherMatch: eval_.enrichedMatch ?? entity.weatherMatch,
+      _weatherEval: eval_,
+    };
+  });
+}
+
+// ── Singleton facade ──────────────────────────────────────────────────────────
+
+export const WeatherSyncEngine = {
+  evaluate:        evaluateWeatherForActivity,
+  enrich:          enrichEntitiesWithWeather,
+  buildWarning:    buildWarningText,
+  buildSuggestion: buildSuggestionText,
+  enrichAsync:     enrichAttractionsWithWeather,
+} as const;

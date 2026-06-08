@@ -2,148 +2,18 @@
 
 import { useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { GripHorizontal }    from 'lucide-react';
 import { SentimentGauge }    from '@/components/results/SentimentGauge';
 import { TableSlotGrid }     from '@/components/results/TableSlotGrid';
 import { onDragEndWithPhysics } from '@/utils/DropPhysics';
 import { useTravelEngine }   from '@/store/useTravelEngine';
 import type { MergedRestaurant, TimeSlot } from '@/app/api/dining/route';
-import type { TimeBlocker }  from '@/components/results/TableSlotGrid';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
 const COLOR    = '#FF9F0A';
 const SPRING   = { type: 'spring', stiffness: 360, damping: 28 } as const;
 
-// ── Demo flight blocker: flight arriving 18:00 on Day 1 ──────────────────────
-// This populates the TableSlotGrid cross-reference demo without needing
-// real entities in the store. Production: pass the day's entities via dayId prop.
-
-const DEMO_BLOCKER: TimeBlocker = {
-  time:          '18:00',
-  label:         'Flight arrival — settling in',
-  bufferMinutes: 90,
-  cautionMins:   135,
-  type:          'flight',
-};
-
-// ── Mock restaurants ──────────────────────────────────────────────────────────
-// These represent the deduplicated, merged output from /api/dining.
-// Hartwood  → OpenTable only (single source)
-// Expendio  → Resy + Michelin (merged: sourceCount=2)
-// Manta     → Tock only
-// Catch Miami → OpenTable + Resy (DEDUP DEMO: slots from both engines, sourceCount=2)
-
-const MOCK_RESTAURANTS: MergedRestaurant[] = [
-  {
-    id:               'hartwood-tulum',
-    name:             'Hartwood',
-    cuisine:          'Mexican Wood-Fire',
-    location:         'Tulum, Quintana Roo',
-    destination:      'Tulum',
-    pricePerPerson:   120,
-    rating:           9.4,
-    michelinStars:    undefined,
-    sources:          ['opentable'],
-    sourceCount:      1,
-    aiConfidence:     0.94,
-    availableSlots: [
-      { time: '18:00', label: '6:00 PM',  source: 'opentable', party: 2 },
-      { time: '18:30', label: '6:30 PM',  source: 'opentable', party: 2 },
-      { time: '19:00', label: '7:00 PM',  source: 'opentable', party: 2 },
-      { time: '19:30', label: '7:30 PM',  source: 'opentable', party: 2 },
-      { time: '20:00', label: '8:00 PM',  source: 'opentable', party: 2 },
-      { time: '20:30', label: '8:30 PM',  source: 'opentable', party: 2 },
-      { time: '21:00', label: '9:00 PM',  source: 'opentable', party: 2 },
-    ],
-    sentiment: { positive: 0.91, neutral: 0.07, negative: 0.02, compound: 0.94 },
-    uberMinutes: 12, uberCost: 8,
-    aiHighlight: 'Open-fire kitchen in the jungle — no electricity, no freezers. One of Mexico\'s most unique dining experiences.',
-    reservationWindow: '90 days',
-    tags: ['romantic', 'outdoor', 'wood-fire', 'honeymoon', 'tulum'],
-    imageGradient: 'linear-gradient(160deg, #6B4226 0%, #2D4A1E 45%, #1A2E10 100%)',
-  },
-  {
-    id:               'expendio-maiz-cdmx',
-    name:             'Expendio de Maíz',
-    cuisine:          'Contemporary Mexican Tasting',
-    location:         'Colonia Doctores, Mexico City',
-    destination:      'Mexico City',
-    pricePerPerson:   87,
-    rating:           9.2,
-    michelinStars:    undefined,
-    bestIn50:         undefined,
-    sources:          ['resy', 'michelin'],
-    sourceCount:      2,
-    aiConfidence:     0.91,
-    availableSlots: [
-      { time: '19:00', label: '7:00 PM',  source: 'resy+michelin', party: 2 },
-      { time: '20:00', label: '8:00 PM',  source: 'resy',          party: 2 },
-      { time: '21:00', label: '9:00 PM',  source: 'resy',          party: 2 },
-    ],
-    sentiment: { positive: 0.88, neutral: 0.09, negative: 0.03, compound: 0.91 },
-    uberMinutes: 18, uberCost: 6,
-    aiHighlight: '10-course corn-origin tasting menu. Location changes weekly — AI tracks it. Michelin Bib Gourmand 2024.',
-    reservationWindow: '14 days',
-    tags: ['intimate', 'tasting-menu', 'cdmx', 'hidden', 'michelin-bib'],
-    imageGradient: 'linear-gradient(160deg, #7B3F00 0%, #C8860C 45%, #4A2511 100%)',
-  },
-  {
-    id:               'manta-los-cabos',
-    name:             'Manta Los Cabos',
-    cuisine:          'Pacific Rim & Mexican Seafood',
-    location:         'The Cape, A Thompson Hotel',
-    destination:      'Los Cabos',
-    pricePerPerson:   140,
-    rating:           9.0,
-    sources:          ['tock'],
-    sourceCount:      1,
-    aiConfidence:     0.89,
-    availableSlots: [
-      { time: '17:30', label: '5:30 PM',  source: 'tock', party: 2 },
-      { time: '18:00', label: '6:00 PM',  source: 'tock', party: 2 },
-      { time: '18:30', label: '6:30 PM',  source: 'tock', party: 2 },
-      { time: '19:00', label: '7:00 PM',  source: 'tock', party: 2 },
-      { time: '19:30', label: '7:30 PM',  source: 'tock', party: 2 },
-      { time: '20:00', label: '8:00 PM',  source: 'tock', party: 2 },
-      { time: '20:30', label: '8:30 PM',  source: 'tock', party: 2 },
-    ],
-    sentiment: { positive: 0.86, neutral: 0.11, negative: 0.03, compound: 0.90 },
-    uberMinutes: 5, uberCost: 12,
-    aiHighlight: 'Best sunset dining in Cabo. Tasting menu changes with Pacific season — book 60 days ahead.',
-    reservationWindow: '60 days',
-    tags: ['romantic', 'ocean-view', 'seafood', 'sunset', 'honeymoon', 'cabo'],
-    imageGradient: 'linear-gradient(160deg, #0D47A1 0%, #00838F 45%, #B2EBF2 100%)',
-  },
-  {
-    id:               'catch-miami-beach',
-    name:             'Catch Miami',
-    cuisine:          'Global Bites & Seafood',
-    location:         'Collins Ave, Miami Beach',
-    destination:      'Miami',
-    pricePerPerson:   95,
-    rating:           8.7,
-    sources:          ['opentable', 'resy'],
-    sourceCount:      2,
-    aiConfidence:     0.88,
-    availableSlots: [
-      // OpenTable + Resy slots MERGED and DEDUPED by the backend
-      // 8:30 PM appears on both engines → merged into one pill with source "opentable+resy"
-      { time: '19:00', label: '7:00 PM',  source: 'opentable',      party: 2 },
-      { time: '19:30', label: '7:30 PM',  source: 'resy',           party: 2 },
-      { time: '20:00', label: '8:00 PM',  source: 'opentable',      party: 2 },
-      { time: '20:30', label: '8:30 PM',  source: 'opentable+resy', party: 2 },  // MERGED
-      { time: '21:00', label: '9:00 PM',  source: 'opentable+resy', party: 2 },  // MERGED
-      { time: '21:30', label: '9:30 PM',  source: 'resy',           party: 2 },
-      { time: '22:00', label: '10:00 PM', source: 'opentable',      party: 2 },
-    ],
-    sentiment: { positive: 0.82, neutral: 0.14, negative: 0.04, compound: 0.87 },
-    uberMinutes: 8, uberCost: 14,
-    aiHighlight: 'Signature aerial display. OpenTable + Resy merged — 7 unified slots. Reserve the rooftop for sunset over the bay.',
-    reservationWindow: '30 days',
-    tags: ['party', 'rooftop', 'seafood', 'miami', 'high-energy'],
-    imageGradient: 'linear-gradient(160deg, #AD1457 0%, #F06292 45%, #FFB74D 100%)',
-  },
-];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -152,7 +22,10 @@ export type DiningSearchState = 'idle' | 'loading' | 'results';
 export interface DiningBentoProps {
   searchState:  DiningSearchState;
   engineCount:  number;
-  restaurants?: MergedRestaurant[];
+  results?:     MergedRestaurant[] | null;
+  apiStatus?:   'ok' | 'needs_api_key' | 'error' | null;
+  apiMessage?:  string | null;
+  query?:       { destination: string; date: string; adults: number };
 }
 
 // ── Drag handle ───────────────────────────────────────────────────────────────
@@ -238,7 +111,7 @@ function DragHandle({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{ fontSize: 14 }} aria-hidden>⠿</span>
+        <GripHorizontal size={13} strokeWidth={2.2} aria-hidden />
         <div>
           <div style={{
             fontSize: 11, fontWeight: 800,
@@ -292,12 +165,12 @@ function RestaurantCard({ restaurant }: { restaurant: MergedRestaurant }) {
       layoutId={`dining-card-${restaurant.id}`}
       layout
       style={{
-        borderRadius:         18,
+        borderRadius:         32,
         overflow:             'hidden',
-        background:           'rgba(255,255,255,0.92)',
+        background:           'rgba(255,255,255,0.40)',
         backdropFilter:       'blur(40px) saturate(1.9)',
         WebkitBackdropFilter: 'blur(40px) saturate(1.9)',
-        border:               '1px solid rgba(0,0,0,0.07)',
+        border:               '1.5px solid rgba(255,255,255,0.70)',
         boxShadow:            '0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)',
       }}
     >
@@ -421,7 +294,7 @@ function RestaurantCard({ restaurant }: { restaurant: MergedRestaurant }) {
         <TableSlotGrid
           slots={restaurant.availableSlots}
           dayId={activeDay ?? undefined}
-          blockers={[DEMO_BLOCKER]}
+          blockers={[]}
           selectedTime={selectedTime}
           onSelect={handleSlotSelect}
           color={COLOR}
@@ -448,7 +321,7 @@ function RestaurantCard({ restaurant }: { restaurant: MergedRestaurant }) {
                   <TableSlotGrid
                     slots={restaurant.availableSlots}
                     dayId={activeDay ?? undefined}
-                    blockers={[DEMO_BLOCKER]}
+                    blockers={[]}
                     selectedTime={selectedTime}
                     onSelect={handleSlotSelect}
                     color={COLOR}
@@ -605,15 +478,90 @@ function IdleState() {
   );
 }
 
+// ── Needs API key state ────────────────────────────────────────────────────────
+
+function NeedsApiKeyState({ message }: { message: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4 }}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: 16, height: '100%', textAlign: 'center', padding: 40,
+      }}
+    >
+      <div style={{ fontSize: 48 }} aria-hidden>🔑</div>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.04em' }}>
+          Connect Dining API
+        </h2>
+        <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', maxWidth: 340, lineHeight: 1.55 }}>
+          {message ?? 'Add GOOGLE_PLACES_API_KEY or YELP_API_KEY to .env.local to enable live restaurant search.'}
+        </p>
+      </div>
+      <a
+        href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          fontSize: 11, fontWeight: 800, color: COLOR,
+          background: `${COLOR}10`, border: `1.5px solid ${COLOR}28`,
+          borderRadius: 10, paddingBlock: 8, paddingInline: 16,
+          textDecoration: 'none',
+        }}
+      >
+        Get Google Places API Key →
+      </a>
+    </motion.div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function DiningBento({
   searchState,
   engineCount,
-  restaurants = MOCK_RESTAURANTS,
+  results,
+  apiStatus,
+  apiMessage,
 }: DiningBentoProps) {
   if (searchState === 'idle')    return <IdleState />;
   if (searchState === 'loading') return <LoadingSkeleton engineCount={engineCount} />;
+
+  if (apiStatus === 'needs_api_key') return <NeedsApiKeyState message={apiMessage ?? null} />;
+
+  if (apiStatus === 'error') {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
+      >
+        <div style={{ fontSize: 40 }} aria-hidden>⚠️</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+          {apiMessage ?? 'Search failed. Please try again.'}
+        </p>
+      </motion.div>
+    );
+  }
+
+  const restaurants = results ?? [];
+
+  if (restaurants.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
+      >
+        <div style={{ fontSize: 40 }} aria-hidden>🍽️</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+          No restaurants found. Try a different destination or filters.
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <LayoutGroup>
@@ -637,16 +585,18 @@ export function DiningBento({
               {restaurants.length} Restaurants
             </h2>
             <p style={{ margin: 0, fontSize: 11, color: 'var(--text-tertiary)', letterSpacing: '-0.01em' }}>
-              AI-distilled · Duplicates merged · Slots cross-referenced with your timeline
+              Live · Google Places + Yelp · Duplicates merged
             </p>
           </div>
-          <div style={{
-            fontSize: 10, fontWeight: 800, color: COLOR,
-            background: `${COLOR}10`, border: `1.5px solid ${COLOR}28`,
-            borderRadius: 10, paddingBlock: 5, paddingInline: 11,
-          }}>
-            🔥 {restaurants.filter(r => r.sourceCount > 1).length} deduped
-          </div>
+          {restaurants.filter(r => r.sourceCount > 1).length > 0 && (
+            <div style={{
+              fontSize: 10, fontWeight: 800, color: COLOR,
+              background: `${COLOR}10`, border: `1.5px solid ${COLOR}28`,
+              borderRadius: 10, paddingBlock: 5, paddingInline: 11,
+            }}>
+              🔥 {restaurants.filter(r => r.sourceCount > 1).length} deduped
+            </div>
+          )}
         </motion.div>
 
         {/* Cards */}

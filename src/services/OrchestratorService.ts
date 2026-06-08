@@ -141,51 +141,150 @@ interface SourceFetch {
   error?:    string;
 }
 
+// ── Real adapter: Amadeus flights ─────────────────────────────────────────────
+
+async function fetchAmadeusFlights(
+  query: OrchestratorQuery,
+): Promise<TravelEntity[]> {
+  const origin      = query.origin      ?? 'TLV';
+  const destination = query.destination ?? '';
+  const date        = query.date        ?? query.checkIn ?? new Date().toISOString().split('T')[0];
+  const adults      = query.adults      ?? 2;
+
+  const params = new URLSearchParams({
+    origin, destination, departureDate: date,
+    adults: String(adults), maxResults: '5',
+    travelClass: query.tier === 'luxury' || query.tier === 'ultra-luxury' ? 'BUSINESS' : 'ECONOMY',
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/flights?${params.toString()}`, {
+    signal: AbortSignal.timeout(8_000),
+  });
+
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  if (data.status !== 'ok') return []; // 'needs_api_key' or 'error'
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.results as any[]).map((f) => ({
+    id:          f.id,
+    category:    'flight' as const,
+    source:      'Amadeus',
+    confidence:  0.98,
+    title:       `${f.airline} · ${f.routeLabel}`,
+    subtitle:    `${f.cabinClass} · ${f.durationLabel} · ${f.stops === 0 ? 'Non-stop' : `${f.stops} stop`}`,
+    location:    f.origin,
+    destination: f.destination,
+    price:       f.totalPrice,
+    currency:    'USD' as const,
+    priceUSD:    f.totalPrice,
+    rating:      4.2,
+    reviewCount: undefined,
+    tags:        [f.cabinClass.toLowerCase(), f.stops === 0 ? 'direct' : 'connecting'],
+    availability:'available' as const,
+    deepLink:    f.bookingUrl,
+    rawPayload:  f,
+  }));
+}
+
+// ── Real adapter: Yelp restaurants ────────────────────────────────────────────
+
+async function fetchYelpRestaurants(
+  query: OrchestratorQuery,
+): Promise<TravelEntity[]> {
+  const yelpKey = process.env.YELP_API_KEY;
+  if (!yelpKey) return [];
+
+  const params = new URLSearchParams({
+    location: query.destination,
+    categories: 'restaurants',
+    sort_by: 'rating',
+    limit: '5',
+  });
+
+  const res = await fetch(`https://api.yelp.com/v3/businesses/search?${params}`, {
+    headers: { Authorization: `Bearer ${yelpKey}` },
+    signal: AbortSignal.timeout(6_000),
+  });
+
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.businesses ?? []).slice(0, 5).map((b: any) => ({
+    id:          `yelp-${b.id}`,
+    category:    'restaurant' as const,
+    source:      'Yelp',
+    confidence:  b.rating / 5,
+    title:       b.name,
+    subtitle:    `${b.categories?.[0]?.title ?? 'Restaurant'} · ${b.location?.city}`,
+    location:    b.location?.address1 ?? query.destination,
+    destination: query.destination,
+    price:       b.price ? b.price.length * 30 : 80,
+    currency:    'USD' as const,
+    priceUSD:    b.price ? b.price.length * 30 : 80,
+    rating:      b.rating,
+    reviewCount: b.review_count,
+    imageUrl:    b.image_url,
+    deepLink:    b.url,
+    tags:        (b.categories ?? []).map((c: { title: string }) => c.title),
+    availability:'available' as const,
+    rawPayload:  b,
+  }));
+}
+
+// ── Dispatcher: routes each source to real adapter or "not connected" ─────────
+
 async function fetchOneSource(ep: SourceEndpoint, query: OrchestratorQuery): Promise<SourceFetch> {
   const t0 = Date.now();
 
-  try {
-    // In production: replace simulation with real fetch to ep.baseUrl
-    await new Promise(r => setTimeout(r, 80 + Math.random() * 280));
-
-    if (Math.random() < 0.08) throw new Error(`${ep.name}: 429 Rate Limited`);
-
-    const basePriceMap = {
-      'ultra-luxury': 800 + Math.random() * 900,
-      luxury:         350 + Math.random() * 450,
-      premium:        150 + Math.random() * 200,
-      economy:         60 + Math.random() * 100,
-    };
-    const tier  = query.tier ?? 'luxury';
-    const price = Math.round(basePriceMap[tier]);
-
-    const entity: TravelEntity = {
-      id:          `${ep.name.toLowerCase().replace(/[\s&.]/g, '-')}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      category:    ep.category === 'flights'     ? 'flight'
-                 : ep.category === 'hotels'      ? 'hotel'
-                 : ep.category === 'restaurants' ? 'restaurant'
-                 : 'activity',
-      source:      ep.name,
-      confidence:  ep.weight * (0.85 + Math.random() * 0.15),
-      title:       `${ep.name} · ${query.destination}`,
-      subtitle:    query.freeText ?? `${tier} option`,
-      location:    query.destination,
-      destination: query.destination,
-      price,
-      currency:    'USD',
-      priceUSD:    price,
-      rating:      3.5 + Math.random() * 1.5,
-      reviewCount: Math.floor(80 + Math.random() * 4500),
-      tags:        [tier, ep.category, query.destination],
-      availability:'available',
-    };
-
-    return { source: ep, status: 'ok', entity, latencyMs: Date.now() - t0 };
-  } catch (err: unknown) {
-    const msg     = err instanceof Error ? err.message : String(err);
-    const isTimeout = msg.includes('timeout');
-    return { source: ep, status: isTimeout ? 'timeout' : 'error', entity: null, latencyMs: Date.now() - t0, error: msg };
+  // Amadeus: real API call if key is present, honest "not configured" otherwise
+  if (ep.name === 'Amadeus GDS' && query.intent === 'flights') {
+    try {
+      const entities = await fetchAmadeusFlights(query);
+      if (entities.length === 0) {
+        return {
+          source: ep, status: 'error', entity: null,
+          latencyMs: Date.now() - t0,
+          error: process.env.AMADEUS_CLIENT_ID
+            ? 'Amadeus returned no results for this route/date'
+            : 'Amadeus: add AMADEUS_CLIENT_ID + AMADEUS_CLIENT_SECRET to .env.local',
+        };
+      }
+      // Return first entity (rest are handled by the direct /api/flights endpoint)
+      return { source: ep, status: 'ok', entity: entities[0], latencyMs: Date.now() - t0 };
+    } catch (err) {
+      return { source: ep, status: 'error', entity: null, latencyMs: Date.now() - t0, error: String(err) };
+    }
   }
+
+  // Yelp: real API call if key present
+  if (ep.name === 'Yelp' && query.intent === 'restaurants') {
+    try {
+      const entities = await fetchYelpRestaurants(query);
+      if (entities.length === 0) {
+        return {
+          source: ep, status: 'error', entity: null, latencyMs: Date.now() - t0,
+          error: process.env.YELP_API_KEY ? 'Yelp returned no results' : 'Yelp: add YELP_API_KEY to .env.local',
+        };
+      }
+      return { source: ep, status: 'ok', entity: entities[0], latencyMs: Date.now() - t0 };
+    } catch (err) {
+      return { source: ep, status: 'error', entity: null, latencyMs: Date.now() - t0, error: String(err) };
+    }
+  }
+
+  // All other sources: not yet connected — return honest "not configured"
+  // NEVER generate fake data
+  return {
+    source:    ep,
+    status:    'error',
+    entity:    null,
+    latencyMs: Date.now() - t0,
+    error:     `${ep.name}: API not yet connected. Add credentials to .env.local.`,
+  };
 }
 
 // ── Distillation ───────────────────────────────────────────────────────────────

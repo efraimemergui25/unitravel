@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useRef, memo }                 from 'react';
+import { GripHorizontal }                          from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup }    from 'framer-motion';
 import { GlassShimmer }                            from '@/components/ui/GlassShimmer';
 import { SentimentGauge }                          from '@/components/results/SentimentGauge';
 import type { SentimentScore }                     from '@/services/OmniAggregator';
+import type { BentoHotel }                         from '@/app/api/hotels/route';
 
 // ── Spring constants ──────────────────────────────────────────────────────────
 
@@ -260,9 +262,9 @@ function DragHandle({ property, color }: { property: BentoProperty; color: strin
         flexShrink:    0,
       }}
     >
-      <span style={{ fontSize: 13, userSelect: 'none', lineHeight: 1 }} aria-hidden>⠿</span>
+      <GripHorizontal size={13} strokeWidth={2.2} aria-hidden />
       <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', userSelect: 'none' }}>
-        Drag
+        Add
       </span>
     </motion.button>
   );
@@ -360,113 +362,104 @@ function PhotoCarousel({ photos, color }: { photos: PhotoSlide[]; color: string 
   );
 }
 
-// ── Hidden fees chart ─────────────────────────────────────────────────────────
+// ── Horizontal fee transparency bars ─────────────────────────────────────────
 
-function HiddenFeesChart({ feesBySource, color }: { feesBySource: FeeBySource[]; color: string }) {
-  const CHART_H = 120;
-  const totals  = feesBySource.map(f => f.basePrice + f.taxes + f.resortFee);
+function FeeHorizBar({ feesBySource, color }: { feesBySource: FeeBySource[]; color: string }) {
+  const totals   = feesBySource.map(f => f.basePrice + f.taxes + f.resortFee);
   const maxTotal = Math.max(...totals);
   const bestIdx  = totals.indexOf(Math.min(...totals));
 
   return (
-    <div>
-      {/* Chart */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: CHART_H + 36, paddingBlockEnd: 4 }}>
-        {feesBySource.map((item, i) => {
-          const total     = item.basePrice + item.taxes + item.resortFee;
-          const barH      = Math.max(4, (total / maxTotal) * CHART_H);
-          const isBest    = i === bestIdx;
-
-          const baseRatio   = (item.basePrice / total) * 100;
-          const taxRatio    = (item.taxes / total) * 100;
-
-          const barColor  = isBest ? '#30D158' : color;
-          const gradient  = item.resortFee > 0
-            ? `linear-gradient(to bottom,
-                #FF453A 0%, #FF453A ${(item.resortFee / total) * 100}%,
-                #FF9F0A ${(item.resortFee / total) * 100}%, #FF9F0A ${(item.resortFee / total + item.taxes / total) * 100}%,
-                ${barColor} ${(item.resortFee / total + item.taxes / total) * 100}%, ${barColor} 100%)`
-            : `linear-gradient(to bottom, #FF9F0A 0%, #FF9F0A ${taxRatio}%, ${barColor} ${taxRatio}%, ${barColor} 100%)`;
-
-          return (
-            <div
-              key={item.source}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' }}
-            >
-              {/* Total label */}
-              <div style={{ marginBlockEnd: 4, textAlign: 'center' }}>
-                {isBest && (
-                  <motion.span
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    style={{ display: 'block', fontSize: 10, marginBlockEnd: 1 }}
-                    aria-hidden
-                  >
-                    👑
-                  </motion.span>
-                )}
-                <span style={{
-                  fontSize:      9, fontWeight: 800,
-                  color:         isBest ? '#30D158' : '#6E6E73',
-                  letterSpacing: '-0.01em',
-                }}>
-                  ${total.toLocaleString()}
-                </span>
-              </div>
-
-              {/* Bar: anchored to bottom, grows upward */}
-              <div style={{ position: 'relative', width: '100%', height: CHART_H }}>
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: barH }}
-                  transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
-                  style={{
-                    position:     'absolute',
-                    bottom:       0, insetInlineStart: 0, insetInlineEnd: 0,
-                    background:   gradient,
-                    borderRadius: '4px 4px 0 0',
-                    overflow:     'hidden',
-                  }}
-                />
-              </div>
-
-              {/* Source label */}
-              <span style={{
-                fontSize:      8, fontWeight: isBest ? 800 : 600,
-                color:         isBest ? '#1D1D1F' : '#6E6E73',
-                marginBlockStart: 5,
-                textAlign:     'center',
-                maxWidth:      '100%',
-                overflow:      'hidden',
-                textOverflow:  'ellipsis',
-                whiteSpace:    'nowrap',
-              }}>
-                {item.source}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBlockStart: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {[
-          { color,     label: 'Base rate' },
-          { color: '#FF9F0A', label: 'Taxes & fees' },
-          { color: '#FF453A', label: 'Resort fee' },
+          { color: '#007AFF',  label: 'Base rate' },
+          { color: '#FF9F0A',  label: 'Taxes & fees' },
+          { color: '#FF453A',  label: 'Resort fee' },
         ].map(l => (
           <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color, flexShrink: 0 }} />
             <span style={{ fontSize: 9, color: '#6E6E73', fontWeight: 500 }}>{l.label}</span>
           </div>
         ))}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginInlineStart: 'auto' }}>
-          <span style={{ fontSize: 9, color: '#30D158', fontWeight: 700 }}>
-            👑 = Lowest all-in price
-          </span>
-        </div>
+        <span style={{ marginInlineStart: 'auto', fontSize: 9, color: '#30D158', fontWeight: 700 }}>
+          👑 = Best all-in
+        </span>
       </div>
+
+      {/* Rows */}
+      {feesBySource.map((item, i) => {
+        const total        = item.basePrice + item.taxes + item.resortFee;
+        const barWidthPct  = (total / maxTotal) * 100;
+        const isBest       = i === bestIdx;
+        const baseFrac     = item.basePrice / total;
+        const taxFrac      = (item.basePrice + item.taxes) / total;
+
+        const barGradient  = item.resortFee > 0
+          ? `linear-gradient(to right,
+              #007AFF 0%,  #007AFF ${baseFrac * 100}%,
+              #FF9F0A ${baseFrac * 100}%, #FF9F0A ${taxFrac * 100}%,
+              #FF453A ${taxFrac * 100}%, #FF453A 100%)`
+          : `linear-gradient(to right,
+              #007AFF 0%, #007AFF ${baseFrac * 100}%,
+              #FF9F0A ${baseFrac * 100}%, #FF9F0A 100%)`;
+
+        return (
+          <div key={item.source} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Source label */}
+            <div style={{ width: 56, textAlign: 'end', flexShrink: 0 }}>
+              {isBest && (
+                <span style={{ fontSize: 10, marginInlineEnd: 2 }} aria-hidden>👑</span>
+              )}
+              <span style={{
+                fontSize:   9,
+                fontWeight: isBest ? 800 : 600,
+                color:      isBest ? '#1D1D1F' : '#6E6E73',
+              }}>
+                {item.source}
+              </span>
+            </div>
+
+            {/* Glass bar track */}
+            <div style={{
+              flex:                 1,
+              height:               16,
+              background:           'rgba(255,255,255,0.35)',
+              backdropFilter:       'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderRadius:         999,
+              overflow:             'hidden',
+              border:               '1px solid rgba(255,255,255,0.55)',
+            }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${barWidthPct}%` }}
+                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
+                style={{
+                  height:       '100%',
+                  background:   barGradient,
+                  borderRadius: 999,
+                  boxShadow:    isBest ? '0 0 8px rgba(48,209,88,0.35)' : 'none',
+                }}
+              />
+            </div>
+
+            {/* Total */}
+            <span style={{
+              fontSize:      10,
+              fontWeight:    800,
+              color:         isBest ? '#30D158' : '#6E6E73',
+              width:         42,
+              textAlign:     'end',
+              flexShrink:    0,
+              letterSpacing: '-0.01em',
+            }}>
+              ${total.toLocaleString()}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -683,7 +676,7 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
                 border:        '1px solid rgba(0,0,0,0.05)',
               }}
             >
-              <HiddenFeesChart feesBySource={property.feesBySource} color={hero.color} />
+              <FeeHorizBar feesBySource={property.feesBySource} color={hero.color} />
             </div>
           </DetailSection>
 
@@ -769,7 +762,7 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
                 flexShrink:    0,
               }}
             >
-              <span aria-hidden>⠿</span>
+              <GripHorizontal size={13} strokeWidth={2.2} aria-hidden />
               <span>Add to Timeline</span>
             </motion.button>
           </div>
@@ -810,11 +803,11 @@ const HeroBentoCard = memo(function HeroBentoCard({
           onClick={onClick}
           style={{
             height:               '100%',
-            borderRadius:         24,
-            background:           'rgba(255,255,255,0.82)',
-            backdropFilter:       'blur(40px) saturate(1.8)',
-            WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-            border:               '1px solid rgba(255,255,255,0.95)',
+            borderRadius:         32,
+            background:           'rgba(255,255,255,0.40)',
+            backdropFilter:       'blur(40px) saturate(1.9)',
+            WebkitBackdropFilter: 'blur(40px) saturate(1.9)',
+            border:               '1px solid rgba(255,255,255,0.70)',
             boxShadow:            '0 8px 32px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)',
             overflow:             'hidden',
             display:              'flex',
@@ -1058,9 +1051,104 @@ function BentoSkeleton({ engineCount }: { engineCount: number }) {
 export interface LodgingBentoProps {
   searchState:  LodgingSearchState;
   engineCount?: number;
+  results?:     BentoHotel[] | null;
+  apiStatus?:   'ok' | 'needs_api_key' | 'error' | null;
+  apiMessage?:  string | null;
+  query?:       { city: string; checkIn: string; checkOut: string; adults: number; roomType: string };
 }
 
-export function LodgingBento({ searchState, engineCount = 10 }: LodgingBentoProps) {
+const COLOR_LODGING = '#00C7BE';
+
+function NeedsApiKeyState({ message }: { message: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4 }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, height: '100%', textAlign: 'center', padding: 40 }}
+    >
+      <div style={{ fontSize: 48 }} aria-hidden>🔑</div>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.04em' }}>Connect Hotels API</h2>
+        <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 500, color: '#6E6E73', maxWidth: 340, lineHeight: 1.55 }}>
+          {message ?? 'Add AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET to .env.local to enable live hotel search.'}
+        </p>
+      </div>
+      <a
+        href="https://developers.amadeus.com/register"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ fontSize: 11, fontWeight: 800, color: COLOR_LODGING, background: `${COLOR_LODGING}10`, border: `1.5px solid ${COLOR_LODGING}28`, borderRadius: 10, paddingBlock: 8, paddingInline: 16, textDecoration: 'none' }}
+      >
+        Get Amadeus API Key →
+      </a>
+    </motion.div>
+  );
+}
+
+function RealHotelList({ hotels }: { hotels: BentoHotel[] }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBlockEnd: 4 }}>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.04em' }}>
+            {hotels.length} Hotels
+          </h2>
+          <p style={{ margin: 0, fontSize: 11, color: '#AEAEB2', letterSpacing: '-0.01em' }}>
+            Live · Amadeus Hotels
+          </p>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 800, color: COLOR_LODGING, background: `${COLOR_LODGING}10`, border: `1.5px solid ${COLOR_LODGING}28`, borderRadius: 10, paddingBlock: 5, paddingInline: 11 }}>
+          ✓ Live data
+        </div>
+      </div>
+      {hotels.map((hotel, i) => (
+        <motion.div
+          key={hotel.id}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 30, delay: i * 0.05 }}
+          style={{ borderRadius: 16, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(40px)', border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}
+        >
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em' }}>{hotel.name}</div>
+                <div style={{ fontSize: 11, color: '#6E6E73', marginBlockStart: 2 }}>
+                  {hotel.cityCode} · {hotel.roomType} · {hotel.nights}n
+                  {hotel.rating ? ` · ${'⭐'.repeat(hotel.rating)}` : ''}
+                </div>
+              </div>
+              <div style={{ textAlign: 'end', flexShrink: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 900, color: COLOR_LODGING, letterSpacing: '-0.03em' }}>
+                  ${hotel.pricePerNight.toLocaleString()}<span style={{ fontSize: 10, fontWeight: 600, color: '#AEAEB2' }}>/night</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#AEAEB2' }}>Total: ${hotel.totalPrice.toLocaleString()}</div>
+              </div>
+            </div>
+            {hotel.amenities.length > 0 && (
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {hotel.amenities.slice(0, 4).map(a => (
+                  <span key={a} style={{ fontSize: 9.5, fontWeight: 600, color: '#6E6E73', background: 'rgba(0,0,0,0.04)', borderRadius: 6, paddingBlock: 3, paddingInline: 7 }}>{a}</span>
+                ))}
+              </div>
+            )}
+            <a
+              href={hotel.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 10.5, fontWeight: 700, color: COLOR_LODGING, textDecoration: 'none', alignSelf: 'flex-start', background: `${COLOR_LODGING}10`, border: `1px solid ${COLOR_LODGING}28`, borderRadius: 8, paddingBlock: 4, paddingInline: 10 }}
+            >
+              View on Google Hotels →
+            </a>
+          </div>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
+export function LodgingBento({ searchState, engineCount = 10, results, apiStatus, apiMessage }: LodgingBentoProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const expandedHero = expandedId
@@ -1073,6 +1161,34 @@ export function LodgingBento({ searchState, engineCount = 10 }: LodgingBentoProp
 
   if (searchState === 'loading') {
     return <AnimatePresence mode="wait"><BentoSkeleton key="skeleton" engineCount={engineCount} /></AnimatePresence>;
+  }
+
+  if (apiStatus === 'needs_api_key') return <NeedsApiKeyState message={apiMessage ?? null} />;
+  if (apiStatus === 'error') {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center p-8 rounded-3xl bg-red-50/30 backdrop-blur-xl border border-red-100/50 h-full"
+      >
+        <div style={{ fontSize: 36, marginBlockEnd: 12 }} aria-hidden>⚠️</div>
+        <p style={{ fontSize: 13, fontWeight: 700, color: '#9A3412', marginBlockEnd: 4 }}>AI Context Missing</p>
+        <p style={{ fontSize: 12, fontWeight: 500, color: '#78716c', textAlign: 'center', maxWidth: 280 }}>
+          {apiMessage === 'Please provide valid check-in/check-out dates and guest count.'
+            ? 'Please provide exact dates and guest count to search hotels.'
+            : apiMessage ?? 'Search failed. Please provide dates and try again.'}
+        </p>
+      </motion.div>
+    );
+  }
+  if (apiStatus === 'ok' && results && results.length > 0) return <RealHotelList hotels={results} />;
+  if (apiStatus === 'ok' && results && results.length === 0) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
+      >
+        <div style={{ fontSize: 40 }} aria-hidden>🏨</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#6E6E73' }}>No hotels found. Try different dates or city.</p>
+      </motion.div>
+    );
   }
 
   return (

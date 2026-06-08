@@ -2,7 +2,9 @@
 
 import { useState, memo }                               from 'react';
 import { motion, AnimatePresence, LayoutGroup }         from 'framer-motion';
+import { GripHorizontal }                               from 'lucide-react';
 import { GlassShimmer }                                 from '@/components/ui/GlassShimmer';
+import type { BentoFlight as LibBentoFlight }           from '@/lib/amadeus';
 
 // ── Spring constants ──────────────────────────────────────────────────────────
 
@@ -37,10 +39,12 @@ interface BentoFlight {
   cabinClass:     string;
   pricePerPerson: number;
   totalPrice:     number;
+  pax:            number;
   baggage:        { cabin: string; checked: string };
   co2PerPerson:   number;
   co2Comparison:  string;
   amenities:      string[];
+  bookingUrl?:    string;
 }
 
 interface HeroDef {
@@ -53,110 +57,105 @@ interface HeroDef {
   gradient: string;
 }
 
-// ── Mock data: TLV → MEX, Oct 2 2026, Effi & Nofar ───────────────────────────
+// ── Real data conversion ──────────────────────────────────────────────────────
 
-const FLIGHTS: Record<string, BentoFlight> = {
-  ts: {
-    id:             'tlv-mex-ua-ts',
-    airline:        'United Airlines',
+function libToBentoFlight(lib: LibBentoFlight): BentoFlight {
+  return {
+    id:             lib.id,
+    airline:        lib.airline,
     logo:           '✈️',
-    flightNumbers:  ['UA 97', 'UA 958'],
-    origin:         'TLV',
-    destination:    'MEX',
-    routeLabel:     'TLV → EWR → MEX',
-    departure:      '08:25',
-    arrival:        '23:10',
-    arrivalNote:    '+1',
-    totalMin:       1245,
-    durationLabel:  '20h 45m',
-    layovers:       [{ airport: 'Newark Liberty', code: 'EWR', durationLabel: '2h 10m', durationMin: 130 }],
-    cabinClass:     'Economy Plus',
-    pricePerPerson: 1180,
-    totalPrice:     2360,
-    baggage:        { cabin: '1× carry-on 10 kg', checked: '1× checked 23 kg' },
-    co2PerPerson:   842,
-    co2Comparison:  '8% below route avg',
-    amenities:      ['Extra legroom', 'USB-A power', 'Seat selection', 'Snack & beverage'],
-  },
-  sv: {
-    id:             'tlv-mex-cm-sv',
-    airline:        'Copa Airlines',
-    logo:           '🌉',
-    flightNumbers:  ['LY 7', 'CM 481'],
-    origin:         'TLV',
-    destination:    'MEX',
-    routeLabel:     'TLV → PTY → MEX',
-    departure:      '14:55',
-    arrival:        '16:20',
-    arrivalNote:    '+1',
-    totalMin:       1525,
-    durationLabel:  '25h 25m',
-    layovers:       [{ airport: 'Panama City (Tocumen)', code: 'PTY', durationLabel: '3h 10m', durationMin: 190 }],
-    cabinClass:     'Economy',
-    pricePerPerson: 780,
-    totalPrice:     1560,
-    baggage:        { cabin: '1× carry-on 10 kg', checked: '1× checked 23 kg' },
-    co2PerPerson:   920,
-    co2Comparison:  '2% above route avg',
-    amenities:      ['Meal included', '34" seat pitch', 'Copa Hub lounge'],
-  },
-  ld: {
-    id:             'tlv-mex-am-ld',
-    airline:        'Aeroméxico',
-    logo:           '🦅',
-    flightNumbers:  ['LY 3', 'AM 404'],
-    origin:         'TLV',
-    destination:    'MEX',
-    routeLabel:     'TLV → JFK → MEX',
-    departure:      '22:40',
-    arrival:        '19:55',
-    arrivalNote:    '+1',
-    totalMin:       1275,
-    durationLabel:  '21h 15m',
-    layovers:       [{ airport: 'New York JFK T1', code: 'JFK', durationLabel: '2h 25m', durationMin: 145 }],
-    cabinClass:     'Clase Premier (Business)',
-    pricePerPerson: 4200,
-    totalPrice:     8400,
-    baggage:        { cabin: '2× carry-on 15 kg', checked: '2× checked 32 kg' },
-    co2PerPerson:   1080,
-    co2Comparison:  '22% above avg (offset available)',
-    amenities:      ['Flat-bed seat 180°', 'Sky Club lounge', 'Chauffeur service', 'Fine dining', 'Amenity kit', 'Fast-track security'],
-  },
-};
+    flightNumbers:  lib.flightNumbers,
+    origin:         lib.origin,
+    destination:    lib.destination,
+    routeLabel:     lib.routeLabel,
+    departure:      lib.departure,
+    arrival:        lib.arrival,
+    arrivalNote:    lib.arrivalNote,
+    totalMin:       lib.totalMin,
+    durationLabel:  lib.durationLabel,
+    layovers:       lib.layovers,
+    cabinClass:     lib.cabinClass,
+    pricePerPerson: lib.pricePerPerson,
+    totalPrice:     lib.totalPrice,
+    pax:            lib.pax,
+    baggage:        lib.baggage,
+    co2PerPerson:   lib.co2PerPerson,
+    co2Comparison:  lib.co2Comparison,
+    amenities:      lib.amenities,
+    bookingUrl:     lib.bookingUrl,
+  };
+}
 
-const HEROES: HeroDef[] = [
-  {
-    key:      'ts',
-    flight:   FLIGHTS.ts,
-    label:    'The Time-Saver',
-    subLabel: 'Fastest connection · 1 technical stop via EWR',
-    icon:     '⚡',
-    color:    '#007AFF',
-    gradient: 'linear-gradient(135deg, #007AFF 0%, #5E5CE6 100%)',
-  },
-  {
-    key:      'sv',
-    flight:   FLIGHTS.sv,
-    label:    'The Smart Value',
-    subLabel: 'Best price-to-comfort ratio across 10 engines',
-    icon:     '✦',
-    color:    '#30D158',
-    gradient: 'linear-gradient(135deg, #30D158 0%, #00C7BE 100%)',
-  },
-  {
-    key:      'ld',
-    flight:   FLIGHTS.ld,
-    label:    'The Luxury Direct',
-    subLabel: 'Business class · flat-bed · JFK Sky Club lounge',
-    icon:     '👑',
-    color:    '#FF9F0A',
-    gradient: 'linear-gradient(135deg, #FFD60A 0%, #FF9F0A 100%)',
-  },
-];
+function libToHeroDefs(results: LibBentoFlight[]): HeroDef[] {
+  if (results.length === 0) return [];
 
-// ── Idle state ────────────────────────────────────────────────────────────────
+  const all = [...results];
+  const cabinRank = (c: string) =>
+    c.includes('First') ? 4 : c.includes('Business') ? 3 : c.includes('Premium') ? 2 : 1;
 
-function IdleState() {
+  const fastest  = all.reduce((a, b) => a.totalMin < b.totalMin ? a : b);
+  const rest1    = all.filter(f => f.id !== fastest.id);
+  const cheapest = (rest1.length > 0 ? rest1 : all)
+    .reduce((a, b) => a.pricePerPerson < b.pricePerPerson ? a : b);
+  const rest2    = all.filter(f => f.id !== fastest.id && f.id !== cheapest.id);
+  const premium  = (rest2.length > 0 ? rest2 : all)
+    .reduce((a, b) => cabinRank(a.cabinClass) > cabinRank(b.cabinClass) ? a : b);
+
+  const seen    = new Set<string>();
+  const unique: LibBentoFlight[] = [];
+  for (const f of [fastest, cheapest, premium]) {
+    if (!seen.has(f.id)) { seen.add(f.id); unique.push(f); }
+  }
+  for (const f of all) {
+    if (unique.length >= 3) break;
+    if (!seen.has(f.id)) { seen.add(f.id); unique.push(f); }
+  }
+
+  const HERO_CONFIGS = [
+    {
+      label:    'The Time-Saver',
+      icon:     '⚡',
+      color:    '#007AFF',
+      gradient: 'linear-gradient(135deg, #007AFF 0%, #5E5CE6 100%)',
+      subLabelFn: (lib: LibBentoFlight) =>
+        `Fastest route · ${lib.durationLabel}${lib.layovers.length === 0 ? ' · Non-stop' : ` · via ${lib.layovers[0].code}`}`,
+    },
+    {
+      label:    'The Smart Value',
+      icon:     '✦',
+      color:    '#30D158',
+      gradient: 'linear-gradient(135deg, #30D158 0%, #00C7BE 100%)',
+      subLabelFn: (lib: LibBentoFlight) =>
+        `Best price · $${lib.pricePerPerson.toLocaleString()}/person · ${lib.cabinClass}`,
+    },
+    {
+      label:    'The Premium Pick',
+      icon:     '👑',
+      color:    '#FF9F0A',
+      gradient: 'linear-gradient(135deg, #FFD60A 0%, #FF9F0A 100%)',
+      subLabelFn: (lib: LibBentoFlight) =>
+        `${lib.cabinClass}${lib.layovers.length === 0 ? ' · Direct flight' : ` · via ${lib.layovers.map(l => l.code).join(', ')}`}`,
+    },
+  ];
+
+  return unique.slice(0, 3).map((lib, idx) => {
+    const cfg = HERO_CONFIGS[idx];
+    return {
+      key:      lib.id,
+      flight:   libToBentoFlight(lib),
+      label:    cfg.label,
+      subLabel: cfg.subLabelFn(lib),
+      icon:     cfg.icon,
+      color:    cfg.color,
+      gradient: cfg.gradient,
+    };
+  });
+}
+
+// ── States ────────────────────────────────────────────────────────────────────
+
+function IdleState({ from, to }: { from?: string; to?: string }) {
+  const routeLabel = from && to ? `${from} → ${to}` : 'Enter your route above to begin';
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -188,21 +187,209 @@ function IdleState() {
           Aviation Hub Ready
         </p>
         <p style={{ fontSize: 13, color: '#6E6E73', marginBlockStart: 8, letterSpacing: '-0.01em' }}>
-          TLV → MEX · Fri Oct 2, 2026 · Effi & Nofar
+          {routeLabel}
         </p>
       </div>
       <p style={{ fontSize: 12, color: '#AEAEB2', maxWidth: 340, lineHeight: 1.65 }}>
         Select your engines in the control panel and launch an Omni-Search
-        across up to 30 global aviation APIs simultaneously.
-        Unit's AI will distill results into 3 curated hero options.
+        across global aviation APIs simultaneously.
+        Unit's AI will distill results into curated hero options.
       </p>
+    </motion.div>
+  );
+}
+
+function NeedsApiKeyState({
+  provider,
+  setupUrl,
+  message,
+}: {
+  provider:  string;
+  setupUrl?: string;
+  message?:  string | null;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={SPRING}
+      style={{
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        justifyContent: 'center',
+        height:         '100%',
+        minHeight:      480,
+        gap:            20,
+        textAlign:      'center',
+        paddingInline:  32,
+      }}
+    >
+      <div
+        style={{
+          width:           64,
+          height:          64,
+          borderRadius:    20,
+          background:      'rgba(255,159,10,0.10)',
+          border:          '1.5px solid rgba(255,159,10,0.25)',
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          fontSize:        28,
+        }}
+        aria-hidden
+      >
+        🔑
+      </div>
+      <div>
+        <p style={{ fontSize: 18, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em' }}>
+          Connect {provider} API
+        </p>
+        <p style={{ fontSize: 12, color: '#6E6E73', marginBlockStart: 6, lineHeight: 1.65, maxWidth: 320 }}>
+          {message ?? `Add your ${provider} credentials to .env.local to enable real-time flight search.`}
+        </p>
+      </div>
+      <div
+        style={{
+          padding:       '14px 18px',
+          borderRadius:  14,
+          background:    'rgba(0,0,0,0.025)',
+          border:        '1px solid rgba(0,0,0,0.07)',
+          textAlign:     'start',
+          maxWidth:      360,
+          width:         '100%',
+          display:       'flex',
+          flexDirection: 'column',
+          gap:           6,
+        }}
+      >
+        <p style={{ fontSize: 10, fontWeight: 800, color: '#AEAEB2', textTransform: 'uppercase', letterSpacing: '0.10em', marginBlockEnd: 2 }}>
+          Setup
+        </p>
+        {[
+          '1. Register at developers.amadeus.com',
+          '2. Create an app → copy Client ID + Secret',
+          '3. Add to .env.local:',
+          '   AMADEUS_CLIENT_ID=your_id',
+          '   AMADEUS_CLIENT_SECRET=your_secret',
+          '4. Restart the dev server',
+        ].map(step => (
+          <p
+            key={step}
+            style={{
+              fontSize:   11,
+              color:      '#3C3C43',
+              lineHeight: 1.5,
+              fontFamily: step.startsWith('   ') ? 'monospace' : 'inherit',
+            }}
+          >
+            {step}
+          </p>
+        ))}
+      </div>
+      {setupUrl && (
+        <motion.a
+          href={setupUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 28px rgba(255,159,10,0.35)' }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+          style={{
+            display:        'flex',
+            alignItems:     'center',
+            gap:            6,
+            paddingBlock:   12,
+            paddingInline:  22,
+            borderRadius:   12,
+            background:     'linear-gradient(135deg, #FFD60A 0%, #FF9F0A 100%)',
+            boxShadow:      '0 4px 16px rgba(255,159,10,0.28)',
+            color:          'white',
+            fontSize:       13,
+            fontWeight:     800,
+            letterSpacing:  '-0.01em',
+            textDecoration: 'none',
+          }}
+        >
+          Get Free API Key →
+        </motion.a>
+      )}
+    </motion.div>
+  );
+}
+
+function ErrorState({ message }: { message?: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={SPRING}
+      style={{
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        justifyContent: 'center',
+        height:         '100%',
+        minHeight:      480,
+        gap:            16,
+        textAlign:      'center',
+        paddingInline:  32,
+      }}
+    >
+      <span style={{ fontSize: 48 }} aria-hidden>⚠️</span>
+      <div>
+        <p style={{ fontSize: 18, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em' }}>
+          Search Failed
+        </p>
+        <p style={{ fontSize: 12, color: '#6E6E73', marginBlockStart: 6, maxWidth: 340, lineHeight: 1.65 }}>
+          {message ?? 'An error occurred while searching. Please check your connection and try again.'}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+function NoResultsState({ from, to }: { from?: string; to?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={SPRING}
+      style={{
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        justifyContent: 'center',
+        height:         '100%',
+        minHeight:      480,
+        gap:            16,
+        textAlign:      'center',
+        paddingInline:  32,
+      }}
+    >
+      <span style={{ fontSize: 48 }} aria-hidden>🔍</span>
+      <div>
+        <p style={{ fontSize: 18, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em' }}>
+          No Flights Found
+        </p>
+        <p style={{ fontSize: 12, color: '#6E6E73', marginBlockStart: 6, maxWidth: 340, lineHeight: 1.65 }}>
+          {from && to
+            ? `No flights found from ${from} to ${to} for the selected criteria.`
+            : 'No flights found for the selected criteria.'}
+          {' '}Try adjusting your dates, cabin class, or adding a connection.
+        </p>
+      </div>
     </motion.div>
   );
 }
 
 // ── Loading skeleton (3 glass cards in bento layout) ─────────────────────────
 
-function BentoSkeleton({ engineCount }: { engineCount: number }) {
+function BentoSkeleton({ engineCount, from, to }: { engineCount: number; from?: string; to?: string }) {
+  const routeText = from && to ? `${from} → ${to}` : 'your route';
   return (
     <motion.div
       key="skeleton"
@@ -230,7 +417,7 @@ function BentoSkeleton({ engineCount }: { engineCount: number }) {
           transition={{ duration: 1.8, repeat: Infinity }}
           style={{ fontSize: 11, color: '#AEAEB2' }}
         >
-          Distilling TLV → MEX results…
+          Distilling {routeText} results…
         </motion.span>
       </div>
 
@@ -308,9 +495,9 @@ function DragHandle({ flight, color }: { flight: BentoFlight; color: string }) {
         flexShrink:       0,
       }}
     >
-      <span style={{ fontSize: 13, userSelect: 'none', lineHeight: 1 }} aria-hidden>⠿</span>
+      <GripHorizontal size={13} aria-hidden strokeWidth={2.2} />
       <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', userSelect: 'none' }}>
-        Drag
+        Add
       </span>
     </motion.button>
   );
@@ -346,19 +533,15 @@ const HeroBentoCard = memo(function HeroBentoCard({
         <motion.div
           layoutId={`avi-hero-${flight.id}`}
           onClick={onClick}
+          className="flex flex-col rounded-[2rem] border border-white/70 bg-white/40 backdrop-blur-2xl shadow-xl transition-all"
           style={{
             height:               '100%',
-            borderRadius:         24,
-            background:           'rgba(255,255,255,0.82)',
             backdropFilter:       'blur(40px) saturate(1.8)',
             WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-            border:               '1px solid rgba(255,255,255,0.95)',
-            boxShadow:            '0 8px 32px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)',
             overflow:             'hidden',
-            display:              'flex',
-            flexDirection:        'column',
             position:             'relative',
             cursor:               'pointer',
+            boxShadow:            '0 8px 32px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)',
           }}
           whileHover={{
             y: -6,
@@ -426,8 +609,8 @@ const HeroBentoCard = memo(function HeroBentoCard({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {[
                 { label: 'Duration', value: flight.durationLabel },
-                { label: 'Stops', value: `${flight.layovers.length} stop` },
-                { label: 'Class', value: flight.cabinClass },
+                { label: 'Stops',    value: flight.layovers.length === 0 ? 'Non-stop' : `${flight.layovers.length} stop${flight.layovers.length !== 1 ? 's' : ''}` },
+                { label: 'Class',    value: flight.cabinClass },
               ].map(m => (
                 <div
                   key={m.label}
@@ -489,7 +672,6 @@ const HeroBentoCard = memo(function HeroBentoCard({
 
 function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
   const { flight } = hero;
-  const CO2_BASELINE = 940; // Route average (kg per person)
 
   return (
     <motion.div
@@ -547,19 +729,19 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
               whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 400, damping: 22 }}
               style={{
-                display:      'flex',
-                alignItems:   'center',
-                gap:          5,
-                paddingBlock: 6,
+                display:       'flex',
+                alignItems:    'center',
+                gap:           5,
+                paddingBlock:  6,
                 paddingInline: 12,
                 borderRadius:  999,
-                background:   'rgba(0,0,0,0.05)',
-                border:       'none',
-                cursor:       'pointer',
-                fontSize:     12,
-                fontWeight:   600,
-                color:        '#6E6E73',
-                fontFamily:   'inherit',
+                background:    'rgba(0,0,0,0.05)',
+                border:        'none',
+                cursor:        'pointer',
+                fontSize:      12,
+                fontWeight:    600,
+                color:         '#6E6E73',
+                fontFamily:    'inherit',
               }}
             >
               ← Back
@@ -572,7 +754,9 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
             </div>
           </div>
           <div style={{ textAlign: 'end' }}>
-            <p style={{ fontSize: 9, color: '#AEAEB2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total for 2</p>
+            <p style={{ fontSize: 9, color: '#AEAEB2', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Total for {flight.pax}
+            </p>
             <p style={{ fontSize: 28, fontWeight: 900, color: hero.color, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               ${flight.totalPrice.toLocaleString()}
             </p>
@@ -587,29 +771,24 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
           style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}
         >
 
-          {/* Flight timeline */}
           <DetailSection title="Flight Timeline">
             <FlightTimeline flight={flight} color={hero.color} />
           </DetailSection>
 
-          {/* Baggage */}
           <DetailSection title="Baggage Allowance">
             <BaggageView baggage={flight.baggage} color={hero.color} />
           </DetailSection>
 
-          {/* Carbon */}
           <DetailSection title="Carbon Footprint">
-            <CarbonView flight={flight} color={hero.color} baseline={CO2_BASELINE} />
+            <CarbonView flight={flight} color={hero.color} />
           </DetailSection>
 
-          {/* Amenities */}
           {flight.amenities.length > 0 && (
             <DetailSection title="Included">
               <AmenitiesView amenities={flight.amenities} color={hero.color} />
             </DetailSection>
           )}
 
-          {/* Price breakdown */}
           <DetailSection title="Price Breakdown">
             <PriceBreakdown flight={flight} color={hero.color} />
           </DetailSection>
@@ -617,6 +796,9 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
           {/* CTA row */}
           <div style={{ display: 'flex', gap: 10, paddingBlockStart: 4 }}>
             <motion.button
+              onClick={() => {
+                if (flight.bookingUrl) window.open(flight.bookingUrl, '_blank', 'noopener');
+              }}
               whileHover={{ scale: 1.02, boxShadow: `0 8px 28px ${hero.color}45` }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 400, damping: 24 }}
@@ -635,7 +817,7 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
                 fontWeight:     800,
                 letterSpacing:  '-0.01em',
                 border:         'none',
-                cursor:         'pointer',
+                cursor:         flight.bookingUrl ? 'pointer' : 'default',
                 fontFamily:     'inherit',
               }}
             >
@@ -647,7 +829,16 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
                 if (typeof document === 'undefined') return;
                 document.dispatchEvent(
                   new CustomEvent('unitravel:zone-drag-commit', {
-                    detail: { id: flight.id, type: 'flight', title: flight.airline, subtitle: flight.routeLabel, price: flight.totalPrice, currency: 'USD', icon: flight.logo, sourceZone: 'flights' },
+                    detail: {
+                      id:         flight.id,
+                      type:       'flight',
+                      title:      flight.airline,
+                      subtitle:   flight.routeLabel,
+                      price:      flight.totalPrice,
+                      currency:   'USD',
+                      icon:       flight.logo,
+                      sourceZone: 'flights',
+                    },
                   }),
                 );
               }}
@@ -714,7 +905,7 @@ function FlightTimeline({ flight, color }: { flight: BentoFlight; color: string 
             {flight.departure}
           </span>
           <span style={{ fontSize: 12, fontWeight: 700, color, marginBlockStart: 1 }}>{flight.origin}</span>
-          <span style={{ fontSize: 9, color: '#AEAEB2', marginBlockStart: 1 }}>Fri Oct 2</span>
+          <span style={{ fontSize: 9, color: '#AEAEB2', marginBlockStart: 1 }}>Departure</span>
         </div>
 
         {/* Route line with layover badge */}
@@ -741,7 +932,9 @@ function FlightTimeline({ flight, color }: { flight: BentoFlight; color: string 
                 whiteSpace:    'nowrap',
               }}
             >
-              {flight.layovers[0]?.code ?? '—'} · {flight.layovers[0]?.durationLabel ?? 'Direct'}
+              {flight.layovers.length === 0
+                ? 'Non-stop'
+                : `${flight.layovers[0].code} · ${flight.layovers[0].durationLabel}`}
             </div>
             <motion.div
               initial={{ scaleX: 0 }}
@@ -765,21 +958,21 @@ function FlightTimeline({ flight, color }: { flight: BentoFlight; color: string 
             <span style={{ fontSize: 10, color, fontWeight: 800 }}>{flight.arrivalNote}</span>
           </div>
           <span style={{ fontSize: 12, fontWeight: 700, color, marginBlockStart: 1 }}>{flight.destination}</span>
-          <span style={{ fontSize: 9, color: '#AEAEB2', marginBlockStart: 1 }}>Sat Oct 3</span>
+          <span style={{ fontSize: 9, color: '#AEAEB2', marginBlockStart: 1 }}>Arrival</span>
         </div>
       </div>
 
-      {/* Layover detail */}
+      {/* Layover details */}
       {flight.layovers.map(lay => (
         <div
           key={lay.code}
           style={{
-            display:          'flex',
-            alignItems:       'center',
-            gap:              10,
-            marginBlockStart: 12,
+            display:           'flex',
+            alignItems:        'center',
+            gap:               10,
+            marginBlockStart:  12,
             paddingBlockStart: 12,
-            borderBlockStart: '1px solid rgba(0,0,0,0.05)',
+            borderBlockStart:  '1px solid rgba(0,0,0,0.05)',
           }}
         >
           <span style={{ fontSize: 13 }} aria-hidden>🔄</span>
@@ -799,8 +992,8 @@ function FlightTimeline({ flight, color }: { flight: BentoFlight; color: string 
 
 function BaggageView({ baggage, color }: { baggage: BentoFlight['baggage']; color: string }) {
   const items = [
-    { icon: '🎒', label: 'Cabin Bag', detail: baggage.cabin, included: true },
-    { icon: '🧳', label: 'Checked Bag', detail: baggage.checked, included: true },
+    { icon: '🎒', label: 'Cabin Bag',    detail: baggage.cabin,   included: true },
+    { icon: '🧳', label: 'Checked Bag', detail: baggage.checked, included: !baggage.checked.startsWith('No') },
   ];
   return (
     <div style={{ display: 'flex', gap: 10 }}>
@@ -808,14 +1001,14 @@ function BaggageView({ baggage, color }: { baggage: BentoFlight['baggage']; colo
         <div
           key={item.label}
           style={{
-            flex:        1,
-            display:     'flex',
-            alignItems:  'center',
-            gap:         10,
-            padding:     '13px 14px',
+            flex:         1,
+            display:      'flex',
+            alignItems:   'center',
+            gap:          10,
+            padding:      '13px 14px',
             borderRadius: 12,
-            background:  item.included ? `${color}0A` : 'rgba(0,0,0,0.03)',
-            border:      `1px solid ${item.included ? `${color}22` : 'rgba(0,0,0,0.06)'}`,
+            background:   item.included ? `${color}0A` : 'rgba(0,0,0,0.03)',
+            border:       `1px solid ${item.included ? `${color}22` : 'rgba(0,0,0,0.06)'}`,
           }}
         >
           <span style={{ fontSize: 22 }} aria-hidden>{item.icon}</span>
@@ -834,10 +1027,11 @@ function BaggageView({ baggage, color }: { baggage: BentoFlight['baggage']; colo
   );
 }
 
-function CarbonView({ flight, color, baseline }: { flight: BentoFlight; color: string; baseline: number }) {
-  const ratio    = flight.co2PerPerson / baseline;
-  const barColor = ratio < 0.95 ? '#30D158' : ratio < 1.15 ? '#FF9F0A' : '#FF3B30';
-  const barWidth = Math.min(ratio * 67, 100);
+function CarbonView({ flight, color }: { flight: BentoFlight; color: string }) {
+  const baseline  = Math.round(flight.totalMin * 0.45);
+  const ratio     = baseline > 0 ? flight.co2PerPerson / baseline : 1;
+  const barColor  = ratio < 0.95 ? '#30D158' : ratio < 1.15 ? '#FF9F0A' : '#FF3B30';
+  const barWidth  = Math.min(ratio * 67, 100);
 
   return (
     <div
@@ -865,7 +1059,6 @@ function CarbonView({ flight, color, baseline }: { flight: BentoFlight; color: s
         </span>
       </div>
 
-      {/* Carbon bar */}
       <div style={{ height: 6, borderRadius: 999, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
         <motion.div
           initial={{ width: 0 }}
@@ -908,15 +1101,15 @@ function AmenitiesView({ amenities, color }: { amenities: string[]; color: strin
 }
 
 function PriceBreakdown({ flight, color }: { flight: BentoFlight; color: string }) {
-  const taxEst    = Math.round(flight.totalPrice * 0.14);
-  const seatFee   = flight.cabinClass.toLowerCase().includes('business') ? 0 : 49 * 2;
+  const taxEst     = Math.round(flight.totalPrice * 0.14);
+  const seatFee    = flight.cabinClass.toLowerCase().includes('business') || flight.cabinClass.toLowerCase().includes('first') ? 0 : 49 * flight.pax;
   const grandTotal = flight.totalPrice + taxEst + seatFee;
 
   const rows = [
-    { label: `${flight.cabinClass} × 2`, value: `$${flight.totalPrice.toLocaleString()}` },
-    { label: 'Taxes & fees (est.)', value: `$${taxEst.toLocaleString()}` },
-    { label: 'Checked baggage', value: 'Included' },
-    { label: 'Seat selection', value: flight.cabinClass.toLowerCase().includes('business') ? 'Included' : `+$${seatFee}` },
+    { label: `${flight.cabinClass} × ${flight.pax}`,                          value: `$${flight.totalPrice.toLocaleString()}` },
+    { label: 'Taxes & fees (est.)',                                             value: `$${taxEst.toLocaleString()}` },
+    { label: 'Checked baggage',                                                 value: flight.baggage.checked.startsWith('No') ? 'Not included' : 'Included' },
+    { label: 'Seat selection',                                                  value: seatFee === 0 ? 'Included' : `+$${seatFee}` },
   ];
 
   return (
@@ -967,26 +1160,82 @@ function PriceBreakdown({ flight, color }: { flight: BentoFlight; color: string 
 // ── AviationBento (main export) ───────────────────────────────────────────────
 
 export interface AviationBentoProps {
-  searchState:   SearchState;
-  engineCount?:  number;
+  searchState:  SearchState;
+  engineCount?: number;
+  results?:     LibBentoFlight[] | null;
+  apiStatus?:   'ok' | 'needs_api_key' | 'error' | null;
+  apiMessage?:  string | null;
+  query?:       { from: string; to: string; date: string; adults: number; travelClass: string };
 }
 
-export function AviationBento({ searchState, engineCount = 10 }: AviationBentoProps) {
+export function AviationBento({
+  searchState,
+  engineCount = 1,
+  results,
+  apiStatus,
+  apiMessage,
+  query,
+}: AviationBentoProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const heroes: HeroDef[] = results && results.length > 0 ? libToHeroDefs(results) : [];
+
   const expandedHero = expandedId
-    ? HEROES.find(h => h.flight.id === expandedId) ?? null
+    ? heroes.find(h => h.flight.id === expandedId) ?? null
     : null;
 
+  const routeFrom = query?.from ?? heroes[0]?.flight.origin;
+  const routeTo   = query?.to   ?? heroes[0]?.flight.destination;
+
   if (searchState === 'idle') {
-    return <AnimatePresence mode="wait"><IdleState key="idle" /></AnimatePresence>;
+    return (
+      <AnimatePresence mode="wait">
+        <IdleState key="idle" from={routeFrom} to={routeTo} />
+      </AnimatePresence>
+    );
   }
 
   if (searchState === 'loading') {
-    return <AnimatePresence mode="wait"><BentoSkeleton key="skeleton" engineCount={engineCount} /></AnimatePresence>;
+    return (
+      <AnimatePresence mode="wait">
+        <BentoSkeleton key="skeleton" engineCount={engineCount} from={routeFrom} to={routeTo} />
+      </AnimatePresence>
+    );
   }
 
-  // Results
+  // results state — branch on apiStatus
+  if (apiStatus === 'needs_api_key') {
+    return (
+      <AnimatePresence mode="wait">
+        <NeedsApiKeyState
+          key="no-key"
+          provider="Amadeus"
+          setupUrl="https://developers.amadeus.com/register"
+          message={apiMessage}
+        />
+      </AnimatePresence>
+    );
+  }
+
+  if (apiStatus === 'error') {
+    return (
+      <AnimatePresence mode="wait">
+        <ErrorState key="error" message={apiMessage} />
+      </AnimatePresence>
+    );
+  }
+
+  if (heroes.length === 0) {
+    return (
+      <AnimatePresence mode="wait">
+        <NoResultsState key="no-results" from={routeFrom} to={routeTo} />
+      </AnimatePresence>
+    );
+  }
+
+  // Real results — render bento grid
+  const routeLabel = routeFrom && routeTo ? `${routeFrom} → ${routeTo}` : `${heroes[0].flight.origin} → ${heroes[0].flight.destination}`;
+
   return (
     <LayoutGroup id="avi-bento">
       {/* Section header */}
@@ -1001,7 +1250,7 @@ export function AviationBento({ searchState, engineCount = 10 }: AviationBentoPr
             Distilled Results
           </p>
           <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', marginBlockStart: 3, letterSpacing: '-0.015em' }}>
-            3 hero options · {engineCount} engines · TLV → MEX
+            {heroes.length} hero option{heroes.length !== 1 ? 's' : ''} · {engineCount} engine{engineCount !== 1 ? 's' : ''} · {routeLabel}
           </p>
         </div>
         <motion.div
@@ -1009,17 +1258,17 @@ export function AviationBento({ searchState, engineCount = 10 }: AviationBentoPr
           animate={{ scale: 1, opacity: 1 }}
           transition={{ ...SPRING, delay: 0.18 }}
           style={{
-            display:      'flex',
-            alignItems:   'center',
-            gap:          6,
-            paddingBlock: 5,
+            display:       'flex',
+            alignItems:    'center',
+            gap:           6,
+            paddingBlock:  5,
             paddingInline: 11,
             borderRadius:  999,
-            background:   'rgba(48,209,88,0.10)',
-            border:       '1.5px solid rgba(48,209,88,0.26)',
-            fontSize:     11,
-            fontWeight:   700,
-            color:        '#30D158',
+            background:    'rgba(48,209,88,0.10)',
+            border:        '1.5px solid rgba(48,209,88,0.26)',
+            fontSize:      11,
+            fontWeight:    700,
+            color:         '#30D158',
           }}
         >
           <motion.span
@@ -1028,62 +1277,78 @@ export function AviationBento({ searchState, engineCount = 10 }: AviationBentoPr
             style={{ width: 5, height: 5, borderRadius: '50%', background: '#30D158', display: 'inline-block', flexShrink: 0 }}
             aria-hidden
           />
-          AI distillation complete
+          Live · Amadeus
         </motion.div>
       </motion.div>
 
-      {/* Bento grid */}
-      <div
-        style={{
-          display:             'grid',
-          gridTemplateColumns: '1.65fr 1fr',
-          gridTemplateRows:    'repeat(2, 240px)',
-          gap:                 12,
-        }}
-      >
-        {/* Hero 0 — large, spans 2 rows */}
-        <motion.div
-          style={{ gridRow: '1 / span 2' }}
-          initial={{ opacity: 0, scale: 0.94, y: 18 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0 }}
+      {/* Bento grid — adapts to hero count */}
+      {heroes.length >= 3 ? (
+        <div
+          style={{
+            display:             'grid',
+            gridTemplateColumns: '1.65fr 1fr',
+            gridTemplateRows:    'repeat(2, 240px)',
+            gap:                 12,
+          }}
         >
-          <HeroBentoCard
-            hero={HEROES[0]}
-            isExpanded={expandedId === HEROES[0].flight.id}
-            isBlurred={!!expandedId && expandedId !== HEROES[0].flight.id}
-            onClick={() => setExpandedId(HEROES[0].flight.id)}
-          />
-        </motion.div>
-
-        {/* Hero 1 — top right */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 18 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.09 }}
-        >
-          <HeroBentoCard
-            hero={HEROES[1]}
-            isExpanded={expandedId === HEROES[1].flight.id}
-            isBlurred={!!expandedId && expandedId !== HEROES[1].flight.id}
-            onClick={() => setExpandedId(HEROES[1].flight.id)}
-          />
-        </motion.div>
-
-        {/* Hero 2 — bottom right */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 18 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.18 }}
-        >
-          <HeroBentoCard
-            hero={HEROES[2]}
-            isExpanded={expandedId === HEROES[2].flight.id}
-            isBlurred={!!expandedId && expandedId !== HEROES[2].flight.id}
-            onClick={() => setExpandedId(HEROES[2].flight.id)}
-          />
-        </motion.div>
-      </div>
+          <motion.div
+            style={{ gridRow: '1 / span 2' }}
+            initial={{ opacity: 0, scale: 0.94, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ ...SPRING, delay: 0 }}
+          >
+            <HeroBentoCard
+              hero={heroes[0]}
+              isExpanded={expandedId === heroes[0].flight.id}
+              isBlurred={!!expandedId && expandedId !== heroes[0].flight.id}
+              onClick={() => setExpandedId(heroes[0].flight.id)}
+            />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ ...SPRING, delay: 0.09 }}
+          >
+            <HeroBentoCard
+              hero={heroes[1]}
+              isExpanded={expandedId === heroes[1].flight.id}
+              isBlurred={!!expandedId && expandedId !== heroes[1].flight.id}
+              onClick={() => setExpandedId(heroes[1].flight.id)}
+            />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ ...SPRING, delay: 0.18 }}
+          >
+            <HeroBentoCard
+              hero={heroes[2]}
+              isExpanded={expandedId === heroes[2].flight.id}
+              isBlurred={!!expandedId && expandedId !== heroes[2].flight.id}
+              onClick={() => setExpandedId(heroes[2].flight.id)}
+            />
+          </motion.div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {heroes.map((hero, i) => (
+            <motion.div
+              key={hero.key}
+              initial={{ opacity: 0, scale: 0.94, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ ...SPRING, delay: i * 0.09 }}
+              style={{ height: 240 }}
+            >
+              <HeroBentoCard
+                hero={hero}
+                isExpanded={expandedId === hero.flight.id}
+                isBlurred={!!expandedId && expandedId !== hero.flight.id}
+                onClick={() => setExpandedId(hero.flight.id)}
+              />
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* ── Expanded detail overlay ────────────────────────────────── */}
       <AnimatePresence>

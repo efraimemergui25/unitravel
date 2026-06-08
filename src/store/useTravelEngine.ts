@@ -2,7 +2,12 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { AggregatedResult, AggregatedFlight, AggregatedLodging, AggregatedDining, OmniAggregator, AggregatorProgress } from '@/services/OmniAggregator';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { AggregatedResult, AggregatedFlight, AggregatedLodging, AggregatedDining, AggregatedActivity, AggregatorProgress } from '@/services/OmniAggregator';
+import type { FlightClass, LodgingTier } from '@/services/OmniAggregator';
+import type { BentoFlight } from '@/lib/amadeus';
+import type { BentoHotel } from '@/app/api/hotels/route';
+import type { MergedRestaurant } from '@/app/api/dining/route';
 import { FinancialEngine, TravelDNA, BurnSchedule } from '@/utils/FinancialEngine';
 import type { CrisisEvent, TimelineMutation } from '@/services/CrisisManager';
 
@@ -38,7 +43,7 @@ export function inferChatCategory(text: string, toolsUsed: string[]): ChatCatego
   if (/restaurant|food|dining|michelin|cuisine|eat|lunch|dinner|chef|reservation|tasting/.test(l)) return 'culinary';
   if (/budget|price|cost|expensive|cheap|afford|spend|total|breakdown/.test(l))                   return 'budget';
   if (/activity|tour|experience|attraction|museum|hike|excursion|adventure|snorkel/.test(l))      return 'activities';
-  if (/destination|city|country|region|tulum|cabo|cdmx|cancun|riviera|mexico/.test(l))            return 'destinations';
+  if (/destination|city|country|region|where|place|location/.test(l))                             return 'destinations';
   return 'general';
 }
 
@@ -116,47 +121,11 @@ export interface TravelEngineState {
   chatHistory:        CategorizedMessage[];
 }
 
-// ── Initial mock days ────────────────────────────────────────────────────────
+// ── Initial state builders ────────────────────────────────────────────────────
 
-const DESTINATIONS = [
-  { city: 'Mexico City',    days: 4 },
-  { city: 'Tulum',          days: 5 },
-  { city: 'Riviera Maya',   days: 7 },
-  { city: 'Cabo San Lucas', days: 5 },
-];
+const buildInitialDays = (): EngineDay[] => [];
 
-const WEATHER = [
-  { temp: 28, icon: '☀️', condition: 'Sunny' },
-  { temp: 31, icon: '⛅', condition: 'Partly Cloudy' },
-  { temp: 27, icon: '🌤', condition: 'Mostly Clear' },
-  { temp: 30, icon: '☀️', condition: 'Clear' },
-];
-
-const buildInitialDays = (): EngineDay[] => {
-  const days: EngineDay[] = [];
-  let n = 1;
-  const base = new Date('2026-10-01');
-
-  for (const dest of DESTINATIONS) {
-    for (let i = 0; i < dest.days; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + n - 1);
-      days.push({
-        id:          `day-${n}`,
-        date:        d.toISOString().split('T')[0],
-        dayNumber:   n,
-        destination: dest.city,
-        entities:    [],
-        budget:      2800,
-        weather:     WEATHER[(n - 1) % WEATHER.length],
-      });
-      n++;
-    }
-  }
-  return days;
-};
-
-const TOTAL_BUDGET = 42000;
+const TOTAL_BUDGET = 0;
 
 const buildInitialBudget = (days: EngineDay[]): BudgetProjection => ({
   total:          TOTAL_BUDGET,
@@ -173,6 +142,9 @@ const buildInitialBudget = (days: EngineDay[]): BudgetProjection => ({
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface TravelEngineActions {
+  // Trip setup
+  setupTrip:        (params: { title: string; travelers: string[]; startDate: string; endDate: string; nights: number; totalBudget: number }) => void;
+  addDay:           (day: EngineDay) => void;
   // Pipeline
   runAIPipeline:    () => Promise<void>;
   // Drag & Drop
@@ -196,25 +168,117 @@ interface TravelEngineActions {
   // Chat memory
   addChatMessage:   (msg: Omit<CategorizedMessage, 'timestamp'>) => void;
   clearChatHistory: () => void;
+  // Timeline drop from any zone
+  commitEventToTimeline: (payload: {
+    id: string;
+    type: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport';
+    title: string; subtitle: string; price: number;
+    currency: string; icon: string; sourceZone: string;
+  }, targetDayId: string) => void;
 }
 
 type TravelEngineStore = TravelEngineState & TravelEngineActions;
 
+// ── API → Aggregated mappers (client-safe, no server imports) ─────────────────
+
+function bentoFlightToAggregated(f: BentoFlight): AggregatedFlight {
+  return {
+    id:                   f.id,
+    category:             'flight',
+    sources:              [f.source],
+    sourceCount:          1,
+    aiConfidence:         0.98,
+    airline:              f.airline,
+    flightNumber:         f.flightNumbers[0] ?? '',
+    route:                f.routeLabel,
+    origin:               f.origin,
+    destination:          f.destination,
+    departure:            f.departure,
+    arrival:              f.arrival,
+    durationMin:          f.totalMin,
+    durationLabel:        f.durationLabel,
+    stops:                f.stops,
+    class:                f.cabinClass as FlightClass,
+    price:                f.totalPrice,
+    priceRange:           [Math.round(f.totalPrice * 0.95), Math.round(f.totalPrice * 1.05)],
+    carbonKg:             f.co2PerPerson,
+    carbonLabel:          f.co2Comparison,
+    carbonAlternative:    '',
+    priceDropProbability: 0.3,
+    seats:                9,
+    refundable:           f.baggage.checked !== 'None',
+    tags:                 [f.cabinClass.toLowerCase(), f.stops === 0 ? 'direct' : 'connecting', ...f.amenities],
+  };
+}
+
+function bentoHotelToAggregated(h: BentoHotel): AggregatedLodging {
+  const tier: LodgingTier =
+    h.pricePerNight > 600 ? 'Ultra-Luxury' :
+    h.pricePerNight > 300 ? '5★' :
+    h.pricePerNight > 150 ? '4★' : '3★';
+  return {
+    id:            h.id,
+    category:      'hotel',
+    sources:       [h.source],
+    sourceCount:   1,
+    aiConfidence:  0.95,
+    name:          h.name,
+    location:      h.cityCode,
+    destination:   h.cityCode,
+    tier,
+    roomType:      h.roomType,
+    pricePerNight: h.pricePerNight,
+    totalPrice:    h.totalPrice,
+    nights:        h.nights,
+    rating:        h.rating ?? 4.2,
+    reviewCount:   0,
+    sentiment:     { positive: 0.78, neutral: 0.17, negative: 0.05, compound: 0.73 },
+    amenities:     h.amenities,
+    aiHighlight:   `${h.roomType} · ${h.boardType}`,
+    tags:          h.amenities.slice(0, 4),
+  };
+}
+
+function mergedRestaurantToAggregated(r: MergedRestaurant): AggregatedDining {
+  return {
+    id:                r.id,
+    category:          'restaurant',
+    sources:           r.sources,
+    sourceCount:       r.sourceCount,
+    aiConfidence:      r.aiConfidence,
+    name:              r.name,
+    cuisine:           r.cuisine,
+    location:          r.location,
+    destination:       r.destination,
+    pricePerPerson:    r.pricePerPerson,
+    rating:            r.rating,
+    michelinStars:     r.michelinStars,
+    bestIn50:          r.bestIn50,
+    sentiment:         r.sentiment,
+    reservationWindow: r.reservationWindow,
+    uberMinutes:       r.uberMinutes,
+    uberCost:          r.uberCost,
+    aiHighlight:       r.aiHighlight,
+    tags:              r.tags,
+  };
+}
+
 const initialDays = buildInitialDays();
 
 export const useTravelEngine = create<TravelEngineStore>()(
-  immer((set, get) => ({
+  persist(
+    immer((set, get) => ({
     trip: {
-      id:        'honeymoon-mx-2026',
-      title:     'Effi & Nofar · Honeymoon · Mexico',
-      travelers: ['Effi', 'Nofar'],
-      startDate: '2026-10-01',
-      endDate:   '2026-10-21',
-      nights:    21,
+      id:        '',
+      title:     '',
+      travelers: [],
+      startDate: '',
+      endDate:   '',
+      nights:    0,
       currency:  'USD',
     },
-    days:      initialDays,
-    budget:    buildInitialBudget(initialDays),
+    days:      [],
+    budget:    buildInitialBudget([]),
     pipeline:  {
       status:         'idle',
       progress:       null,
@@ -224,7 +288,7 @@ export const useTravelEngine = create<TravelEngineStore>()(
       processingMs:   null,
       sourcesQueried: 0,
     },
-    activeDay:          'day-1',
+    activeDay:          null,
     dragging:           null,
     dnaProfile:         null,
     burnSchedule:       null,
@@ -232,36 +296,120 @@ export const useTravelEngine = create<TravelEngineStore>()(
     crisisHistory:      [],
     chatHistory:        [],
 
+    // ── Trip setup ───────────────────────────────────────────────────────────
+    setupTrip: ({ title, travelers, startDate, endDate, nights, totalBudget }) =>
+      set(s => {
+        s.trip.title     = title;
+        s.trip.travelers = travelers;
+        s.trip.startDate = startDate;
+        s.trip.endDate   = endDate;
+        s.trip.nights    = nights;
+        s.budget.total   = totalBudget;
+        s.budget.dailyAllowance = nights > 0 ? Math.round(totalBudget / nights) : 0;
+      }),
+
+    addDay: (day) => set(s => {
+      s.days.push(day);
+      s.budget.dayBreakdown.push({ dayId: day.id, date: day.date, spent: 0, budget: day.budget, overBudget: false });
+      if (!s.activeDay) s.activeDay = day.id;
+    }),
+
     // ── AI Pipeline ──────────────────────────────────────────────────────────
     runAIPipeline: async () => {
+      const { trip, days, dnaProfile } = get();
+
+      const destination =
+        days.find(d => d.destination)?.destination ||
+        trip.title ||
+        '';
+
+      if (!destination) {
+        set(s => { s.pipeline.status = 'idle'; });
+        return;
+      }
+
       set(s => { s.pipeline.status = 'scanning'; s.pipeline.progress = null; });
 
-      // Stream progress ticks
-      const progressGen = OmniAggregator.streamProgress();
-      const streamLoop = (async () => {
-        for await (const tick of progressGen) {
+      const TICKS: AggregatorProgress[] = [
+        { phase: 'flight',  sourcesScanned: 1,  totalSources: 30, currentSource: 'Amadeus GDS',   percentComplete: 15 },
+        { phase: 'flight',  sourcesScanned: 3,  totalSources: 30, currentSource: 'Skyscanner',     percentComplete: 30 },
+        { phase: 'lodging', sourcesScanned: 6,  totalSources: 30, currentSource: 'Amadeus Hotels', percentComplete: 45 },
+        { phase: 'dining',  sourcesScanned: 8,  totalSources: 30, currentSource: 'Google Places',  percentComplete: 60 },
+        { phase: 'dining',  sourcesScanned: 10, totalSources: 30, currentSource: 'Yelp Fusion',    percentComplete: 75 },
+        { phase: 'ranking', sourcesScanned: 30, totalSources: 30, currentSource: 'AI Ranking',     percentComplete: 90 },
+      ];
+      let tickIdx = 0;
+      const tickInterval = setInterval(() => {
+        if (tickIdx < TICKS.length) {
+          const tick = TICKS[tickIdx++];
           set(s => {
             s.pipeline.progress = tick;
             if (tick.phase === 'ranking') s.pipeline.status = 'ranking';
           });
+        } else {
+          clearInterval(tickInterval);
         }
-      })();
+      }, 400);
 
-      // Parallel fetch
-      const batch = await OmniAggregator.aggregate();
-      await streamLoop;
+      const t0 = Date.now();
+      try {
+        const adults   = trip.travelers.length || 2;
+        const date     = trip.startDate || new Date().toISOString().split('T')[0];
+        const checkIn  = trip.startDate || date;
+        const checkOut = trip.endDate ||
+          new Date(new Date(checkIn).getTime() + (trip.nights || 3) * 86_400_000)
+            .toISOString().split('T')[0];
 
-      set(s => {
-        s.pipeline.status         = 'ready';
-        s.pipeline.suggestions    = [
-          ...batch.flights,
-          ...batch.lodging,
-          ...batch.dining,
-        ];
-        s.pipeline.lastRunAt      = Date.now();
-        s.pipeline.processingMs   = batch.processingMs;
-        s.pipeline.sourcesQueried = batch.sourcesQueried;
-      });
+        const flightParams = new URLSearchParams({
+          origin:        'TLV',
+          destination,
+          departureDate: date,
+          adults:        String(adults),
+          maxResults:    '6',
+          travelClass:   (dnaProfile?.accommodationTier ?? 0) > 0.7 ? 'BUSINESS' : 'ECONOMY',
+        });
+
+        const [flightRes, hotelRes, diningRes] = await Promise.allSettled([
+          fetch(`/api/flights?${flightParams}`).then(r => r.json()),
+          fetch('/api/hotels', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ city: destination, checkIn, checkOut, adults, roomType: 'STANDARD' }),
+          }).then(r => r.json()),
+          fetch('/api/dining', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ destination, guests: String(adults), date }),
+          }).then(r => r.json()),
+        ]);
+
+        const flights: AggregatedFlight[] =
+          flightRes.status === 'fulfilled' && flightRes.value?.status === 'ok'
+            ? (flightRes.value.results as BentoFlight[]).map(bentoFlightToAggregated)
+            : [];
+
+        const lodging: AggregatedLodging[] =
+          hotelRes.status === 'fulfilled' && hotelRes.value?.status === 'ok'
+            ? (hotelRes.value.results as BentoHotel[]).map(bentoHotelToAggregated)
+            : [];
+
+        const dining: AggregatedDining[] =
+          diningRes.status === 'fulfilled' && diningRes.value?.status === 'ok'
+            ? (diningRes.value.results as MergedRestaurant[]).map(mergedRestaurantToAggregated)
+            : [];
+
+        clearInterval(tickInterval);
+        set(s => {
+          s.pipeline.status         = 'ready';
+          s.pipeline.suggestions    = [...flights, ...lodging, ...dining];
+          s.pipeline.lastRunAt      = Date.now();
+          s.pipeline.processingMs   = Date.now() - t0;
+          s.pipeline.sourcesQueried = 3;
+        });
+      } catch {
+        clearInterval(tickInterval);
+        set(s => { s.pipeline.status = 'idle'; });
+      }
     },
 
     // ── Drag & Drop ──────────────────────────────────────────────────────────
@@ -287,6 +435,9 @@ export const useTravelEngine = create<TravelEngineStore>()(
       } else if (source.category === 'hotel') {
         const h = source as AggregatedLodging;
         entity = { ...base, title: h.name, subtitle: `${h.roomType} · ${h.nights} nights`, price: h.totalPrice, time: '15:00', duration: `${h.nights}n`, rating: h.rating, details: { roomType: h.roomType, nights: h.nights, perNight: h.pricePerNight, amenities: h.amenities.slice(0, 2).join(', ') }, aiHighlight: h.aiHighlight };
+      } else if (source.category === 'activity') {
+        const a = source as AggregatedActivity;
+        entity = { ...base, title: a.title, subtitle: `${a.durationHours}h · ${a.difficulty}`, price: a.pricePerPerson, time: a.bestTimeOfDay === 'morning' ? '09:00' : a.bestTimeOfDay === 'afternoon' ? '14:00' : '19:00', duration: `${a.durationHours}h`, rating: a.rating, details: { type: a.type, difficulty: a.difficulty, bestTime: a.bestTimeOfDay }, aiHighlight: a.aiHighlight };
       } else {
         const d = source as AggregatedDining;
         entity = { ...base, title: d.name, subtitle: `${d.cuisine}${d.michelinStars ? ` · ${d.michelinStars}★ Michelin` : ''}`, price: d.pricePerPerson * 2, time: '20:00', duration: '2h 30m', rating: d.rating, details: { cuisine: d.cuisine, uberTime: `${d.uberMinutes}min`, uberCost: `$${d.uberCost}`, reservation: d.reservationWindow }, aiHighlight: d.aiHighlight };
@@ -375,6 +526,31 @@ export const useTravelEngine = create<TravelEngineStore>()(
 
     clearChatHistory: () => set(s => { s.chatHistory = []; }),
 
+    commitEventToTimeline: (payload, targetDayId) => {
+      const entity: PlacedEntity = {
+        id:           `timeline-${payload.id}-${Date.now()}`,
+        sourceId:     payload.id,
+        category:     payload.type as EntityCategory,
+        title:        payload.title,
+        subtitle:     payload.subtitle,
+        price:        payload.price,
+        sourceCount:  1,
+        aiConfidence: 0.92,
+        tags:         [payload.sourceZone],
+        booked:       false,
+        placedAt:     Date.now(),
+        details:      { currency: payload.currency, icon: payload.icon },
+      };
+      set(s => {
+        const day = s.days.find(d => d.id === targetDayId);
+        if (day) {
+          day.entities.push(entity);
+          s.activeDay = targetDayId;
+        }
+      });
+      get().calculatePredictiveBudget();
+    },
+
     revertCrisis: (crisisId) => set(s => {
       const crisis = s.crisisHistory.find(c => c.id === crisisId);
       if (!crisis || crisis.undone) return;
@@ -422,8 +598,9 @@ export const useTravelEngine = create<TravelEngineStore>()(
       const avgDailySpend = spentDays.length > 0 ? spent / spentDays.length : 0;
       const projected = spent + (avgDailySpend + regressionSlope * remainingDays / 2) * remainingDays;
 
-      const burnRate       = TOTAL_BUDGET > 0 ? spent / TOTAL_BUDGET : 0;
-      const dailyAllowance = TOTAL_BUDGET > 0 ? (TOTAL_BUDGET - spent) / Math.max(remainingDays, 1) : 0;
+      const totalBudget    = s.budget.total;
+      const burnRate       = totalBudget > 0 ? spent / totalBudget : 0;
+      const dailyAllowance = totalBudget > 0 ? (totalBudget - spent) / Math.max(remainingDays, 1) : 0;
 
       // DNA-powered BurnSchedule recalibration
       const dna = s.dnaProfile;
@@ -434,24 +611,55 @@ export const useTravelEngine = create<TravelEngineStore>()(
             id: d.id,
             entities: d.entities.map(e => ({ price: e.price, booked: e.booked })),
           })),
-          totalBudget: TOTAL_BUDGET,
+          totalBudget,
           fixedCosts: committed,
         });
         s.burnSchedule = schedule;
       }
 
       s.budget = {
-        total: TOTAL_BUDGET,
+        ...s.budget,
+        total: totalBudget,
         spent,
         committed,
         projected: Math.round(projected),
         dailyAllowance: Math.round(dailyAllowance),
         burnRate: parseFloat(burnRate.toFixed(4)),
         regressionSlope: parseFloat(regressionSlope.toFixed(2)),
-        overBudgetBy: projected > TOTAL_BUDGET ? Math.round(projected - TOTAL_BUDGET) : undefined,
+        overBudgetBy: projected > totalBudget ? Math.round(projected - totalBudget) : undefined,
         breakdown,
         dayBreakdown,
       };
     }),
-  }))
+    })),
+    {
+      name:    'unitravel-engine',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        trip:               state.trip,
+        days:               state.days,
+        budget:             state.budget,
+        activeDay:          state.activeDay,
+        dnaProfile:         state.dnaProfile,
+        burnSchedule:       state.burnSchedule,
+        onboardingComplete: state.onboardingComplete,
+        crisisHistory:      state.crisisHistory,
+        chatHistory:        state.chatHistory,
+        pipeline: {
+          ...state.pipeline,
+          placedIds: Array.from(state.pipeline.placedIds) as unknown as Set<string>,
+          status:    'idle' as const,
+          progress:  null,
+        },
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.pipeline?.placedIds) {
+          state.pipeline.placedIds = new Set(
+            state.pipeline.placedIds as unknown as string[]
+          );
+        }
+        if (state?.pipeline) state.pipeline.status = 'idle';
+      },
+    }
+  )
 );

@@ -312,12 +312,15 @@ export const SpatialMap = memo(function SpatialMap({
       width:                '100%',
       height:               '100%',
       background:           [
-        'radial-gradient(ellipse at 20% 30%, rgba(48,209,88,0.06) 0%, transparent 55%)',
-        'radial-gradient(ellipse at 80% 70%, rgba(0,199,190,0.06) 0%, transparent 55%)',
-        'rgba(248,248,252,1)',
+        'radial-gradient(ellipse at 20% 30%, rgba(48,209,88,0.07) 0%, transparent 55%)',
+        'radial-gradient(ellipse at 80% 70%, rgba(0,199,190,0.07) 0%, transparent 55%)',
+        'rgba(255,255,255,0.40)',
       ].join(', '),
-      borderRadius:         12,
-      border:               '1px solid rgba(0,0,0,0.05)',
+      backdropFilter:       'blur(40px) saturate(1.9)',
+      WebkitBackdropFilter: 'blur(40px) saturate(1.9)',
+      borderRadius:         20,
+      border:               '1.5px solid rgba(255,255,255,0.70)',
+      boxShadow:            '0 8px 32px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,1)',
       overflow:             'hidden',
     }}>
       {/* Grid overlay for topographic feel */}

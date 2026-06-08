@@ -26,13 +26,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" dir="ltr" className={inter.variable}>
       <body
-        className="antialiased overflow-hidden"
-        style={{
-          background: 'var(--surface-base)',
-          color:      'var(--text-primary)',
-          height:     '100dvh',
-          width:      '100vw',
-        }}
+        className="antialiased bg-gradient-to-br from-[#f8fafc] via-[#e2e8f0] to-[#cbd5e1] h-screen w-screen overflow-hidden flex flex-row p-4 gap-4"
+        style={{ color: 'var(--text-primary)' }}
       >
         <I18nProvider>
           {children}

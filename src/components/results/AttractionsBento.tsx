@@ -15,6 +15,9 @@ export interface AttractionsBentoProps {
   searchState:  AttractionSearchState;
   engineCount:  number;
   destination?: string;
+  results?:     AttractionEntity[] | null;
+  apiStatus?:   'ok' | 'needs_api_key' | 'error' | null;
+  apiMessage?:  string | null;
 }
 
 const SPRING = { type: 'spring', stiffness: 380, damping: 28 } as const;
@@ -312,7 +315,7 @@ function WeatherTally({ entities }: { entities: AttractionEntity[] }) {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export const AttractionsBento = memo(function AttractionsBento({
-  searchState, engineCount, destination,
+  searchState, engineCount, destination, results, apiStatus, apiMessage,
 }: AttractionsBentoProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
@@ -344,10 +347,61 @@ export const AttractionsBento = memo(function AttractionsBento({
     );
   }
 
+  // Needs API key
+  if (apiStatus === 'needs_api_key') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, height: '100%', textAlign: 'center', padding: 40 }}
+      >
+        <div style={{ fontSize: 48 }} aria-hidden>🔑</div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.04em' }}>Connect Experiences API</h2>
+          <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', maxWidth: 340, lineHeight: 1.55 }}>
+            {apiMessage ?? 'Add GetYourGuide or Viator API credentials to .env.local to enable live experience search.'}
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Error state
+  if (apiStatus === 'error') {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
+      >
+        <div style={{ fontSize: 40 }} aria-hidden>⚠️</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+          {apiMessage ?? 'Search failed. Please try again.'}
+        </p>
+      </motion.div>
+    );
+  }
+
   // results state
-  const entities    = DEMO_ATTRACTIONS;
-  const lodgingPin  = DEMO_LODGING;
+  const entities     = results ?? [];
+  const lodgingPin   = DEMO_LODGING;
   const warningCount = entities.filter(e => e.weatherMatch?.quality === 'warning').length;
+
+  if (entities.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
+      >
+        <div style={{ fontSize: 40 }} aria-hidden>🎭</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+          No experiences found. Try connecting GetYourGuide or Viator API keys.
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>

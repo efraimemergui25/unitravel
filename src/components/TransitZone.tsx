@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence }                 from 'framer-motion';
-import { distillTransit }                          from '@/services/TransitDistillation';
 import { TransitVisualizer }                       from '@/components/zones/TransitVisualizer';
 import type { TransitQuery }                       from '@/types/transit';
 import { useZoneStore }                            from '@/store/useZoneStore';
@@ -158,20 +157,35 @@ export function TransitZone() {
   const [selectedIds, setSelectedIds] = useState<Record<string, string>>({});
   const engineIds = useZoneStore(s => s.selectedIds('transit'));
 
-  const handleSearch = useCallback(async () => {
+  const handleSearch = useCallback(async (origin?: string, destination?: string, adults = 2) => {
+    if (!origin || !destination) {
+      setPhase('idle');
+      return;
+    }
     setPhase('loading');
-    await new Promise(r => setTimeout(r, 1200));
-    const data = distillTransit(engineIds);
-    setQueries(data);
-    // Pre-select recommended options
-    const preSelected: Record<string, string> = {};
-    data.forEach(q => {
-      const rec = q.options.find(o => o.isRecommended) ?? q.options[0];
-      if (rec) preSelected[q.id] = rec.id;
-    });
-    setSelectedIds(preSelected);
-    setActiveLeg(0);
-    setPhase('results');
+    try {
+      const res = await fetch('/api/transit', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ origin, destination, adults, engines: engineIds }),
+      });
+      const data = await res.json() as { status: string; results: TransitQuery[] };
+      if (data.status !== 'ok' || !data.results?.length) {
+        setPhase('idle');
+        return;
+      }
+      const preSelected: Record<string, string> = {};
+      data.results.forEach(q => {
+        const rec = q.options.find(o => o.isRecommended) ?? q.options[0];
+        if (rec) preSelected[q.id] = rec.id;
+      });
+      setQueries(data.results);
+      setSelectedIds(preSelected);
+      setActiveLeg(0);
+      setPhase('results');
+    } catch {
+      setPhase('idle');
+    }
   }, [engineIds]);
 
   useEffect(() => {

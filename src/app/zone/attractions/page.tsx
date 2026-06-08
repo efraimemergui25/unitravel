@@ -1,74 +1,174 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AttractionsControl }  from '@/components/zones/AttractionsControl';
-import { EffortFilter }        from '@/components/zones/EffortFilter';
-import { AttractionsBento }    from '@/components/results/AttractionsBento';
-import { useTravelEngine }     from '@/store/useTravelEngine';
-import { useLocaleEngine }     from '@/store/useLocaleEngine';
-import type { AttractionSearchState } from '@/components/results/AttractionsBento';
-import type { EffortLevel }    from '@/components/zones/EffortFilter';
+import { useState, useCallback, useRef, type KeyboardEvent } from 'react';
+import { motion, AnimatePresence }    from 'framer-motion';
+import { ExperiencesControl }         from '@/components/zones/ExperiencesControl';
+import { EffortFilter }               from '@/components/zones/EffortFilter';
+import { ExperienceBento }            from '@/components/results/ExperienceBento';
+import type { ExperienceSearchState } from '@/components/results/ExperienceBento';
+import { useTravelEngine }            from '@/store/useTravelEngine';
+import { useLocaleEngine }            from '@/store/useLocaleEngine';
+import { ConciergePanel }             from '@/components/ai/ConciergePanel';
+import type { EffortLevel }           from '@/components/zones/EffortFilter';
+import type { AttractionEntity }      from '@/types/attractions';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const COLOR  = '#30D158';
 const SPRING = { type: 'spring', stiffness: 400, damping: 28 } as const;
 
+// ── NL query parser ───────────────────────────────────────────────────────────
+
+interface ParsedAttractionQuery {
+  type?:       string;
+  maxPrice?:   number;
+  minPrice?:   number;
+  duration?:   number;
+  isPrivate?:  boolean;
+  tags:        string[];
+}
+
+function parseNLAttractionQuery(text: string): ParsedAttractionQuery {
+  const t    = text.toLowerCase();
+  const tags: string[] = [];
+
+  const maxPriceMatch = t.match(/under\s+\$?(\d+)/);
+  const maxPrice = maxPriceMatch ? parseInt(maxPriceMatch[1]) : undefined;
+
+  const durationMatch = t.match(/(\d+)\s*(?:hour|hr)/);
+  const duration = durationMatch ? parseInt(durationMatch[1]) : undefined;
+
+  const isPrivate = /\bprivate\b|\bpersonal\b|\bjust\s+us\b/.test(t);
+
+  // Activity type detection
+  let type: string | undefined;
+  if (/\btour\b/.test(t))        type = 'tour';
+  if (/\bcooking\b|\bculin/.test(t)) type = 'culinary';
+  if (/\bhike|hiking|trekk/.test(t)) type = 'outdoor';
+  if (/\bmuseum|gallery|art\b/.test(t)) type = 'cultural';
+  if (/\bwellness|spa|yoga/.test(t)) type = 'wellness';
+  if (/\bboat|sail|kayak|surf/.test(t)) { type = 'outdoor'; tags.push('water'); }
+  if (/\bwine|beer|cocktail/.test(t)) { type = 'culinary'; tags.push('drinks'); }
+  if (/\bfamily|kids/.test(t))   tags.push('family-friendly');
+  if (/\bnight|evening/.test(t)) tags.push('evening');
+
+  return { type, maxPrice, duration, isPrivate, tags };
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AttractionsPage() {
-  const [searchState,    setSearchState]    = useState<AttractionSearchState>('idle');
+  const [searchState,    setSearchState]    = useState<ExperienceSearchState>('idle');
   const [engineCount,    setEngineCount]    = useState(0);
   const [scanProgress,   setScanProgress]   = useState(0);
   const [selectedEffort, setSelectedEffort] = useState<EffortLevel[]>([]);
+  const [results,        setResults]        = useState<AttractionEntity[] | null>(null);
+  const [apiStatus,      setApiStatus]      = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
+  const [apiMessage,     setApiMessage]     = useState<string | null>(null);
+  const [nlQuery,        setNlQuery]        = useState('');
+  const [nlFocused,      setNlFocused]      = useState(false);
+  const [parsedQuery,    setParsedQuery]    = useState<ParsedAttractionQuery | null>(null);
 
-  // Read dynamic trip context from store — never hardcode a destination
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Read dynamic trip context — never hardcode destinations
   const { days, activeDay } = useTravelEngine(s => ({ days: s.days, activeDay: s.activeDay }));
   const { profile }         = useLocaleEngine();
+  const isRtl               = profile.direction === 'rtl';
 
-  // Derive destination from the active day, or from unique destinations in the trip
   const activeDestination = (() => {
     if (activeDay) {
       const day = days.find(d => d.id === activeDay);
-      if (day) return day.destination;
+      if (day?.destination) return day.destination;
     }
-    const uniqueDests = [...new Set(days.map(d => d.destination))];
-    return uniqueDests.length === 1 ? uniqueDests[0] : uniqueDests[0] ?? null;
+    const dests = [...new Set(days.map(d => d.destination).filter(Boolean))];
+    return dests[0] ?? null;
   })();
 
-  const uniqueDestinations = [...new Set(days.map(d => d.destination))];
+  const uniqueDestinations = [...new Set(days.map(d => d.destination).filter(Boolean))];
   const hasContext         = uniqueDestinations.length > 0;
 
-  const handleSearch = useCallback((engineIds: string[]) => {
+  // ── Search handler ─────────────────────────────────────────────────────────
+
+  const handleSearch = useCallback(async (engineIds: string[]) => {
     setEngineCount(engineIds.length);
     setSearchState('loading');
     setScanProgress(0);
+    setResults(null);
+    setApiStatus(null);
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 9 + 3;
-      setScanProgress(Math.min(progress, 96));
-      if (progress >= 96) clearInterval(interval);
-    }, 80);
+    const parsed = nlQuery.trim() ? parseNLAttractionQuery(nlQuery) : null;
+    setParsedQuery(parsed);
 
-    // Experiences + weather sync — slightly longer than dining (weather API call)
-    setTimeout(() => {
-      clearInterval(interval);
+    const progressRaf = { id: 0, start: Date.now() };
+    const animateProgress = () => { const t = Math.min(82, 82 * (1 - Math.exp(-(Date.now() - progressRaf.start) / 5000))); setScanProgress(Math.floor(t)); if (t < 81.9) progressRaf.id = requestAnimationFrame(animateProgress); };
+    progressRaf.id = requestAnimationFrame(animateProgress);
+
+    try {
+      const destination = activeDestination ?? 'Paris';
+      const startDate   = days[0]?.date ?? new Date().toISOString().split('T')[0];
+      const endDate     = days[days.length - 1]?.date ?? startDate;
+
+      const res  = await fetch('/api/attractions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          destination,
+          engineIds,
+          adults:       2,
+          startDate,
+          endDate,
+          effortLevels: selectedEffort.length > 0 ? selectedEffort : undefined,
+          currency:     profile.currency,
+          nlQuery:      nlQuery.trim() || undefined,
+          type:         parsed?.type,
+          maxPrice:     parsed?.maxPrice,
+          isPrivate:    parsed?.isPrivate,
+          tags:         parsed?.tags.length ? parsed.tags : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      cancelAnimationFrame(progressRaf.id);
       setScanProgress(100);
-      setTimeout(() => setSearchState('results'), 240);
-    }, 3100);
-  }, []);
 
-  const isRtl = profile.direction === 'rtl';
+      if (data.status === 'needs_api_key') {
+        setApiStatus('needs_api_key');
+        setApiMessage(data.setupMessage ?? null);
+      } else if (data.results?.length > 0) {
+        setApiStatus('ok');
+        setResults(data.results);
+      } else if (data.count === 0) {
+        setApiStatus('ok');
+        setResults([]);
+      } else {
+        setApiStatus('error');
+        setApiMessage(data.error ?? 'No results');
+      }
+      setTimeout(() => setSearchState('results'), 200);
+    } catch (err) {
+      cancelAnimationFrame(progressRaf.id);
+      setScanProgress(100);
+      setApiStatus('error');
+      setApiMessage(err instanceof Error ? err.message : 'Network error');
+      setTimeout(() => setSearchState('results'), 200);
+    }
+  }, [activeDestination, days, nlQuery, selectedEffort, profile.currency]);
+
+  const onInputKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && nlQuery.trim()) {
+      // NL search pre-fills context; user still clicks Search on engine strip
+      setParsedQuery(parseNLAttractionQuery(nlQuery));
+    }
+  };
 
   return (
     <div
       style={{
-        display:    'flex',
-        width:      '100%',
-        height:     '100%',
-        overflow:   'hidden',
+        display:   'flex',
+        width:     '100%',
+        height:    '100%',
+        overflow:  'hidden',
         background: [
           `radial-gradient(ellipse at 0% 0%, ${COLOR}09 0%, transparent 52%)`,
           'radial-gradient(ellipse at 100% 100%, rgba(0,199,190,0.04) 0%, transparent 48%)',
@@ -77,10 +177,7 @@ export default function AttractionsPage() {
         direction: isRtl ? 'rtl' : 'ltr',
       }}
     >
-      {/* ── Left: Attractions Control Console ─────────────── */}
-      <AttractionsControl onSearch={handleSearch} isSearching={searchState === 'loading'} />
-
-      {/* ── Right: Filters + Results ──────────────────────── */}
+      {/* ── 2/3 Workspace ─────────────────────────────────── */}
       <div
         style={{
           flex:          1,
@@ -89,261 +186,260 @@ export default function AttractionsPage() {
           flexDirection: 'column',
           height:        '100%',
           overflow:      'hidden',
+          gap:           0,
         }}
       >
-        {/* Query / context bar */}
+        {/* ── Header: "Global Experiences Matrix" + NL search ── */}
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.1 }}
+          transition={{ ...SPRING, delay: 0.05 }}
+          className="glass-panel"
           style={{
-            display:              'flex',
-            alignItems:           'center',
-            gap:                  12,
-            paddingInline:        22,
-            paddingBlock:         12,
-            borderBlockEnd:       '1px solid rgba(0,0,0,0.05)',
-            background:           'rgba(255,255,255,0.72)',
-            backdropFilter:       'blur(32px) saturate(1.8)',
-            WebkitBackdropFilter: 'blur(32px) saturate(1.8)',
-            flexShrink:           0,
-            flexWrap:             'wrap',
-            rowGap:               8,
+            marginInline:  16,
+            marginBlockStart: 14,
+            flexShrink:    0,
+            padding:       '16px 20px',
+            display:       'flex',
+            flexDirection: 'column',
+            gap:            12,
           }}
         >
-          {hasContext ? (
-            <>
-              {/* Destination pills — generated from store, never hardcoded */}
-              <DestTag destinations={uniqueDestinations} />
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <motion.h2
+              style={{
+                margin:        0,
+                fontSize:      17,
+                fontWeight:    900,
+                letterSpacing: '-0.035em',
+                color:         'var(--text-primary)',
+                lineHeight:    1,
+              }}
+            >
+              Global Experiences Matrix
+            </motion.h2>
+            <motion.span
+              animate={{ rotate: [0, 360] }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+              style={{ fontSize: 13, color: COLOR, flexShrink: 0 }}
+            >
+              ✦
+            </motion.span>
 
-              <div aria-hidden style={{
-                width: 1, height: 18,
-                background: 'rgba(0,0,0,0.09)',
-                marginInline: 2, flexShrink: 0,
-              }} />
+            {/* Context chips */}
+            {hasContext && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto', flexWrap: 'wrap' }}>
+                {uniqueDestinations.slice(0, 3).map(dest => (
+                  <span
+                    key={dest}
+                    style={{
+                      fontSize:      10,
+                      fontWeight:    700,
+                      color:         COLOR,
+                      background:    `${COLOR}10`,
+                      border:        `1px solid ${COLOR}22`,
+                      borderRadius:  7,
+                      paddingBlock:  3,
+                      paddingInline: 8,
+                    }}
+                  >
+                    🎭 {dest}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
-              {/* Date range chip */}
-              {days.length > 0 && (
-                <InfoChip
-                  icon="📅"
-                  text={`${days[0].date} – ${days[days.length - 1].date}`}
-                />
-              )}
+          {/* NL search input */}
+          <motion.div
+            animate={{
+              boxShadow: nlFocused
+                ? `0 0 0 3px rgba(48,209,88,0.14), 0 4px 20px rgba(0,0,0,0.06)`
+                : '0 2px 10px rgba(0,0,0,0.04)',
+            }}
+            transition={{ duration: 0.18 }}
+            style={{
+              display:        'flex',
+              alignItems:     'center',
+              gap:             10,
+              background:    'rgba(255,255,255,0.82)',
+              backdropFilter: 'blur(32px) saturate(1.9)',
+              border:        `1.5px solid ${nlFocused ? `${COLOR}38` : 'rgba(255,255,255,0.95)'}`,
+              borderRadius:   14,
+              paddingBlock:   11,
+              paddingInline:  16,
+              transition:    'border-color 0.18s ease',
+            }}
+          >
+            <motion.span
+              animate={{ rotate: nlFocused ? 180 : 0, opacity: nlFocused ? 1 : 0.55 }}
+              transition={{ duration: 0.5 }}
+              style={{ fontSize: 16, flexShrink: 0 }}
+            >
+              ✦
+            </motion.span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={nlQuery}
+              onChange={e => setNlQuery(e.target.value)}
+              onFocus={() => setNlFocused(true)}
+              onBlur={() => setNlFocused(false)}
+              onKeyDown={onInputKey}
+              placeholder={
+                isRtl
+                  ? 'חפש חוויות... "סיורי יין תחת $150", "הייקינג בוקר", "טיול פרטי עם סירה"'
+                  : 'Find experiences... "private boat tours under $200", "morning hike", "cooking class"'
+              }
+              style={{
+                flex:          1,
+                background:   'none',
+                border:       'none',
+                outline:      'none',
+                fontSize:     13,
+                fontWeight:   500,
+                color:        'var(--text-primary)',
+                letterSpacing: '-0.01em',
+                minWidth:     0,
+                direction:    isRtl ? 'rtl' : 'ltr',
+              }}
+            />
 
-              {/* Weather sync chip */}
-              <InfoChip icon="🌤" text="Live weather sync" />
-            </>
-          ) : (
-            <EmptyContextHint />
-          )}
-
-          {/* Scan progress / status pill */}
-          <div style={{ marginInlineStart: 'auto' }}>
-            <AnimatePresence mode="wait">
-              {searchState === 'loading' && (
-                <ScanProgressPill
-                  key="progress"
-                  progress={scanProgress}
-                  engineCount={engineCount}
-                />
-              )}
-              {searchState === 'results' && (
-                <motion.div
-                  key="done"
-                  initial={{ scale: 0.85, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.85, opacity: 0 }}
-                  transition={SPRING}
-                  style={{
-                    display:       'flex',
-                    alignItems:    'center',
-                    gap:           6,
-                    paddingBlock:  6,
-                    paddingInline: 12,
-                    borderRadius:  999,
-                    background:    `${COLOR}12`,
-                    border:        `1.5px solid ${COLOR}30`,
-                    fontSize:      11.5,
-                    fontWeight:    700,
-                    color:         COLOR,
-                    flexShrink:    0,
-                  }}
-                >
-                  <motion.span
-                    animate={{ scale: [1, 1.35, 1] }}
-                    transition={{ duration: 1.9, repeat: Infinity }}
-                    style={{ width: 6, height: 6, borderRadius: '50%', background: COLOR, display: 'inline-block', flexShrink: 0 }}
-                    aria-hidden
-                  />
-                  Weather-synced & deduplicated
-                </motion.div>
+            {/* Parsed query pills */}
+            <AnimatePresence>
+              {parsedQuery && (parsedQuery.type || parsedQuery.maxPrice) && (
+                <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                  {parsedQuery.type && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      style={{
+                        fontSize: 9.5, fontWeight: 700, color: COLOR,
+                        background: `${COLOR}12`, border: `1px solid ${COLOR}25`,
+                        borderRadius: 6, paddingBlock: 2, paddingInline: 7,
+                      }}
+                    >
+                      {parsedQuery.type}
+                    </motion.span>
+                  )}
+                  {parsedQuery.maxPrice && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      style={{
+                        fontSize: 9.5, fontWeight: 700, color: '#007AFF',
+                        background: 'rgba(0,122,255,0.10)', border: '1px solid rgba(0,122,255,0.20)',
+                        borderRadius: 6, paddingBlock: 2, paddingInline: 7,
+                      }}
+                    >
+                      &lt;${parsedQuery.maxPrice}
+                    </motion.span>
+                  )}
+                </div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
+
+          {/* Scan progress bar */}
+          <AnimatePresence>
+            {searchState === 'loading' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+              >
+                <motion.span
+                  animate={{ rotate: [0, 360] }}
+                  transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
+                  style={{ fontSize: 11, color: COLOR }}
+                  aria-hidden
+                >✦</motion.span>
+                <div style={{ flex: 1, height: 3, borderRadius: 999, background: `${COLOR}18`, overflow: 'hidden' }}>
+                  <motion.div
+                    animate={{ width: `${Math.min(100, Math.round(scanProgress))}%` }}
+                    transition={{ ease: 'easeOut', duration: 0.3 }}
+                    style={{ height: '100%', background: `linear-gradient(90deg, ${COLOR}, #00C7BE)`, borderRadius: 999 }}
+                  />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: COLOR, minWidth: 40, textAlign: 'end' }}>
+                  {Math.min(100, Math.round(scanProgress))}%
+                </span>
+              </motion.div>
+            )}
+            {searchState === 'results' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <motion.span
+                  animate={{ scale: [1, 1.3, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  style={{ width: 5, height: 5, borderRadius: '50%', background: COLOR, display: 'inline-block', flexShrink: 0 }}
+                  aria-hidden
+                />
+                <span style={{ fontSize: 10, fontWeight: 700, color: COLOR }}>
+                  Weather-synced · Effort-filtered · {results?.length ?? 0} experiences found
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* Effort filter bar */}
+        {/* ── ExperiencesControl horizontal strip ── */}
+        <div style={{ marginBlockStart: 10, flexShrink: 0 }}>
+          <ExperiencesControl onSearch={handleSearch} isSearching={searchState === 'loading'} />
+        </div>
+
+        {/* ── Effort filter ── */}
         <motion.div
-          initial={{ opacity: 0, y: -6 }}
+          initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
+          transition={{ duration: 0.25, delay: 0.1 }}
           style={{
-            paddingInline:        20,
-            paddingBlock:         10,
-            background:           'rgba(255,255,255,0.72)',
-            backdropFilter:       'blur(32px) saturate(1.9)',
+            paddingInline:  20,
+            paddingBlock:   9,
+            background:    'rgba(255,255,255,0.65)',
+            backdropFilter: 'blur(32px) saturate(1.9)',
             WebkitBackdropFilter: 'blur(32px) saturate(1.9)',
-            borderBlockEnd:       '1px solid rgba(0,0,0,0.05)',
-            flexShrink:           0,
+            borderBlockEnd: '1px solid rgba(0,0,0,0.05)',
+            flexShrink:     0,
           }}
         >
           <EffortFilter selected={selectedEffort} onChange={setSelectedEffort} />
         </motion.div>
 
-        {/* Results area */}
+        {/* ── Scrollable results ── */}
         <div
           style={{
             flex:           1,
             minHeight:      0,
             overflowY:      'auto',
             overflowX:      'hidden',
-            padding:        '20px 22px 36px',
+            padding:        '18px 20px 40px',
             scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(0,0,0,0.12) transparent',
+            scrollbarColor: 'rgba(0,0,0,0.10) transparent',
           }}
         >
-          <AttractionsBento
+          <ExperienceBento
             searchState={searchState}
             engineCount={engineCount}
             destination={activeDestination ?? undefined}
+            results={results}
+            apiStatus={apiStatus}
+            apiMessage={apiMessage}
           />
         </div>
       </div>
+
+      {/* ── 1/3 AI Concierge — permanent right column ── */}
+      <ConciergePanel fitParent />
     </div>
-  );
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function DestTag({ destinations }: { destinations: string[] }) {
-  const label = destinations.length > 2
-    ? `${destinations[0]} · +${destinations.length - 1} more`
-    : destinations.join(' · ');
-
-  return (
-    <div style={{
-      display:       'flex',
-      alignItems:    'center',
-      gap:           6,
-      paddingBlock:  6,
-      paddingInline: 10,
-      borderRadius:  10,
-      background:    `${COLOR}0C`,
-      border:        `1px solid ${COLOR}20`,
-      flexShrink:    0,
-    }}>
-      <span style={{ fontSize: 13 }} aria-hidden>🎭</span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function InfoChip({ icon, text }: { icon: string; text: string }) {
-  return (
-    <div style={{
-      display:       'flex',
-      alignItems:    'center',
-      gap:           5,
-      paddingBlock:  5,
-      paddingInline: 9,
-      borderRadius:  8,
-      background:    'rgba(0,0,0,0.04)',
-      border:        '1px solid rgba(0,0,0,0.07)',
-      fontSize:      11.5,
-      fontWeight:    500,
-      color:         '#3C3C43',
-      letterSpacing: '-0.01em',
-      flexShrink:    0,
-      whiteSpace:    'nowrap',
-    }}>
-      <span aria-hidden>{icon}</span>
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function EmptyContextHint() {
-  return (
-    <motion.div
-      animate={{ opacity: [0.6, 1, 0.6] }}
-      transition={{ duration: 2.4, repeat: Infinity }}
-      style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           7,
-        paddingBlock:  6,
-        paddingInline: 12,
-        borderRadius:  10,
-        background:    'rgba(0,0,0,0.03)',
-        border:        '1px dashed rgba(0,0,0,0.12)',
-        fontSize:      11, fontWeight: 500, color: '#AEAEB2',
-      }}
-    >
-      <span>💬</span>
-      <span>Tell the AI Concierge your destination to begin</span>
-    </motion.div>
-  );
-}
-
-function ScanProgressPill({ progress, engineCount }: { progress: number; engineCount: number }) {
-  const clamped = Math.min(100, Math.round(progress));
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={SPRING}
-      style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           10,
-        paddingBlock:  7,
-        paddingInline: 14,
-        borderRadius:  999,
-        background:    `${COLOR}0D`,
-        border:        `1.5px solid ${COLOR}28`,
-        flexShrink:    0,
-      }}
-    >
-      <motion.span
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
-        style={{ fontSize: 11, color: COLOR, display: 'inline-block' }}
-        aria-hidden
-      >
-        ✦
-      </motion.span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 158 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: COLOR, letterSpacing: '-0.01em' }}>
-          Scanning {engineCount} experience networks
-        </span>
-        <div style={{ height: 3, borderRadius: 999, background: `${COLOR}1C`, overflow: 'hidden' }}>
-          <motion.div
-            animate={{ width: `${clamped}%` }}
-            transition={{ ease: 'easeOut', duration: 0.28 }}
-            style={{
-              height:     '100%',
-              background: `linear-gradient(90deg, ${COLOR}, #00C7BE)`,
-              borderRadius: 999,
-            }}
-          />
-        </div>
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 800, color: COLOR, minWidth: 28, textAlign: 'end' }}>
-        {clamped}%
-      </span>
-    </motion.div>
   );
 }

@@ -1,7 +1,3 @@
-// Unitravel Dining Orchestrator — parallel fetches + mathematical deduplication.
-// When the same restaurant appears on OpenTable AND Resy, the backend merges
-// both availableSlots arrays into a single deduplicated, time-sorted record.
-
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -57,13 +53,17 @@ export type MergedRestaurant   = z.infer<typeof MergedRestaurantSchema>;
 export type DiningQuery        = z.infer<typeof DiningQuerySchema>;
 
 export interface DiningApiResponse {
-  query:              DiningQuery;
-  restaurants:        MergedRestaurant[];
-  totalSources:       number;
-  successfulSources:  number;
-  deduplicatedFrom:   number;
-  processingMs:       number;
-  warnings:           string[];
+  status:            'ok' | 'needs_api_key' | 'error';
+  provider:          string;
+  query:             Partial<DiningQuery>;
+  restaurants:       MergedRestaurant[];
+  totalSources:      number;
+  successfulSources: number;
+  deduplicatedFrom:  number;
+  processingMs:      number;
+  warnings:          string[];
+  setupUrl?:         string;
+  setupMessage?:     string;
 }
 
 // ── Name normalizer (dedup key) ───────────────────────────────────────────────
@@ -133,32 +133,7 @@ function mergeSlots(allSlots: TimeSlot[]): TimeSlot[] {
     .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
 }
 
-// ── Generate mock slots per source ───────────────────────────────────────────
-// In production: replace with real OpenTable / Resy API calls.
-
-function generateSlots(
-  source:     string,
-  startMins:  number,
-  endMins:    number,
-  intervalMin:number,
-  party:      number,
-  availability: number, // 0-1, probability each slot exists
-): TimeSlot[] {
-  const slots: TimeSlot[] = [];
-  for (let m = startMins; m <= endMins; m += intervalMin) {
-    if (Math.random() < availability) {
-      slots.push({
-        time:   formatTime(m),
-        label:  minutesToLabel(m),
-        source,
-        party,
-      });
-    }
-  }
-  return slots;
-}
-
-// ── Per-engine fetch simulation ───────────────────────────────────────────────
+// ── Raw source shape (internal) ───────────────────────────────────────────────
 
 interface RawDiningSource {
   source:    string;
@@ -179,115 +154,155 @@ interface RawDiningSource {
   imageGradient: string;
 }
 
-async function fetchDiningSource(
-  engineId: string,
-  query:    DiningQuery,
-): Promise<RawDiningSource[]> {
-  // Simulate network latency + 7% error rate
-  await new Promise(r => setTimeout(r, 80 + Math.random() * 250));
-  if (Math.random() < 0.07) throw new Error(`${engineId}: upstream timeout`);
+// ── Cuisine → gradient mapping ────────────────────────────────────────────────
 
-  const dest = query.destination.toLowerCase();
-  const party = query.adults;
+function cuisineGradient(types: string[]): string {
+  if (types.some(t => /japanese|sushi|ramen/.test(t))) return 'linear-gradient(135deg, #1565C0 0%, #42A5F5 100%)';
+  if (types.some(t => /italian|pizza|pasta/.test(t))) return 'linear-gradient(135deg, #C62828 0%, #EF9A9A 100%)';
+  if (types.some(t => /mexican|taco|burrito/.test(t))) return 'linear-gradient(135deg, #6B4226 0%, #CD853F 100%)';
+  if (types.some(t => /seafood|fish/.test(t))) return 'linear-gradient(135deg, #00838F 0%, #80DEEA 100%)';
+  if (types.some(t => /french|brasserie/.test(t))) return 'linear-gradient(135deg, #4A148C 0%, #CE93D8 100%)';
+  if (types.some(t => /steakhouse|bbq|grill/.test(t))) return 'linear-gradient(135deg, #BF360C 0%, #FF8A65 100%)';
+  if (types.some(t => /cafe|coffee|bakery/.test(t))) return 'linear-gradient(135deg, #5D4037 0%, #A1887F 100%)';
+  return 'linear-gradient(135deg, #1B5E20 0%, #43A047 100%)';
+}
 
-  // Produce engine-specific restaurant data with overlapping names for dedup demo
-  const RESTAURANTS_BY_ENGINE: Record<string, RawDiningSource[]> = {
-    opentable: [
-      {
-        source: 'opentable', name: 'Hartwood', cuisine: 'Mexican Wood-Fire',
-        location: 'Tulum', destination: query.destination,
-        pricePerPerson: 120, rating: 9.4, michelinStars: undefined,
-        slots: [
-          ...generateSlots('opentable', 18*60,     18*60+30, 30, party, 0.4),
-          ...generateSlots('opentable', 19*60, 21*60+30, 30, party, 0.75),
-        ],
-        uberMinutes: 12, uberCost: 8,
-        aiHighlight: 'Open-fire kitchen in the jungle — no electricity, no freezers. Reservations 90 days in advance.',
-        reservationWindow: '90 days',
-        tags: ['romantic', 'outdoor', 'wood-fire', 'honeymoon'],
-        imageGradient: 'linear-gradient(135deg, #6B4226 0%, #2D4A1E 50%, #1A2E10 100%)',
-      },
-      {
-        source: 'opentable', name: 'Catch Miami', cuisine: 'Global Bites & Seafood',
-        location: 'Miami Beach', destination: query.destination,
-        pricePerPerson: 95, rating: 8.6,
-        slots: generateSlots('opentable', 19*60, 22*60+30, 30, party, 0.65),
-        uberMinutes: 8, uberCost: 14,
-        aiHighlight: 'Signature aerial display. Reserve the rooftop for sunset over the bay.',
-        reservationWindow: '30 days',
-        tags: ['party', 'rooftop', 'seafood', 'miami'],
-        imageGradient: 'linear-gradient(135deg, #AD1457 0%, #F06292 50%, #FFB74D 100%)',
-      },
-    ],
-    resy: [
-      {
-        source: 'resy', name: 'Catch Miami', cuisine: 'Global Bites & Seafood',
-        location: 'Miami Beach', destination: query.destination,
-        pricePerPerson: 95, rating: 8.7,
-        slots: generateSlots('resy', 18*60+30, 22*60, 30, party, 0.60),
-        uberMinutes: 8, uberCost: 14,
-        aiHighlight: 'Exclusive Resy access to chef\'s table — 6 seats only.',
-        reservationWindow: '21 days',
-        tags: ['party', 'rooftop', 'seafood', 'miami'],
-        imageGradient: 'linear-gradient(135deg, #AD1457 0%, #F06292 50%, #FFB74D 100%)',
-      },
-      {
-        source: 'resy', name: 'Expendio de Maíz', cuisine: 'Contemporary Mexican Tasting',
-        location: 'Mexico City', destination: query.destination,
-        pricePerPerson: 85, rating: 9.1,
-        slots: generateSlots('resy', 19*60, 21*60, 60, party, 0.50),
-        uberMinutes: 18, uberCost: 6,
-        aiHighlight: '10-course corn-origin tasting menu. Location changes weekly — AI tracks it.',
-        reservationWindow: '14 days',
-        tags: ['intimate', 'tasting-menu', 'cdmx', 'hidden'],
-        imageGradient: 'linear-gradient(135deg, #8B4513 0%, #CD853F 50%, #4A2511 100%)',
-      },
-    ],
-    michelin: [
-      {
-        source: 'michelin', name: 'Expendio de Maíz', cuisine: 'Contemporary Mexican Tasting',
-        location: 'Mexico City', destination: query.destination,
-        pricePerPerson: 90, rating: 9.3, michelinStars: undefined,
-        slots: [],  // Michelin doesn't handle reservations directly
-        uberMinutes: 18, uberCost: 6,
-        aiHighlight: 'Michelin Bib Gourmand 2024. One of CDMX\'s most unique dining experiences.',
-        reservationWindow: '14 days',
-        tags: ['intimate', 'tasting-menu', 'cdmx', 'hidden', 'michelin-bib'],
-        imageGradient: 'linear-gradient(135deg, #8B4513 0%, #CD853F 50%, #4A2511 100%)',
-      },
-    ],
-    tock: [
-      {
-        source: 'tock', name: 'Manta Los Cabos', cuisine: 'Pacific Rim & Mexican Seafood',
-        location: 'Los Cabos', destination: query.destination,
-        pricePerPerson: 140, rating: 9.0,
-        slots: generateSlots('tock', 17*60, 21*60, 30, party, 0.70),
-        uberMinutes: 5, uberCost: 12,
-        aiHighlight: 'Pacific panorama dining at The Cape hotel. Best sunset table in Cabo.',
-        reservationWindow: '60 days',
-        tags: ['romantic', 'ocean-view', 'seafood', 'sunset', 'honeymoon'],
-        imageGradient: 'linear-gradient(135deg, #1565C0 0%, #00838F 50%, #80DEEA 100%)',
-      },
-    ],
-  };
+// ── Google Places Text Search ─────────────────────────────────────────────────
 
-  // Return data for this engine, or fallback generic result
-  const data = RESTAURANTS_BY_ENGINE[engineId];
-  if (data) return data;
+async function fetchGooglePlaces(query: DiningQuery): Promise<RawDiningSource[]> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key) return [];
 
-  // Generic fallback for other engines
-  const destLabel = dest.includes('tulum') ? 'Tulum' : dest.includes('cab') ? 'Los Cabos' : 'Mexico City';
-  return [{
-    source: engineId, name: `${engineId} Pick · ${destLabel}`,
-    cuisine: 'International', location: destLabel, destination: query.destination,
-    pricePerPerson: 80 + Math.random() * 80, rating: 7 + Math.random() * 2,
-    slots: generateSlots(engineId, 19*60, 21*60+30, 30, party, 0.5),
-    uberMinutes: Math.floor(10 + Math.random() * 15), uberCost: 8 + Math.random() * 12,
-    aiHighlight: `Top-rated on ${engineId} for ${destLabel}.`,
-    reservationWindow: '30 days',
-    tags: ['international', destLabel.toLowerCase()],
-    imageGradient: 'linear-gradient(135deg, #1B5E20 0%, #388E3C 50%, #81C784 100%)',
-  }];
+  const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+  url.searchParams.set('query', `restaurants in ${query.destination}`);
+  url.searchParams.set('type', 'restaurant');
+  url.searchParams.set('key', key);
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8_000) });
+  if (!res.ok) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await res.json();
+  if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.results ?? []).slice(0, 12).map((p: any): RawDiningSource => {
+    const priceLevel: number = p.price_level ?? 2;
+    const priceMap  = [20, 40, 80, 130, 200];
+    const types: string[] = (p.types ?? []).map((t: string) => t.replace(/_/g, ' '));
+    const cuisine = types.filter(t => !['restaurant','food','point_of_interest','establishment'].includes(t))[0]
+      ?? 'Restaurant';
+
+    return {
+      source:            'google-places',
+      name:              p.name,
+      cuisine:           cuisine.replace(/\b\w/g, (c: string) => c.toUpperCase()),
+      location:          p.formatted_address ?? query.destination,
+      destination:       query.destination,
+      pricePerPerson:    priceMap[priceLevel] ?? 80,
+      rating:            parseFloat(((p.rating ?? 3.5) * 2).toFixed(1)),
+      slots:             [],
+      uberMinutes:       15,
+      uberCost:          12,
+      aiHighlight:       `${(p.user_ratings_total ?? 0).toLocaleString()} ratings on Google Maps.`,
+      reservationWindow: '30 days',
+      tags:              types.slice(0, 4),
+      imageGradient:     cuisineGradient(p.types ?? []),
+    };
+  });
+}
+
+// ── Yelp Business Search ──────────────────────────────────────────────────────
+
+async function fetchYelp(query: DiningQuery): Promise<RawDiningSource[]> {
+  const key = process.env.YELP_API_KEY;
+  if (!key) return [];
+
+  const params = new URLSearchParams({
+    location:   query.destination,
+    categories: 'restaurants',
+    sort_by:    'rating',
+    limit:      '10',
+  });
+
+  const res = await fetch(`https://api.yelp.com/v3/businesses/search?${params}`, {
+    headers: { Authorization: `Bearer ${key}` },
+    signal:  AbortSignal.timeout(6_000),
+  });
+  if (!res.ok) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await res.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.businesses ?? []).slice(0, 10).map((b: any): RawDiningSource => {
+    const priceMap: Record<string, number> = { '$': 25, '$$': 55, '$$$': 100, '$$$$': 175 };
+    const categories: string[] = (b.categories ?? []).map((c: { title: string }) => c.title);
+
+    return {
+      source:            'yelp',
+      name:              b.name,
+      cuisine:           categories[0] ?? 'Restaurant',
+      location:          `${b.location?.address1 ?? ''}, ${b.location?.city ?? query.destination}`.replace(/^, /, ''),
+      destination:       query.destination,
+      pricePerPerson:    priceMap[b.price ?? '$$'] ?? 55,
+      rating:            parseFloat((b.rating * 2).toFixed(1)),
+      slots:             [],
+      uberMinutes:       15,
+      uberCost:          12,
+      aiHighlight:       `${(b.review_count ?? 0).toLocaleString()} reviews on Yelp.`,
+      reservationWindow: '30 days',
+      tags:              categories.slice(0, 4).map((c: string) => c.toLowerCase()),
+      imageGradient:     cuisineGradient(categories.map(c => c.toLowerCase())),
+    };
+  });
+}
+
+// ── Foursquare Places Search ──────────────────────────────────────────────────
+
+async function fetchFoursquare(query: DiningQuery): Promise<RawDiningSource[]> {
+  const key = process.env.FOURSQUARE_API_KEY;
+  if (!key) return [];
+
+  const params = new URLSearchParams({
+    near:       query.destination,
+    categories: '13065',
+    sort:       'RATING',
+    limit:      '12',
+    fields:     'name,categories,rating,price,location,geocodes,photos',
+  });
+
+  const res = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
+    headers: { Authorization: key, Accept: 'application/json' },
+    signal:  AbortSignal.timeout(6_000),
+  });
+  if (!res.ok) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await res.json();
+  const priceMap: Record<number, number> = { 1: 20, 2: 50, 3: 100, 4: 180 };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.results ?? []).slice(0, 12).map((p: any): RawDiningSource => {
+    const cats: string[] = (p.categories ?? []).map((c: { name: string }) => c.name);
+    const priceLevel: number = p.price ?? 2;
+    const loc = p.location;
+    return {
+      source:            'foursquare',
+      name:              p.name,
+      cuisine:           cats[0] ?? 'Restaurant',
+      location:          [loc?.address, loc?.locality ?? query.destination].filter(Boolean).join(', '),
+      destination:       query.destination,
+      pricePerPerson:    priceMap[priceLevel] ?? 55,
+      rating:            parseFloat(((p.rating ?? 7) * 1).toFixed(1)),
+      slots:             [],
+      uberMinutes:       15,
+      uberCost:          12,
+      aiHighlight:       `Rated ${p.rating ?? '?'}/10 on Foursquare.`,
+      reservationWindow: '30 days',
+      tags:              cats.map((c: string) => c.toLowerCase()),
+      imageGradient:     cuisineGradient(cats.map((c: string) => c.toLowerCase())),
+    };
+  });
 }
 
 // ── Deduplication + merge ─────────────────────────────────────────────────────
@@ -377,53 +392,64 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const query = parsed.data;
 
-  // Select engines — use provided list or default to top tier
-  const engines = query.engineIds.length > 0
-    ? query.engineIds
-    : ['opentable', 'resy', 'michelin', 'tock', 'thefork', 'zagat', 'infatuation'];
+  // ── Check API keys ─────────────────────────────────────────────────────────
+  const googleKey    = process.env.GOOGLE_PLACES_API_KEY;
+  const yelpKey      = process.env.YELP_API_KEY;
+  const foursquareKey = process.env.FOURSQUARE_API_KEY;
 
-  // Fan out in parallel — never block on one failure
-  const settled = await Promise.allSettled(
-    engines.map(id => fetchDiningSource(id, query))
-  );
-
-  const allRaw:    RawDiningSource[] = [];
-  const warnings:  string[]          = [];
-  let   successful = 0, failed = 0;
-
-  for (const [i, result] of settled.entries()) {
-    if (result.status === 'fulfilled') {
-      successful++;
-      allRaw.push(...result.value);
-    } else {
-      failed++;
-      warnings.push(`${engines[i]}: ${result.reason instanceof Error ? result.reason.message : 'failed'}`);
-    }
+  if (!googleKey && !yelpKey && !foursquareKey) {
+    return NextResponse.json({
+      status:       'needs_api_key',
+      provider:     'Google Places + Foursquare',
+      query,
+      restaurants:  [],
+      totalSources: 3,
+      successfulSources: 0,
+      deduplicatedFrom:  0,
+      processingMs: Date.now() - t0,
+      warnings:     [],
+      setupUrl:     'https://console.cloud.google.com/apis/library/places-backend.googleapis.com',
+      setupMessage: 'Add GOOGLE_PLACES_API_KEY or FOURSQUARE_API_KEY to .env.local to enable live restaurant search.',
+    } satisfies DiningApiResponse);
   }
 
+  // ── Parallel fetch from live sources ──────────────────────────────────────
+  const [googleRaw, yelpRaw, foursquareRaw] = await Promise.all([
+    fetchGooglePlaces(query).catch((): RawDiningSource[] => []),
+    fetchYelp(query).catch((): RawDiningSource[]         => []),
+    fetchFoursquare(query).catch((): RawDiningSource[]   => []),
+  ]);
+
+  const allRaw      = [...googleRaw, ...yelpRaw, ...foursquareRaw];
   const rawCount    = allRaw.length;
   const restaurants = deduplicateAndMerge(allRaw, query);
+  const warnings:   string[] = [];
 
-  if (failed / engines.length > 0.3) {
-    warnings.push(`⚠️ ${Math.round(failed / engines.length * 100)}% of sources degraded`);
-  }
+  if (!googleKey)     warnings.push('Google Places: add GOOGLE_PLACES_API_KEY for richer results');
+  if (!yelpKey)       warnings.push('Yelp: add YELP_API_KEY for additional coverage');
+  if (!foursquareKey) warnings.push('Foursquare: add FOURSQUARE_API_KEY for additional coverage');
 
-  const response: DiningApiResponse = {
+  const activeSources = [
+    googleKey     && googleRaw.length     > 0 && 'Google Places',
+    yelpKey       && yelpRaw.length       > 0 && 'Yelp',
+    foursquareKey && foursquareRaw.length > 0 && 'Foursquare',
+  ].filter(Boolean);
+
+  return NextResponse.json({
+    status:            'ok',
+    provider:          activeSources.join(' + ') || 'none',
     query,
     restaurants,
-    totalSources:      engines.length,
-    successfulSources: successful,
+    totalSources:      3,
+    successfulSources: (googleRaw.length > 0 ? 1 : 0) + (yelpRaw.length > 0 ? 1 : 0) + (foursquareRaw.length > 0 ? 1 : 0),
     deduplicatedFrom:  rawCount,
     processingMs:      Date.now() - t0,
     warnings,
-  };
-
-  return NextResponse.json(response, {
+  } satisfies DiningApiResponse, {
     headers: {
-      'Cache-Control':        'public, s-maxage=45, stale-while-revalidate=90',
+      'Cache-Control':        'public, s-maxage=60, stale-while-revalidate=90',
       'X-Restaurants-Raw':    String(rawCount),
       'X-Restaurants-Merged': String(restaurants.length),
-      'X-Processing-Ms':      String(Date.now() - t0),
     },
   });
 }

@@ -334,13 +334,13 @@ const RouteLane = memo(function RouteLane({
             ? '1.5px solid rgba(255,159,10,0.32)'
             : '1.5px solid rgba(0,0,0,0.07)',
         background:      isSelected
-          ? `rgba(255,255,255,0.96)`
-          : 'rgba(255,255,255,0.84)',
-        backdropFilter:  'blur(24px) saturate(1.7)',
-        WebkitBackdropFilter: 'blur(24px) saturate(1.7)',
+          ? 'rgba(255,255,255,0.60)'
+          : 'rgba(255,255,255,0.30)',
+        backdropFilter:  'blur(32px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(32px) saturate(1.8)',
         boxShadow:       isSelected
-          ? `0 4px 24px ${accentColor}20, inset 0 1px 0 rgba(255,255,255,0.9)`
-          : '0 1px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.7)',
+          ? `0 4px 24px ${accentColor}18, inset 0 2px 10px rgba(255,255,255,0.8), inset 0 1px 0 rgba(255,255,255,0.95)`
+          : 'inset 0 1px 0 rgba(255,255,255,0.7)',
         padding:         '12px 14px',
         cursor:          'pointer',
         position:        'relative',

@@ -329,3 +329,150 @@ export function SentimentGauge({
     </motion.div>
   );
 }
+
+// ── Scanning / loading state ──────────────────────────────────────────────────
+
+export function SentimentGaugeScanning({ engineCount = 4, color = '#00C7BE' }: { engineCount?: number; color?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        justifyContent: 'center',
+        gap:            18,
+        paddingBlock:   28,
+        paddingInline:  20,
+        borderRadius:   20,
+        background:     `${color}06`,
+        border:         `1px solid ${color}18`,
+        position:       'relative',
+        overflow:       'hidden',
+      }}
+    >
+      {/* Ambient background glow */}
+      <motion.div
+        animate={{ scale: [1, 1.3, 1], opacity: [0.12, 0.28, 0.12] }}
+        transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+        aria-hidden
+        style={{
+          position:     'absolute',
+          width:        180,
+          height:       180,
+          borderRadius: '50%',
+          background:   `radial-gradient(circle, ${color}50 0%, transparent 70%)`,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Pulsating glass orb */}
+      <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+        {/* Outer glow ring */}
+        <motion.div
+          animate={{ scale: [1, 1.25, 1], opacity: [0.3, 0.65, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          aria-hidden
+          style={{
+            position:             'absolute',
+            inset:                -8,
+            borderRadius:         '50%',
+            background:           `radial-gradient(circle, ${color}40 0%, transparent 70%)`,
+          }}
+        />
+        {/* Glass circle */}
+        <motion.div
+          animate={{ scale: [1, 1.04, 1] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position:             'absolute',
+            inset:                0,
+            borderRadius:         '50%',
+            background:           `rgba(255,255,255,0.55)`,
+            backdropFilter:       'blur(24px) saturate(1.8)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+            border:               `1.5px solid ${color}40`,
+            boxShadow:            `0 0 32px ${color}30, inset 0 1px 0 rgba(255,255,255,0.9)`,
+            display:              'flex',
+            alignItems:           'center',
+            justifyContent:       'center',
+          }}
+        >
+          {/* Rotating ring */}
+          <motion.svg
+            width={36}
+            height={36}
+            viewBox="0 0 36 36"
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+            aria-hidden
+          >
+            <circle
+              cx={18} cy={18} r={14}
+              fill="none"
+              stroke={color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeDasharray="28 60"
+              opacity={0.9}
+            />
+          </motion.svg>
+        </motion.div>
+      </div>
+
+      {/* Text block */}
+      <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <motion.p
+          animate={{ opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+          style={{
+            fontSize:      12,
+            fontWeight:    700,
+            color:         color,
+            letterSpacing: '-0.01em',
+            lineHeight:    1.4,
+            margin:        0,
+          }}
+        >
+          Aggregating {engineCount} providers
+        </motion.p>
+        <motion.p
+          animate={{ opacity: [0.4, 0.8, 0.4] }}
+          transition={{ duration: 1.8, repeat: Infinity, delay: 0.3 }}
+          style={{
+            fontSize:      10,
+            fontWeight:    500,
+            color:         'var(--text-secondary)',
+            letterSpacing: '-0.01em',
+            lineHeight:    1.5,
+            margin:        '4px 0 0',
+          }}
+        >
+          Stripping hidden fees · normalizing sentiment
+        </motion.p>
+
+        {/* Animated dots */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBlockStart: 10 }}>
+          {[0, 1, 2].map(i => (
+            <motion.span
+              key={i}
+              animate={{ scale: [1, 1.6, 1], opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.22, ease: 'easeInOut' }}
+              aria-hidden
+              style={{
+                width:        5,
+                height:       5,
+                borderRadius: '50%',
+                background:   color,
+                display:      'inline-block',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
