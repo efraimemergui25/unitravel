@@ -14,7 +14,7 @@ const COLOR      = '#BF5AF2';
 const GRADIENT   = 'linear-gradient(135deg, #BF5AF2 0%, #5E5CE6 100%)';
 
 const AI_PICKS = new Set([
-  'rome2rio', 'google-maps-t', 'uber', 'lyft', 'citymapper',
+  'google-maps', 'rome2rio', 'uber', 'lyft', 'citymapper',
   'trainline', 'turo', 'omio',
 ]);
 

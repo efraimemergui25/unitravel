@@ -2,11 +2,13 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence }         from 'framer-motion';
+import { Plane, Hotel, UtensilsCrossed, Compass, Train, MapPin } from 'lucide-react';
 import Link                                from 'next/link';
 import { useTravelEngine }                 from '@/store/useTravelEngine';
 import type { PlacedEntity, EngineDay }    from '@/store/useTravelEngine';
 import { ShareableTrip }                   from '@/components/export/ShareableTrip';
 import { triggerICSExport }                from '@/utils/OmniSyncEngine';
+import { bestFlightUrl, bestHotelUrl, googleMapsRestaurantUrl, bestAttractionUrl } from '@/utils/deeplinks';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -16,12 +18,13 @@ const AMBER   = '#FF9F0A';
 const RED     = '#FF453A';
 const SPRING  = { type: 'spring', stiffness: 380, damping: 28 } as const;
 
-const CATEGORY_ICON: Record<string, string> = {
-  flight:     '✈️',
-  hotel:      '🏨',
-  restaurant: '🍽️',
-  activity:   '🎭',
-  transport:  '🚗',
+type CatIconComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const CATEGORY_ICON: Record<string, CatIconComp> = {
+  flight:     Plane,
+  hotel:      Hotel,
+  restaurant: UtensilsCrossed,
+  activity:   Compass,
+  transport:  Train,
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -40,6 +43,45 @@ interface EntityRow {
   entity: PlacedEntity;
   day:    EngineDay;
   ref:    string;
+}
+
+// ── Derive booking URL from entity + day context ──────────────────────────────
+// Every confirmed entity gets a real external booking URL so users can
+// complete the reservation on the source site.
+
+function entityBookingUrl(entity: PlacedEntity, day: EngineDay): string | null {
+  const d = entity.details as Record<string, string | number | boolean>;
+  switch (entity.category) {
+    case 'flight':
+      return bestFlightUrl({
+        origin:        String(d.origin        ?? ''),
+        destination:   String(d.destination   ?? day.destination),
+        departureDate: day.date,
+        adults:        1,
+        cabinClass:    String(d.cabinClass ?? 'economy') as 'economy' | 'business' | 'first',
+        flightNumbers: d.flightNumber ? [String(d.flightNumber)] : undefined,
+      });
+    case 'hotel':
+      return bestHotelUrl({
+        name:     entity.title,
+        city:     day.destination,
+        checkIn:  String(d.checkIn  ?? day.date),
+        checkOut: String(d.checkOut ?? day.date),
+        adults:   1,
+      });
+    case 'restaurant':
+      return googleMapsRestaurantUrl({
+        name:     entity.title,
+        location: day.destination,
+      });
+    case 'activity':
+      return bestAttractionUrl({
+        title:       entity.title,
+        destination: day.destination,
+      });
+    default:
+      return null;
+  }
 }
 
 // ── SVG Progress Ring ─────────────────────────────────────────────────────────
@@ -143,10 +185,9 @@ function EntityRow({
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
-          fontSize:       14,
           zIndex:         1,
         }}>
-          {CATEGORY_ICON[entity.category] ?? '📍'}
+          {(() => { const CI = CATEGORY_ICON[entity.category] ?? MapPin; return <CI size={14} color={color} strokeWidth={1.8} />; })()}
         </div>
         {/* Ring overlaid */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
@@ -217,6 +258,30 @@ function EntityRow({
         ${entity.price.toLocaleString()}
       </div>
 
+      {/* Book link (shown when confirmed or idle) */}
+      {(status === 'confirmed' || status === 'idle') && (() => {
+        const url = entityBookingUrl(row.entity, row.day);
+        return url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              fontSize: 9.5, fontWeight: 700,
+              color: status === 'confirmed' ? EMERALD : AZURE,
+              background: status === 'confirmed' ? 'rgba(48,209,88,0.10)' : 'rgba(0,122,255,0.08)',
+              border: `1px solid ${status === 'confirmed' ? 'rgba(48,209,88,0.25)' : 'rgba(0,122,255,0.20)'}`,
+              borderRadius: 100, padding: '3px 8px',
+              textDecoration: 'none', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {status === 'confirmed' ? '✓ Book →' : 'Book →'}
+          </a>
+        ) : null;
+      })()}
+
       {/* Status dot */}
       <motion.div
         animate={{
@@ -275,22 +340,30 @@ export default function CheckoutPage() {
     // Mark all entities pending simultaneously
     setStatuses(Object.fromEntries(rows.map(r => [r.entity.id, 'pending' as BookingStatus])));
 
-    // Commit each entity with a UX stagger: 300ms apart.
-    // toggleBooked() is the real state mutation that fires at end of each ring fill.
-    // The stagger is intentional UX choreography (sequential visual commit), not fake API latency.
+    // Commit each entity with a UX stagger, then open its booking URL.
+    // This is the real "book it" moment — users see each item confirm, then land
+    // on the exact source page to complete payment.
     await Promise.all(
       rows.map((r, i) =>
         new Promise<void>(resolve => {
           setTimeout(() => {
             toggleBooked(r.day.id, r.entity.id);
             setEntityStatus(r.entity.id, 'confirmed');
+
+            // Open the booking URL for this entity in a new tab
+            const url = entityBookingUrl(r.entity, r.day);
+            if (url) {
+              // Small delay so each tab opens sequentially and doesn't trigger popup blockers
+              setTimeout(() => window.open(url, '_blank', 'noopener,noreferrer'), i * 400);
+            }
+
             resolve();
-          }, 380 + i * 310); // ring fills for 380ms before first commit; 310ms stagger per entity
+          }, 380 + i * 310);
         })
       )
     );
 
-    // Real export: download .ics for calendar import
+    // Export .ics so users can import all dates into their calendar
     triggerICSExport(days, trip.title || 'My Trip');
 
     setPhase('complete');
@@ -499,7 +572,7 @@ export default function CheckoutPage() {
                   boxShadow:     `0 6px 24px ${EMERALD}44, inset 0 1px 0 rgba(255,255,255,0.30)`,
                 }}
               >
-                Share Journey ✨
+                Share Journey
               </motion.button>
               <Link href="/on-trip" style={{ textDecoration: 'none', flexShrink: 0 }}>
                 <motion.div

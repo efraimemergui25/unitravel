@@ -703,6 +703,11 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
           {/* CTA row */}
           <div style={{ display: 'flex', gap: 10, paddingBlockStart: 4 }}>
             <motion.button
+              onClick={() => {
+                const query = encodeURIComponent(property.name + ' ' + property.destination);
+                const url = `https://www.google.com/travel/hotels?q=${query}`;
+                window.open(url, '_blank', 'noopener');
+              }}
               whileHover={{ scale: 1.02, boxShadow: `0 8px 28px ${hero.color}45` }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 400, damping: 24 }}
@@ -1186,7 +1191,7 @@ export function LodgingBento({ searchState, engineCount = 10, results, apiStatus
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', padding: 40, textAlign: 'center' }}
       >
         <div style={{ fontSize: 40 }} aria-hidden>🏨</div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#6E6E73' }}>No hotels found. Try different dates or city.</p>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#6E6E73' }}>No stays found for those dates — try adjusting your city or dates.</p>
       </motion.div>
     );
   }

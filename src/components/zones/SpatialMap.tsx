@@ -248,13 +248,13 @@ function MapLegend() {
       {(Object.entries(COLOR) as [ExperienceType, string][]).map(([type, color]) => (
         <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-          <span style={{ fontSize: 8, color: '#636366', fontWeight: 500, textTransform: 'capitalize' }}>{type}</span>
+          <span style={{ fontSize: 9, color: '#636366', fontWeight: 500, textTransform: 'capitalize' }}>{type}</span>
         </div>
       ))}
       <div style={{ height: 1, background: 'rgba(0,0,0,0.07)', marginBlock: 2 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
         <div style={{ width: 14, height: 1, borderTop: '1px dashed rgba(48,209,88,0.7)', flexShrink: 0 }} />
-        <span style={{ fontSize: 8, color: '#636366', fontWeight: 500 }}>Walking</span>
+        <span style={{ fontSize: 9, color: '#636366', fontWeight: 500 }}>Walking</span>
       </div>
     </div>
   );

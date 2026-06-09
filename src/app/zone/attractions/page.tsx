@@ -1,16 +1,22 @@
 'use client';
 
-import { useState, useCallback, useRef, type KeyboardEvent } from 'react';
-import { motion, AnimatePresence }    from 'framer-motion';
-import { ExperiencesControl }         from '@/components/zones/ExperiencesControl';
-import { EffortFilter }               from '@/components/zones/EffortFilter';
-import { ExperienceBento }            from '@/components/results/ExperienceBento';
-import type { ExperienceSearchState } from '@/components/results/ExperienceBento';
-import { useTravelEngine }            from '@/store/useTravelEngine';
-import { useLocaleEngine }            from '@/store/useLocaleEngine';
-import { ConciergePanel }             from '@/components/ai/ConciergePanel';
-import type { EffortLevel }           from '@/components/zones/EffortFilter';
-import type { AttractionEntity }      from '@/types/attractions';
+import { useState, useCallback } from 'react';
+import { MapPin } from 'lucide-react';
+import { ZoneShell, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
+import { ExperienceBento }             from '@/components/results/ExperienceBento';
+import type { ExperienceSearchState }  from '@/components/results/ExperienceBento';
+import { useTravelEngine }             from '@/store/useTravelEngine';
+import { useLocaleEngine }             from '@/store/useLocaleEngine';
+import { ZONE_ENGINES, resolveStatus } from '@/lib/zoneEngines';
+import type { AttractionEntity }       from '@/types/attractions';
+
+const EXP_AI_PICKS = new Set([
+  'geoapify', 'tripadvisor-a', 'viator', 'getyourguide', 'klook',
+  'tiqets', 'airbnb-exp', 'musement', 'atlas-obscura', 'culture-trip',
+]);
+const EXP_ENGINES = ZONE_ENGINES['attractions'];
+
+type EffortLevel = 'easy' | 'moderate' | 'challenging' | 'extreme';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -65,14 +71,15 @@ export default function AttractionsPage() {
   const [results,        setResults]        = useState<AttractionEntity[] | null>(null);
   const [apiStatus,      setApiStatus]      = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
   const [apiMessage,     setApiMessage]     = useState<string | null>(null);
+  const [engineStatus,   setEngineStatus]   = useState<import('@/app/api/attractions/route').AttractionEngineStatus[] | null>(null);
   const [nlQuery,        setNlQuery]        = useState('');
   const [nlFocused,      setNlFocused]      = useState(false);
-  const [parsedQuery,    setParsedQuery]    = useState<ParsedAttractionQuery | null>(null);
-
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(EXP_AI_PICKS));
+  const [enginesOpen,     setEnginesOpen]     = useState(false);
 
   // Read dynamic trip context — never hardcode destinations
-  const { days, activeDay } = useTravelEngine(s => ({ days: s.days, activeDay: s.activeDay }));
+  const days      = useTravelEngine(s => s.days);
+  const activeDay = useTravelEngine(s => s.activeDay);
   const { profile }         = useLocaleEngine();
   const isRtl               = profile.direction === 'rtl';
 
@@ -90,15 +97,15 @@ export default function AttractionsPage() {
 
   // ── Search handler ─────────────────────────────────────────────────────────
 
-  const handleSearch = useCallback(async (engineIds: string[]) => {
-    setEngineCount(engineIds.length);
+  const handleSearch = useCallback(async (engineIds?: string[]) => {
+    const ids = engineIds ?? [...selectedEngines];
+    setEngineCount(ids.length);
     setSearchState('loading');
     setScanProgress(0);
     setResults(null);
     setApiStatus(null);
 
     const parsed = nlQuery.trim() ? parseNLAttractionQuery(nlQuery) : null;
-    setParsedQuery(parsed);
 
     const progressRaf = { id: 0, start: Date.now() };
     const animateProgress = () => { const t = Math.min(82, 82 * (1 - Math.exp(-(Date.now() - progressRaf.start) / 5000))); setScanProgress(Math.floor(t)); if (t < 81.9) progressRaf.id = requestAnimationFrame(animateProgress); };
@@ -114,7 +121,7 @@ export default function AttractionsPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           destination,
-          engineIds,
+          engineIds: ids,
           adults:       2,
           startDate,
           endDate,
@@ -132,6 +139,7 @@ export default function AttractionsPage() {
       cancelAnimationFrame(progressRaf.id);
       setScanProgress(100);
 
+      setEngineStatus(data.engineStatus ?? null);
       if (data.status === 'needs_api_key') {
         setApiStatus('needs_api_key');
         setApiMessage(data.setupMessage ?? null);
@@ -153,280 +161,54 @@ export default function AttractionsPage() {
       setApiMessage(err instanceof Error ? err.message : 'Network error');
       setTimeout(() => setSearchState('results'), 200);
     }
-  }, [activeDestination, days, nlQuery, selectedEffort, profile.currency]);
+  }, [selectedEngines, activeDestination, days, nlQuery, selectedEffort, profile.currency]); // eslint-disable-line
 
-  const onInputKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && nlQuery.trim()) {
-      // NL search pre-fills context; user still clicks Search on engine strip
-      setParsedQuery(parseNLAttractionQuery(nlQuery));
-    }
-  };
+  const canSearch = (activeDestination ?? '').length >= 2;
 
   return (
-    <div
-      style={{
-        display:   'flex',
-        width:     '100%',
-        height:    '100%',
-        overflow:  'hidden',
-        background: [
-          `radial-gradient(ellipse at 0% 0%, ${COLOR}09 0%, transparent 52%)`,
-          'radial-gradient(ellipse at 100% 100%, rgba(0,199,190,0.04) 0%, transparent 48%)',
-          '#F2F2F7',
-        ].join(', '),
-        direction: isRtl ? 'rtl' : 'ltr',
-      }}
-    >
-      {/* ── 2/3 Workspace ─────────────────────────────────── */}
-      <div
-        style={{
-          flex:          1,
-          minWidth:      0,
-          display:       'flex',
-          flexDirection: 'column',
-          height:        '100%',
-          overflow:      'hidden',
-          gap:           0,
-        }}
-      >
-        {/* ── Header: "Global Experiences Matrix" + NL search ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.05 }}
-          className="glass-panel"
-          style={{
-            marginInline:  16,
-            marginBlockStart: 14,
-            flexShrink:    0,
-            padding:       '16px 20px',
-            display:       'flex',
-            flexDirection: 'column',
-            gap:            12,
-          }}
-        >
-          {/* Title row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <motion.h2
-              style={{
-                margin:        0,
-                fontSize:      17,
-                fontWeight:    900,
-                letterSpacing: '-0.035em',
-                color:         'var(--text-primary)',
-                lineHeight:    1,
-              }}
-            >
-              Global Experiences Matrix
-            </motion.h2>
-            <motion.span
-              animate={{ rotate: [0, 360] }}
-              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
-              style={{ fontSize: 13, color: COLOR, flexShrink: 0 }}
-            >
-              ✦
-            </motion.span>
-
-            {/* Context chips */}
-            {hasContext && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto', flexWrap: 'wrap' }}>
-                {uniqueDestinations.slice(0, 3).map(dest => (
-                  <span
-                    key={dest}
-                    style={{
-                      fontSize:      10,
-                      fontWeight:    700,
-                      color:         COLOR,
-                      background:    `${COLOR}10`,
-                      border:        `1px solid ${COLOR}22`,
-                      borderRadius:  7,
-                      paddingBlock:  3,
-                      paddingInline: 8,
-                    }}
-                  >
-                    🎭 {dest}
-                  </span>
-                ))}
-              </div>
-            )}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', direction: isRtl ? 'rtl' : 'ltr' }}>
+      <ZoneShell
+        color="#30D158"
+        gradient="linear-gradient(135deg, #30D158 0%, #00C7BE 100%)"
+        nlPlaceholder='What do you want to experience? — "private boat tour under $200", "morning hike", "cooking class"'
+        nlValue={nlQuery}
+        onNLChange={setNlQuery}
+        onNLApply={(v) => setNlQuery(v)}
+        nlFocused={nlFocused}
+        onNLFocus={() => setNlFocused(true)}
+        onNLBlur={() => setNlFocused(false)}
+        paramsRow={activeDestination ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 100, background: 'rgba(48,209,88,0.08)', border: '1px solid rgba(48,209,88,0.20)', flexShrink: 0 }}>
+            <MapPin size={9} color="#30D158" strokeWidth={2} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#30D158', letterSpacing: '-0.01em' }}>{activeDestination}</span>
           </div>
+        ) : undefined}
+        engineCount={selectedEngines.size}
+        engineLabel={`AI · ${selectedEngines.size} engines`}
+        enginesOpen={enginesOpen}
+        onEnginesToggle={() => setEnginesOpen(v => !v)}
+        engineDrawer={
+          <ZoneEngineDrawer
+            engines={EXP_ENGINES.map(e => ({ id: e.id, name: e.name, icon: e.icon, status: resolveStatus(e) }))}
+            selected={selectedEngines}
+            onToggle={id => setSelectedEngines(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+            onAIPick={() => setSelectedEngines(new Set(EXP_AI_PICKS))}
+            onSelectAll={() => setSelectedEngines(new Set(EXP_ENGINES.map(e => e.id)))}
+            onClear={() => setSelectedEngines(new Set())}
+            aiPicks={EXP_AI_PICKS}
+            color="#30D158"
+          />
+        }
+        canSearch={canSearch}
+        onSearch={() => handleSearch()}
+        isSearching={searchState === 'loading'}
+        scanProgress={scanProgress}
+        apiStatus={apiStatus}
+        resultCount={results?.length}
+      />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* NL search input */}
-          <motion.div
-            animate={{
-              boxShadow: nlFocused
-                ? `0 0 0 3px rgba(48,209,88,0.14), 0 4px 20px rgba(0,0,0,0.06)`
-                : '0 2px 10px rgba(0,0,0,0.04)',
-            }}
-            transition={{ duration: 0.18 }}
-            style={{
-              display:        'flex',
-              alignItems:     'center',
-              gap:             10,
-              background:    'rgba(255,255,255,0.82)',
-              backdropFilter: 'blur(32px) saturate(1.9)',
-              border:        `1.5px solid ${nlFocused ? `${COLOR}38` : 'rgba(255,255,255,0.95)'}`,
-              borderRadius:   14,
-              paddingBlock:   11,
-              paddingInline:  16,
-              transition:    'border-color 0.18s ease',
-            }}
-          >
-            <motion.span
-              animate={{ rotate: nlFocused ? 180 : 0, opacity: nlFocused ? 1 : 0.55 }}
-              transition={{ duration: 0.5 }}
-              style={{ fontSize: 16, flexShrink: 0 }}
-            >
-              ✦
-            </motion.span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={nlQuery}
-              onChange={e => setNlQuery(e.target.value)}
-              onFocus={() => setNlFocused(true)}
-              onBlur={() => setNlFocused(false)}
-              onKeyDown={onInputKey}
-              placeholder={
-                isRtl
-                  ? 'חפש חוויות... "סיורי יין תחת $150", "הייקינג בוקר", "טיול פרטי עם סירה"'
-                  : 'Find experiences... "private boat tours under $200", "morning hike", "cooking class"'
-              }
-              style={{
-                flex:          1,
-                background:   'none',
-                border:       'none',
-                outline:      'none',
-                fontSize:     13,
-                fontWeight:   500,
-                color:        'var(--text-primary)',
-                letterSpacing: '-0.01em',
-                minWidth:     0,
-                direction:    isRtl ? 'rtl' : 'ltr',
-              }}
-            />
-
-            {/* Parsed query pills */}
-            <AnimatePresence>
-              {parsedQuery && (parsedQuery.type || parsedQuery.maxPrice) && (
-                <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                  {parsedQuery.type && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      style={{
-                        fontSize: 9.5, fontWeight: 700, color: COLOR,
-                        background: `${COLOR}12`, border: `1px solid ${COLOR}25`,
-                        borderRadius: 6, paddingBlock: 2, paddingInline: 7,
-                      }}
-                    >
-                      {parsedQuery.type}
-                    </motion.span>
-                  )}
-                  {parsedQuery.maxPrice && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      style={{
-                        fontSize: 9.5, fontWeight: 700, color: '#007AFF',
-                        background: 'rgba(0,122,255,0.10)', border: '1px solid rgba(0,122,255,0.20)',
-                        borderRadius: 6, paddingBlock: 2, paddingInline: 7,
-                      }}
-                    >
-                      &lt;${parsedQuery.maxPrice}
-                    </motion.span>
-                  )}
-                </div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          {/* Scan progress bar */}
-          <AnimatePresence>
-            {searchState === 'loading' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-              >
-                <motion.span
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
-                  style={{ fontSize: 11, color: COLOR }}
-                  aria-hidden
-                >✦</motion.span>
-                <div style={{ flex: 1, height: 3, borderRadius: 999, background: `${COLOR}18`, overflow: 'hidden' }}>
-                  <motion.div
-                    animate={{ width: `${Math.min(100, Math.round(scanProgress))}%` }}
-                    transition={{ ease: 'easeOut', duration: 0.3 }}
-                    style={{ height: '100%', background: `linear-gradient(90deg, ${COLOR}, #00C7BE)`, borderRadius: 999 }}
-                  />
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: COLOR, minWidth: 40, textAlign: 'end' }}>
-                  {Math.min(100, Math.round(scanProgress))}%
-                </span>
-              </motion.div>
-            )}
-            {searchState === 'results' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <motion.span
-                  animate={{ scale: [1, 1.3, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  style={{ width: 5, height: 5, borderRadius: '50%', background: COLOR, display: 'inline-block', flexShrink: 0 }}
-                  aria-hidden
-                />
-                <span style={{ fontSize: 10, fontWeight: 700, color: COLOR }}>
-                  Weather-synced · Effort-filtered · {results?.length ?? 0} experiences found
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* ── ExperiencesControl horizontal strip ── */}
-        <div style={{ marginBlockStart: 10, flexShrink: 0 }}>
-          <ExperiencesControl onSearch={handleSearch} isSearching={searchState === 'loading'} />
-        </div>
-
-        {/* ── Effort filter ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: 0.1 }}
-          style={{
-            paddingInline:  20,
-            paddingBlock:   9,
-            background:    'rgba(255,255,255,0.65)',
-            backdropFilter: 'blur(32px) saturate(1.9)',
-            WebkitBackdropFilter: 'blur(32px) saturate(1.9)',
-            borderBlockEnd: '1px solid rgba(0,0,0,0.05)',
-            flexShrink:     0,
-          }}
-        >
-          <EffortFilter selected={selectedEffort} onChange={setSelectedEffort} />
-        </motion.div>
-
-        {/* ── Scrollable results ── */}
-        <div
-          style={{
-            flex:           1,
-            minHeight:      0,
-            overflowY:      'auto',
-            overflowX:      'hidden',
-            padding:        '18px 20px 40px',
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(0,0,0,0.10) transparent',
-          }}
-        >
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '8px 12px 24px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.07) transparent' }}>
           <ExperienceBento
             searchState={searchState}
             engineCount={engineCount}
@@ -437,9 +219,6 @@ export default function AttractionsPage() {
           />
         </div>
       </div>
-
-      {/* ── 1/3 AI Concierge — permanent right column ── */}
-      <ConciergePanel fitParent />
     </div>
   );
 }

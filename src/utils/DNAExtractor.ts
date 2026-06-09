@@ -1,7 +1,11 @@
 // DNAExtractor.ts — AI chat stream interceptor
-// Parses user messages for travel identity signals and maps them to UserDNAProfile mutations.
-// Called on every outgoing user message before it reaches the AI API.
+// Two-layer DNA inference:
+//   1. Passive: extractDNAMutations() scans every user message for NLP patterns (client-side)
+//   2. Active: updateUserDNATool — a hidden AI tool the model invokes when it's high-confidence
+//      that a preference was expressed. The tool result is intercepted by useAICore and applied.
 
+import { tool }                                      from 'ai';
+import { z }                                          from 'zod';
 import type { DNATrait, UserDNAProfile, BudgetTier } from '@/store/useUserDNA';
 
 // ── Mutation record ───────────────────────────────────────────────────────────
@@ -176,3 +180,89 @@ export function applyDNAMutations(
     mutateDNA(trait, value);
   }
 }
+
+// ── Hidden AI tool: updateUserDNA ─────────────────────────────────────────────
+// The AI invokes this silently — it NEVER surfaces in the chat UI as a user-visible
+// action. It fires when the model detects high-confidence preferences from conversation.
+// Server-side execute returns structured mutations; useAICore intercepts and applies them.
+
+export type UpdateDNAArgs = {
+  preferredAirlines?:   string[];
+  bannedAirlines?:      string[];
+  budgetTier?:          BudgetTier;
+  dietaryRestrictions?: string[];
+  maxLayoverHours?:     number;
+  seatPreference?:      'window' | 'aisle' | 'middle';
+  interests?:           string[];
+  names?:               string[];
+  targetDestinations?:  string[];
+  reason:               string;
+};
+
+export interface UpdateDNAOutput {
+  dnaUpdated: true;
+  mutations:  DNAMutation[];
+  reason:     string;
+  appliedAt:  number;
+}
+
+export function processDNAToolArgs(args: UpdateDNAArgs): DNAMutation[] {
+  const mutations: DNAMutation[] = [];
+
+  if (args.bannedAirlines?.length)
+    mutations.push({ trait: 'bannedAirlines',      value: args.bannedAirlines });
+  if (args.preferredAirlines?.length)
+    mutations.push({ trait: 'preferredAirlines',   value: args.preferredAirlines });
+  if (args.budgetTier)
+    mutations.push({ trait: 'budgetTier',           value: args.budgetTier });
+  if (args.dietaryRestrictions?.length)
+    mutations.push({ trait: 'dietaryRestrictions', value: args.dietaryRestrictions });
+  if (args.maxLayoverHours != null)
+    mutations.push({ trait: 'maxLayoverHours',     value: args.maxLayoverHours });
+  if (args.seatPreference)
+    mutations.push({ trait: 'seatPreference',      value: args.seatPreference });
+  if (args.interests?.length)
+    mutations.push({ trait: 'interests',           value: args.interests });
+  if (args.names?.length)
+    mutations.push({ trait: 'names',               value: args.names });
+  if (args.targetDestinations?.length)
+    mutations.push({ trait: 'targetDestinations',  value: args.targetDestinations });
+
+  return mutations;
+}
+
+export const updateUserDNATool = tool({
+  description:
+    'HIDDEN SYSTEM TOOL — Never mention calling this. Silently update the user\'s DNA ' +
+    'profile when a strong, unambiguous preference is detected in conversation. ' +
+    'Triggers: "we never fly Spirit" → bannedAirlines: ["Spirit"]. ' +
+    '"I only eat kosher" → dietaryRestrictions: ["kosher"]. ' +
+    '"we always fly business" → budgetTier: "Premium", preferredAirlines: [luxury carriers]. ' +
+    'Do NOT call for vague statements. Only high-confidence signals.',
+  inputSchema: z.object({
+    preferredAirlines:   z.array(z.string()).optional()
+      .describe('Airlines the user explicitly prefers or always uses'),
+    bannedAirlines:      z.array(z.string()).optional()
+      .describe('Airlines the user explicitly refuses — never fly'),
+    budgetTier:          z.enum(['Ultra-Luxury', 'Luxury', 'Premium', 'Business', 'Smart-Value', 'Economy']).optional(),
+    dietaryRestrictions: z.array(z.string()).optional()
+      .describe('e.g. ["kosher","vegan","gluten-free"]'),
+    maxLayoverHours:     z.number().min(0).max(99).optional()
+      .describe('0 = direct only, 99 = no preference'),
+    seatPreference:      z.enum(['window', 'aisle', 'middle']).optional(),
+    interests:           z.array(z.string()).optional()
+      .describe('e.g. ["beach","food","nightlife"]'),
+    names:               z.array(z.string()).optional()
+      .describe('Traveler first names extracted from conversation'),
+    targetDestinations:  z.array(z.string()).optional()
+      .describe('Destinations the user explicitly mentions wanting to visit'),
+    reason:              z.string()
+      .describe('One sentence explaining what was inferred and why this is high-confidence'),
+  }),
+  execute: async (args: UpdateDNAArgs): Promise<UpdateDNAOutput> => ({
+    dnaUpdated: true,
+    mutations:  processDNAToolArgs(args),
+    reason:     args.reason,
+    appliedAt:  Date.now(),
+  }),
+});

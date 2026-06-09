@@ -1,4 +1,5 @@
 import type { BentoHotel } from '@/app/api/hotels/route';
+import { bestHotelUrl }   from '@/utils/deeplinks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformAmadeusHotelOffer(offer: any): BentoHotel[] {
@@ -46,7 +47,13 @@ export function transformAmadeusHotelOffer(offer: any): BentoHotel[] {
     roomType:      room.typeEstimated?.category ?? room.type ?? 'Standard Room',
     boardType:     boardLabel[board] ?? board,
     available:     true,
-    bookingUrl:    `https://www.google.com/travel/hotels?q=${encodeURIComponent(hotel.name ?? '')}`,
+    bookingUrl:    bestHotelUrl({
+      name:    hotel.name ?? 'Hotel',
+      city:    hotel.cityCode ?? '',
+      checkIn,
+      checkOut,
+      adults:  first.guests?.adults ?? 2,
+    }),
     source:        'Amadeus',
     offerId:       offers[0]?.id ?? hotel.hotelId,
   }];

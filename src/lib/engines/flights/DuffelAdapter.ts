@@ -1,6 +1,7 @@
 import type { BentoFlight }                                               from '@/lib/amadeus';
 import { airlineName, parseDuration }                                      from '@/lib/amadeus';
 import type { FlightEngineAdapter, FlightSearchParams, FlightEngineResult } from './FlightEngineAdapter';
+import { bestFlightUrl }                                                   from '@/utils/deeplinks';
 
 const BASE = 'https://api.duffel.com';
 
@@ -28,7 +29,7 @@ function toHHMM(iso: string): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformOffer(offer: any, adults: number): BentoFlight {
+function transformOffer(offer: any, adults: number, searchParams?: { origin: string; destination: string; departureDate: string; travelClass: string }): BentoFlight {
   const slice   = offer.slices[0];
   const segs    = slice.segments as Array<{
     departing_at: string; arriving_at: string;
@@ -103,10 +104,56 @@ function transformOffer(offer: any, adults: number): BentoFlight {
     co2PerPerson:   co2,
     co2Comparison:  co2Pct < 0 ? `${Math.abs(co2Pct)}% below avg` : co2Pct === 0 ? 'At route average' : `${co2Pct}% above avg`,
     amenities,
-    bookingUrl:     `https://app.duffel.com`,
+    bookingUrl:     bestFlightUrl({
+      origin:        searchParams?.origin      ?? first.origin.iata_code,
+      destination:   searchParams?.destination ?? last.destination.iata_code,
+      departureDate: searchParams?.departureDate ?? new Date(first.departing_at).toISOString().split('T')[0],
+      adults,
+      cabinClass:    (searchParams?.travelClass?.toLowerCase().replace('_', '_') ?? 'economy') as 'economy' | 'premium_economy' | 'business' | 'first',
+      flightNumbers: segs.map(s => `${s.marketing_carrier.iata_code}${s.marketing_carrier_flight_number}`),
+      airline:       allCarriers.join(' + '),
+    }),
     source:         'Duffel',
     offerId:        offer.id,
   };
+}
+
+// ── Single Duffel offer request ───────────────────────────────────────────────
+
+async function duffelOfferRequest(
+  hdrs:        Record<string, string>,
+  origin:      string,
+  destination: string,
+  date:        string,
+  passengers:  Array<{ type: string }>,
+  cabinClass:  string,
+  maxResults:  number,
+  adults:      number,
+): Promise<BentoFlight[]> {
+  const res = await fetch(`${BASE}/air/offer_requests?return_offers=true`, {
+    method:  'POST',
+    headers: hdrs,
+    body:    JSON.stringify({
+      data: {
+        slices:      [{ origin, destination, departure_date: date }],
+        passengers,
+        cabin_class: cabinClass,
+      },
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) return [];
+  const json   = await res.json() as { data: { offers: unknown[] } };
+  const sp = { origin, destination, departureDate: date, travelClass: cabinClass };
+  return (json.data?.offers ?? []).slice(0, maxResults).map(o => transformOffer(o, adults, sp));
+}
+
+// ── Offset date by N days ─────────────────────────────────────────────────────
+
+function offsetDate(iso: string, days: number): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
 }
 
 export const DuffelAdapter: FlightEngineAdapter = {
@@ -131,37 +178,32 @@ export const DuffelAdapter: FlightEngineAdapter = {
 
     try {
       const passengers = Array.from({ length: params.adults }, () => ({ type: 'adult' }));
+      const cabin      = CABIN_MAP[params.travelClass] ?? 'economy';
+      const half       = Math.max(1, Math.ceil(params.maxResults / 2));
 
-      const res = await fetch(`${BASE}/air/offer_requests?return_offers=true`, {
-        method:  'POST',
-        headers: hdrs,
-        body:    JSON.stringify({
-          data: {
-            slices:      [{ origin: params.origin, destination: params.destination, departure_date: params.departureDate }],
-            passengers,
-            cabin_class: CABIN_MAP[params.travelClass] ?? 'economy',
-          },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      });
+      // Run 2 parallel searches: exact date + day before (flexible dates = more coverage)
+      const [primary, flexible] = await Promise.allSettled([
+        duffelOfferRequest(hdrs, params.origin, params.destination, params.departureDate, passengers, cabin, params.maxResults, params.adults),
+        duffelOfferRequest(hdrs, params.origin, params.destination, offsetDate(params.departureDate, -1), passengers, cabin, half, params.adults),
+      ]);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
-        return {
-          engineId:     'duffel',
-          engineName:   'Duffel',
-          status:       'error',
-          results:      [],
-          latencyMs:    Date.now() - start,
-          setupMessage: err.errors?.[0]?.message ?? `Duffel ${res.status}`,
-        };
+      const primaryResults   = primary.status   === 'fulfilled' ? primary.value   : [];
+      const flexibleResults  = flexible.status  === 'fulfilled' ? flexible.value  : [];
+
+      // Deduplicate by flight numbers + departure time
+      const seen = new Set<string>();
+      const all: BentoFlight[] = [];
+      for (const f of [...primaryResults, ...flexibleResults]) {
+        const key = `${f.flightNumbers.join('+')}|${f.departure}`;
+        if (!seen.has(key)) { seen.add(key); all.push(f); }
       }
 
-      const json    = await res.json() as { data: { offers: unknown[] } };
-      const offers  = (json.data?.offers ?? []).slice(0, params.maxResults);
-      const results = offers.map(o => transformOffer(o, params.adults));
+      if (all.length === 0 && primaryResults.length === 0) {
+        return { engineId: 'duffel', engineName: 'Duffel', status: 'error', results: [], latencyMs: Date.now() - start, setupMessage: 'No results from Duffel' };
+      }
 
-      return { engineId: 'duffel', engineName: 'Duffel', status: 'ok', results, latencyMs: Date.now() - start };
+      return { engineId: 'duffel', engineName: 'Duffel', status: 'ok', results: all.slice(0, params.maxResults), latencyMs: Date.now() - start };
+
     } catch (err) {
       return {
         engineId:     'duffel',

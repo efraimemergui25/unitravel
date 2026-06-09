@@ -150,7 +150,7 @@ export const TableSlotGrid = memo(function TableSlotGrid({ engines }: TableSlotG
             }} />
           ))}
         </div>
-        <div style={{ paddingLeft: LABEL_W + CELL_W * 2, fontSize: 8, color: '#FF9F0A', marginTop: 3, fontWeight: 600 }}>
+        <div style={{ paddingLeft: LABEL_W + CELL_W * 2, fontSize: 9, color: '#FF9F0A', marginTop: 3, fontWeight: 600 }}>
           ← Prime dinner window
         </div>
       </div>

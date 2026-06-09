@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { Map } from 'lucide-react';
 import { useTravelEngine } from '@/store/useTravelEngine';
 
 const COLOR  = '#5E5CE6';
@@ -46,7 +47,7 @@ export default function MapPage() {
           flexShrink:           0,
         }}
       >
-        <span style={{ fontSize: 16 }} aria-hidden>🗺</span>
+        <Map size={16} color="#5E5CE6" strokeWidth={1.8} aria-hidden />
         <div>
           <span style={{ fontSize: 13, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em' }}>
             Spatial View
@@ -87,10 +88,10 @@ export default function MapPage() {
         <motion.div
           animate={{ scale: [1, 1.04, 1], opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ fontSize: 72, lineHeight: 1 }}
+          style={{ width: 80, height: 80, borderRadius: 24, background: 'rgba(94,92,230,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           aria-hidden
         >
-          🗺
+          <Map size={36} color="#5E5CE6" strokeWidth={1.5} />
         </motion.div>
 
         <div>
@@ -114,11 +115,11 @@ export default function MapPage() {
         {/* Roadmap chips */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {[
-            '📍 All itinerary pins',
-            '🚶 Walking distance lines',
-            '🏨 Hotel proximity rings',
-            '🌤 Weather overlay',
-            '🚗 Transit routes',
+            'All itinerary pins',
+            'Walking distance lines',
+            'Hotel proximity rings',
+            'Weather overlay',
+            'Transit routes',
           ].map(label => (
             <div key={label} style={{
               fontSize: 10, fontWeight: 700,

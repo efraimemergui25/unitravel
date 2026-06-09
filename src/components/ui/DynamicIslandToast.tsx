@@ -37,7 +37,7 @@ export function useDynamicIsland() {
 
 // ── Animation constants ───────────────────────────────────────────────────────
 
-const SPRING_ISLAND = { type: 'spring', stiffness: 520, damping: 30 } as const;
+const SPRING_ISLAND = { type: 'spring', stiffness: 480, damping: 34 } as const;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -61,28 +61,25 @@ export function DynamicIslandToast() {
       {toast && (
         <motion.div
           key={toast.id}
-          initial={{ opacity: 0, y: -72, scale: 0.88 }}
-          animate={{ opacity: 1, y: 12,  scale: 1 }}
-          exit={{    opacity: 0, y: -72, scale: 0.88 }}
+          // ── Dictated physics ─────────────────────────────────────────────────
+          initial={{ y: -50, opacity: 0, scale: 0.9 }}
+          animate={{ y:   0, opacity: 1, scale: 1   }}
+          exit={{    y: -50, opacity: 0, scale: 0.9 }}
           transition={SPRING_ISLAND}
+          // ── Dictated position + CSS ──────────────────────────────────────────
+          className="px-5 py-3 rounded-full flex items-center gap-3 text-white text-sm"
           style={{
             position:             'fixed',
-            insetBlockStart:      0,
-            insetInlineStart:     '50%',
+            top:                  24,          // top-6
+            left:                 '50%',
             transform:            'translateX(-50%)',
-            zIndex:               9999,
-            display:              'flex',
-            alignItems:           'center',
-            gap:                  16,
-            paddingBlock:         12,
-            paddingInline:        22,
-            borderRadius:         999,
-            // Dark glass — only element that uses dark to grab immediate attention
-            background:           'rgba(18,18,20,0.82)',
-            backdropFilter:       'blur(40px) saturate(1.8)',
-            WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-            border:               '1px solid rgba(255,255,255,0.14)',
-            boxShadow:            '0 8px 40px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.08)',
+            zIndex:               100,          // z-[100]
+            // Dark glass — dictated: bg-black/85 backdrop-blur-3xl border border-white/10
+            background:           'rgba(0,0,0,0.85)',
+            backdropFilter:       'blur(48px) saturate(1.8)',
+            WebkitBackdropFilter: 'blur(48px) saturate(1.8)',
+            border:               '1px solid rgba(255,255,255,0.10)',
+            boxShadow:            '0 20px 40px rgba(0,0,0,0.2)',
             maxWidth:             480,
             pointerEvents:        'auto',
           }}

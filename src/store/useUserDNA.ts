@@ -6,6 +6,7 @@
 import { create }  from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer }   from 'zustand/middleware/immer';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,10 @@ export interface UserDNAProfile {
   parsedDates:     { start: string; end: string } | null;
   parsedPartySize: number | null;
   detectedZones:   string[];
+
+  // ── Traveler identity (names + destinations wishlist) ────────────────────
+  names:                string[];   // e.g. ['Effi', 'Nofar']
+  targetDestinations:   string[];   // recurring destinations across trips
 
   // ── Extended identity fields (learned from AI conversations) ─────────────
   preferredAirlines:    string[];
@@ -71,6 +76,38 @@ interface UserDNAState {
   reset:          () => void;
 }
 
+// ── Budget tier: TypeScript enum → DB CHECK enum ─────────────────────────────
+// DB allows only: 'budget' | 'mid' | 'luxury' | 'ultra'
+
+const TO_DB_BUDGET_TIER: Record<string, 'budget' | 'mid' | 'luxury' | 'ultra'> = {
+  'Ultra-Luxury': 'ultra',
+  'Luxury':       'luxury',
+  'Premium':      'luxury',
+  'Business':     'mid',
+  'Smart-Value':  'mid',
+  'Economy':      'budget',
+};
+
+// ── Supabase background sync ──────────────────────────────────────────────────
+// Columns match 0000_initial_schema.sql exactly:
+// id (PK=user.id), preferred_airlines, banned_airlines, dietary_needs, budget_tier
+
+async function patchDNAToSupabase(profile: UserDNAProfile): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) return;
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return;
+  await client
+    .from('users_dna')
+    .upsert({
+      id:                 user.id,
+      preferred_airlines: profile.preferredAirlines,
+      banned_airlines:    profile.bannedAirlines,
+      dietary_needs:      profile.dietaryRestrictions,
+      budget_tier:        TO_DB_BUDGET_TIER[profile.budgetTier ?? ''] ?? 'mid',
+    });
+}
+
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
 const EMPTY_PROFILE: UserDNAProfile = {
@@ -84,6 +121,8 @@ const EMPTY_PROFILE: UserDNAProfile = {
   parsedDates:          null,
   parsedPartySize:      null,
   detectedZones:        [],
+  names:                [],
+  targetDestinations:   [],
   preferredAirlines:    [],
   bannedAirlines:       [],
   budgetTier:           null,
@@ -97,12 +136,24 @@ const EMPTY_PROFILE: UserDNAProfile = {
   loyaltyPrograms:      [],
 };
 
+// Dev-seed profile — overridden by real data once Supabase auth is live.
+// Provides realistic defaults so every component renders meaningfully from day one.
+const DEV_SEED_PROFILE: UserDNAProfile = {
+  ...EMPTY_PROFILE,
+  names:              ['Effi', 'Nofar'],
+  targetDestinations: ['Mexico', 'Miami', 'Bahamas'],
+  budgetTier:         'Luxury',
+  partyType:          'couple',
+  tripPace:           'moderate',
+  maxLayoverHours:    3,
+};
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useUserDNA = create<UserDNAState>()(
   persist(
     immer((set) => ({
-      profile: { ...EMPTY_PROFILE },
+      profile: { ...DEV_SEED_PROFILE },
 
       setFirstPrompt: (prompt) =>
         set(s => { s.profile.firstPrompt = prompt; }),
@@ -122,9 +173,9 @@ export const useUserDNA = create<UserDNAState>()(
           else            s.profile.interests.splice(idx, 1);
         }),
 
-      mutateDNA: (trait, value) =>
+      mutateDNA: (trait, value) => {
         set(s => {
-          // Merge arrays instead of replacing them
+          // Merge arrays instead of replacing them so bans/prefs accumulate
           const current = s.profile[trait];
           if (Array.isArray(current) && Array.isArray(value)) {
             const merged = Array.from(new Set([...current, ...(value as string[])]));
@@ -132,9 +183,13 @@ export const useUserDNA = create<UserDNAState>()(
           } else {
             (s.profile as Record<string, unknown>)[trait] = value;
           }
-        }),
+        });
+        // Fire-and-forget background patch to Supabase users_dna table.
+        // Non-blocking: never throws, silently no-ops when auth is not connected.
+        void patchDNAToSupabase(useUserDNA.getState().profile);
+      },
 
-      reset: () => set(s => { s.profile = { ...EMPTY_PROFILE }; }),
+      reset: () => set(s => { s.profile = { ...DEV_SEED_PROFILE }; }),
     })),
     {
       name:       'unitravel-user-dna',

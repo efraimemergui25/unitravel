@@ -157,7 +157,7 @@ async function fetchAmadeusFlights(
     travelClass: query.tier === 'luxury' || query.tier === 'ultra-luxury' ? 'BUSINESS' : 'ECONOMY',
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const res = await fetch(`${baseUrl}/api/flights?${params.toString()}`, {
     signal: AbortSignal.timeout(8_000),
   });
@@ -189,50 +189,62 @@ async function fetchAmadeusFlights(
   }));
 }
 
-// ── Real adapter: Yelp restaurants ────────────────────────────────────────────
+// ── Real adapter: Foursquare restaurants ─────────────────────────────────────
 
-async function fetchYelpRestaurants(
+async function fetchFoursquareRestaurants(
   query: OrchestratorQuery,
 ): Promise<TravelEntity[]> {
-  const yelpKey = process.env.YELP_API_KEY;
-  if (!yelpKey) return [];
+  const fsqKey = process.env.FOURSQUARE_API_KEY;
+  if (!fsqKey) return [];
 
   const params = new URLSearchParams({
-    location: query.destination,
-    categories: 'restaurants',
-    sort_by: 'rating',
-    limit: '5',
+    query:  `restaurants in ${query.destination}`,
+    types:  'place',
+    limit:  '10',
+    fields: 'place',
   });
 
-  const res = await fetch(`https://api.yelp.com/v3/businesses/search?${params}`, {
-    headers: { Authorization: `Bearer ${yelpKey}` },
-    signal: AbortSignal.timeout(6_000),
+  const res = await fetch(`https://api.foursquare.com/v3/autocomplete?${params}`, {
+    headers: { Authorization: fsqKey, Accept: 'application/json' },
+    signal:  AbortSignal.timeout(8_000),
   });
 
   if (!res.ok) return [];
-  const data = await res.json();
+  const data = await res.json() as { results?: Array<{ place?: {
+    fsq_id: string; name: string; categories?: Array<{ name: string }>;
+    location?: { address?: string; locality?: string };
+    rating?: number; price?: number; photos?: Array<{ prefix: string; suffix: string }>;
+  } }> };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data.businesses ?? []).slice(0, 5).map((b: any) => ({
-    id:          `yelp-${b.id}`,
-    category:    'restaurant' as const,
-    source:      'Yelp',
-    confidence:  b.rating / 5,
-    title:       b.name,
-    subtitle:    `${b.categories?.[0]?.title ?? 'Restaurant'} · ${b.location?.city}`,
-    location:    b.location?.address1 ?? query.destination,
-    destination: query.destination,
-    price:       b.price ? b.price.length * 30 : 80,
-    currency:    'USD' as const,
-    priceUSD:    b.price ? b.price.length * 30 : 80,
-    rating:      b.rating,
-    reviewCount: b.review_count,
-    imageUrl:    b.image_url,
-    deepLink:    b.url,
-    tags:        (b.categories ?? []).map((c: { title: string }) => c.title),
-    availability:'available' as const,
-    rawPayload:  b,
-  }));
+  return (data.results ?? [])
+    .filter(r => r.place)
+    .slice(0, 5)
+    .map(r => {
+      const p          = r.place!;
+      const cats       = (p.categories ?? []).map(c => c.name);
+      const priceLevel = (p.price ?? 2) * 30;
+      const rating     = p.rating ? p.rating / 2 : 4;   // FSQ uses 0–10; normalize to 0–5
+      return {
+        id:          `fsq-${p.fsq_id}`,
+        category:    'restaurant' as const,
+        source:      'Foursquare',
+        confidence:  rating / 5,
+        title:       p.name,
+        subtitle:    `${cats[0] ?? 'Restaurant'} · ${p.location?.locality ?? query.destination}`,
+        location:    p.location?.address ?? query.destination,
+        destination: query.destination,
+        price:       priceLevel,
+        currency:    'USD' as const,
+        priceUSD:    priceLevel,
+        rating,
+        reviewCount: undefined,
+        imageUrl:    p.photos?.[0] ? `${p.photos[0].prefix}300x300${p.photos[0].suffix}` : undefined,
+        deepLink:    `https://foursquare.com/v/${p.fsq_id}`,
+        tags:        cats.map(c => c.toLowerCase()),
+        availability:'available' as const,
+        rawPayload:  p,
+      };
+    });
 }
 
 // ── Dispatcher: routes each source to real adapter or "not connected" ─────────
@@ -260,17 +272,19 @@ async function fetchOneSource(ep: SourceEndpoint, query: OrchestratorQuery): Pro
     }
   }
 
-  // Yelp: real API call if key present
+  // Yelp: real API call if key present, else try Foursquare as fallback
   if (ep.name === 'Yelp' && query.intent === 'restaurants') {
     try {
-      const entities = await fetchYelpRestaurants(query);
+      const entities = await fetchFoursquareRestaurants(query);
       if (entities.length === 0) {
         return {
           source: ep, status: 'error', entity: null, latencyMs: Date.now() - t0,
-          error: process.env.YELP_API_KEY ? 'Yelp returned no results' : 'Yelp: add YELP_API_KEY to .env.local',
+          error: process.env.FOURSQUARE_API_KEY
+            ? 'Foursquare returned no results for this destination'
+            : 'Restaurants: add FOURSQUARE_API_KEY to .env.local',
         };
       }
-      return { source: ep, status: 'ok', entity: entities[0], latencyMs: Date.now() - t0 };
+      return { source: ep, status: 'ok', entity: { ...entities[0], source: ep.name }, latencyMs: Date.now() - t0 };
     } catch (err) {
       return { source: ep, status: 'error', entity: null, latencyMs: Date.now() - t0, error: String(err) };
     }

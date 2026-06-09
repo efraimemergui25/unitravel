@@ -1,7 +1,10 @@
 'use client';
 
-import { create }  from 'zustand';
-import { immer }   from 'zustand/middleware/immer';
+import { create }             from 'zustand';
+import { immer }              from 'zustand/middleware/immer';
+import { getSupabaseClient }  from '@/lib/supabaseClient';
+import { useTravelEngine }    from '@/store/useTravelEngine';
+import type { PlacedEntity }  from '@/store/useTravelEngine';
 
 // ── Peer color palette (Apple-spectrum) ───────────────────────────────────────
 
@@ -14,18 +17,13 @@ function randomColor(): string {
   return PEER_COLORS[Math.floor(Math.random() * PEER_COLORS.length)] ?? '#007AFF';
 }
 
-// ── Peer ID generation (stable per tab session) ───────────────────────────────
-
-let _myId: string | null = null;
+let _myId:    string | null = null;
 let _myColor: string | null = null;
 
 function getMyId(): string {
   if (!_myId) {
-    try {
-      _myId = crypto.randomUUID();
-    } catch {
-      _myId = `peer-${Date.now().toString(36)}`;
-    }
+    try { _myId = crypto.randomUUID(); }
+    catch { _myId = `peer-${Date.now().toString(36)}`; }
   }
   return _myId;
 }
@@ -35,14 +33,26 @@ function getMyColor(): string {
   return _myColor;
 }
 
+// ── Timeline mutation payload ─────────────────────────────────────────────────
+
+export interface TimelineMutationPayload {
+  peerId:      string;
+  peerName:    string;
+  action:      'place_entity' | 'remove_entity' | 'toggle_booked';
+  targetDayId: string;
+  entityId:    string;
+  entityData?: PlacedEntity; // full entity for place_entity
+}
+
 // ── Message protocol ──────────────────────────────────────────────────────────
 
 export type MultiplayerMessage =
-  | { type: 'cursor';     peerId: string; displayName: string; color: string; x: number; y: number }
-  | { type: 'typing';     peerId: string; displayName: string; color: string; isTypingAI: boolean }
-  | { type: 'entity';     peerId: string; displayName: string; dayId: string; entityTitle: string; entityTime?: string }
-  | { type: 'heartbeat';  peerId: string; displayName: string; color: string }
-  | { type: 'disconnect'; peerId: string };
+  | { type: 'cursor';             peerId: string; displayName: string; color: string; x: number; y: number }
+  | { type: 'typing';             peerId: string; displayName: string; color: string; isTypingAI: boolean }
+  | { type: 'entity';             peerId: string; displayName: string; dayId: string; entityTitle: string; entityTime?: string }
+  | { type: 'timeline_mutation';  payload: TimelineMutationPayload }
+  | { type: 'heartbeat';          peerId: string; displayName: string; color: string }
+  | { type: 'disconnect';         peerId: string };
 
 // ── Peer state ────────────────────────────────────────────────────────────────
 
@@ -56,9 +66,9 @@ export interface MultiplayerPeer {
 }
 
 export interface TimelineConflict {
-  id:         string;
-  dayId:      string;
-  peerName:   string;
+  id:          string;
+  dayId:       string;
+  peerName:    string;
   entityTitle: string;
   resolvedAt?: number;
 }
@@ -74,40 +84,61 @@ interface MultiplayerState {
   isConnected: boolean;
   peerCount:   number;
 
-  setDisplayName:   (name: string) => void;
-  broadcastCursor:  (x: number, y: number) => void;
-  broadcastTyping:  (isTypingAI: boolean) => void;
-  broadcastEntity:  (dayId: string, entityTitle: string, entityTime?: string) => void;
-  resolveConflict:  (id: string) => void;
-  connect:          () => void;
-  disconnect:       () => void;
+  setDisplayName:           (name: string) => void;
+  // Primary actions
+  broadcastPointer:         (x: number, y: number) => void; // spec alias
+  broadcastCursor:          (x: number, y: number) => void; // legacy alias
+  broadcastTyping:          (isTypingAI: boolean) => void;
+  broadcastEntity:          (dayId: string, entityTitle: string, entityTime?: string) => void;
+  broadcastTimelineMutation:(payload: Omit<TimelineMutationPayload, 'peerId' | 'peerName'>) => void;
+  resolveConflict:          (id: string) => void;
+  connect:                  () => void;
+  disconnect:               () => void;
 }
 
-// ── BroadcastChannel singleton ────────────────────────────────────────────────
-// Works cross-tab in the same origin. On Supabase Realtime, swap this out.
+// ── Transport singletons ──────────────────────────────────────────────────────
 
-let _channel: BroadcastChannel | null = null;
+let _bcChannel:        BroadcastChannel | null  = null;
+let _supabaseChannel:  ReturnType<NonNullable<ReturnType<typeof getSupabaseClient>>['channel']> | null = null;
 let _heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-const CHANNEL_NAME = 'unitravel-multiplayer';
-const PEER_TIMEOUT_MS = 12_000;
 
-function getChannel(): BroadcastChannel | null {
+const BC_CHANNEL_NAME  = 'unitravel-multiplayer';
+const PEER_TIMEOUT_MS  = 12_000;
+
+function getBCChannel(): BroadcastChannel | null {
   if (typeof window === 'undefined') return null;
-  if (!_channel) _channel = new BroadcastChannel(CHANNEL_NAME);
-  return _channel;
+  if (!_bcChannel) _bcChannel = new BroadcastChannel(BC_CHANNEL_NAME);
+  return _bcChannel;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useMultiplayerEngine = create<MultiplayerState>()(
   immer((set, get) => {
-    const broadcast = (msg: MultiplayerMessage) => {
+
+    // ── Send helpers (BroadcastChannel + Supabase Realtime) ───────────────
+
+    const bcSend = (msg: MultiplayerMessage) => {
+      try { getBCChannel()?.postMessage(msg); } catch { /* SSR / unsupported */ }
+    };
+
+    const rtSend = (event: string, payload: unknown) => {
       try {
-        getChannel()?.postMessage(msg);
-      } catch {
-        // BroadcastChannel not available (SSR or unsupported browser)
+        _supabaseChannel?.send({ type: 'broadcast', event, payload });
+      } catch { /* offline */ }
+    };
+
+    const broadcast = (msg: MultiplayerMessage) => {
+      bcSend(msg);
+      // Mirror to Supabase Realtime
+      if (msg.type === 'cursor') {
+        rtSend('cursor', msg);
+      } else if (msg.type === 'timeline_mutation') {
+        rtSend('timeline_mutation', msg.payload);
       }
     };
+
+    // ── Stale peer pruning ─────────────────────────────────────────────────
 
     const pruneStale = () => {
       set(s => {
@@ -121,111 +152,136 @@ export const useMultiplayerEngine = create<MultiplayerState>()(
       });
     };
 
-    const handleMessage = (e: MessageEvent<MultiplayerMessage>) => {
-      const msg = e.data;
-      if (!msg || msg.peerId === getMyId()) return;
+    // ── Apply incoming timeline mutation to local store ────────────────────
 
-      if (msg.type === 'cursor') {
-        set(s => {
-          if (!s.peers[msg.peerId]) {
-            s.peers[msg.peerId] = {
-              id:          msg.peerId,
-              displayName: msg.displayName,
-              color:       msg.color,
-              cursor:      null,
-              isTypingAI:  false,
-              lastSeen:    Date.now(),
-            };
-          }
-          const peer = s.peers[msg.peerId];
-          if (peer) {
-            peer.cursor   = { x: msg.x, y: msg.y };
-            peer.lastSeen = Date.now();
-            peer.displayName = msg.displayName;
-            peer.color       = msg.color;
-          }
-          s.peerCount = Object.keys(s.peers).length;
-        });
-      }
+    const applyTimelineMutation = (payload: TimelineMutationPayload) => {
+      if (payload.peerId === getMyId()) return; // ignore own echo
+      const engine = useTravelEngine.getState();
 
-      else if (msg.type === 'typing') {
-        set(s => {
-          if (!s.peers[msg.peerId]) {
-            s.peers[msg.peerId] = {
-              id:          msg.peerId,
-              displayName: msg.displayName,
-              color:       msg.color,
-              cursor:      null,
-              isTypingAI:  false,
-              lastSeen:    Date.now(),
-            };
-          }
-          const peer = s.peers[msg.peerId];
-          if (peer) {
-            peer.isTypingAI  = msg.isTypingAI;
-            peer.lastSeen    = Date.now();
-            peer.displayName = msg.displayName;
-          }
-          s.peerCount = Object.keys(s.peers).length;
-        });
-      }
-
-      else if (msg.type === 'entity') {
-        // Check if this conflicts with a recent local entity placement (< 3s)
-        const state = get();
-        const hasConflict = Object.values(state.peers).some(p =>
-          p.id !== msg.peerId && p.lastSeen > Date.now() - 3000,
-        );
-        if (hasConflict) {
-          const conflictId = `conflict-${Date.now()}`;
-          set(s => {
-            s.conflicts.push({
-              id:          conflictId,
-              dayId:       msg.dayId,
-              peerName:    msg.displayName,
-              entityTitle: msg.entityTitle,
-            });
-          });
-          setTimeout(() => get().resolveConflict(conflictId), 5000);
+      if (payload.action === 'place_entity' && payload.entityData) {
+        // placeEntity only converts AggregatedResult → PlacedEntity.
+        // For peer-broadcast entities that are already PlacedEntity, use
+        // reorderDayEntities (which accepts PlacedEntity[]) + budget recalc.
+        const day = engine.days.find(d => d.id === payload.targetDayId);
+        if (day && !day.entities.find(e => e.id === payload.entityData!.id)) {
+          engine.reorderDayEntities(payload.targetDayId, [...day.entities, payload.entityData!]);
+          engine.calculatePredictiveBudget();
         }
-        set(s => {
-          if (s.peers[msg.peerId]) {
-            const peer = s.peers[msg.peerId];
-            if (peer) peer.lastSeen = Date.now();
-          }
-        });
+      } else if (payload.action === 'remove_entity') {
+        engine.removeEntity(payload.targetDayId, payload.entityId);
+      } else if (payload.action === 'toggle_booked') {
+        engine.toggleBooked(payload.targetDayId, payload.entityId);
       }
+    };
 
-      else if (msg.type === 'heartbeat') {
-        set(s => {
-          if (!s.peers[msg.peerId]) {
-            s.peers[msg.peerId] = {
-              id:          msg.peerId,
-              displayName: msg.displayName,
-              color:       msg.color,
-              cursor:      null,
-              isTypingAI:  false,
-              lastSeen:    Date.now(),
-            };
-          } else {
+    // ── BroadcastChannel message handler ──────────────────────────────────
+
+    const handleBCMessage = (e: MessageEvent<MultiplayerMessage>) => {
+      const msg = e.data;
+      if (!msg) return;
+      handleAnyMessage(msg);
+    };
+
+    // ── Unified message handler ────────────────────────────────────────────
+
+    const handleAnyMessage = (msg: MultiplayerMessage) => {
+      if ('peerId' in msg && msg.peerId === getMyId()) return;
+
+      switch (msg.type) {
+        case 'cursor':
+          set(s => {
+            if (!s.peers[msg.peerId]) {
+              s.peers[msg.peerId] = {
+                id: msg.peerId, displayName: msg.displayName, color: msg.color,
+                cursor: null, isTypingAI: false, lastSeen: Date.now(),
+              };
+            }
             const peer = s.peers[msg.peerId];
             if (peer) {
+              peer.cursor      = { x: msg.x, y: msg.y };
               peer.lastSeen    = Date.now();
               peer.displayName = msg.displayName;
               peer.color       = msg.color;
             }
-          }
-          s.peerCount = Object.keys(s.peers).length;
-        });
-      }
+            s.peerCount = Object.keys(s.peers).length;
+          });
+          break;
 
-      else if (msg.type === 'disconnect') {
-        set(s => {
-          delete s.peers[msg.peerId];
-          s.peerCount = Object.keys(s.peers).length;
-        });
+        case 'typing':
+          set(s => {
+            if (!s.peers[msg.peerId]) {
+              s.peers[msg.peerId] = {
+                id: msg.peerId, displayName: msg.displayName, color: msg.color,
+                cursor: null, isTypingAI: false, lastSeen: Date.now(),
+              };
+            }
+            const peer = s.peers[msg.peerId];
+            if (peer) {
+              peer.isTypingAI  = msg.isTypingAI;
+              peer.lastSeen    = Date.now();
+              peer.displayName = msg.displayName;
+            }
+            s.peerCount = Object.keys(s.peers).length;
+          });
+          break;
+
+        case 'timeline_mutation':
+          applyTimelineMutation(msg.payload);
+          break;
+
+        case 'entity': {
+          const state = get();
+          const hasConflict = Object.values(state.peers).some(
+            p => p.id !== msg.peerId && p.lastSeen > Date.now() - 3000,
+          );
+          if (hasConflict) {
+            const conflictId = `conflict-${Date.now()}`;
+            set(s => {
+              s.conflicts.push({
+                id:          conflictId,
+                dayId:       msg.dayId,
+                peerName:    msg.displayName,
+                entityTitle: msg.entityTitle,
+              });
+            });
+            setTimeout(() => get().resolveConflict(conflictId), 5000);
+          }
+          set(s => {
+            const peer = s.peers[msg.peerId];
+            if (peer) peer.lastSeen = Date.now();
+          });
+          break;
+        }
+
+        case 'heartbeat':
+          set(s => {
+            if (!s.peers[msg.peerId]) {
+              s.peers[msg.peerId] = {
+                id: msg.peerId, displayName: msg.displayName, color: msg.color,
+                cursor: null, isTypingAI: false, lastSeen: Date.now(),
+              };
+            } else {
+              const peer = s.peers[msg.peerId];
+              if (peer) {
+                peer.lastSeen    = Date.now();
+                peer.displayName = msg.displayName;
+                peer.color       = msg.color;
+              }
+            }
+            s.peerCount = Object.keys(s.peers).length;
+          });
+          break;
+
+        case 'disconnect':
+          set(s => {
+            delete s.peers[msg.peerId];
+            s.peerCount = Object.keys(s.peers).length;
+          });
+          break;
       }
     };
+
+    // ── Store definition ───────────────────────────────────────────────────
 
     return {
       myId:        getMyId(),
@@ -238,10 +294,12 @@ export const useMultiplayerEngine = create<MultiplayerState>()(
 
       setDisplayName: (name) => set(s => { s.displayName = name; }),
 
-      broadcastCursor: (x, y) => {
+      broadcastPointer: (x, y) => {
         const { myId, myColor, displayName } = get();
         broadcast({ type: 'cursor', peerId: myId, displayName, color: myColor, x, y });
       },
+
+      broadcastCursor: (x, y) => get().broadcastPointer(x, y),
 
       broadcastTyping: (isTypingAI) => {
         const { myId, myColor, displayName } = get();
@@ -251,6 +309,12 @@ export const useMultiplayerEngine = create<MultiplayerState>()(
       broadcastEntity: (dayId, entityTitle, entityTime) => {
         const { myId, displayName } = get();
         broadcast({ type: 'entity', peerId: myId, displayName, dayId, entityTitle, entityTime });
+      },
+
+      broadcastTimelineMutation: (partial) => {
+        const { myId, displayName } = get();
+        const payload: TimelineMutationPayload = { ...partial, peerId: myId, peerName: displayName };
+        broadcast({ type: 'timeline_mutation', payload });
       },
 
       resolveConflict: (id) => {
@@ -264,24 +328,48 @@ export const useMultiplayerEngine = create<MultiplayerState>()(
       },
 
       connect: () => {
-        const ch = getChannel();
-        if (!ch) return;
+        // ── BroadcastChannel (same-origin cross-tab) ───────────────────────
+        const bc = getBCChannel();
+        if (bc) bc.onmessage = handleBCMessage;
 
-        ch.onmessage = handleMessage;
+        // ── Supabase Realtime (cross-device, room_trip_id) ─────────────────
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const tripId      = useTravelEngine.getState().trip.id || 'default';
+          const channelName = `room_${tripId}`;
+
+          _supabaseChannel = supabase.channel(channelName, {
+            config: { broadcast: { self: false }, presence: { key: getMyId() } },
+          });
+
+          _supabaseChannel
+            .on('broadcast', { event: 'cursor' }, ({ payload }) => {
+              handleAnyMessage({ type: 'cursor', ...payload } as MultiplayerMessage);
+            })
+            .on('broadcast', { event: 'timeline_mutation' }, ({ payload }) => {
+              handleAnyMessage({ type: 'timeline_mutation', payload } as MultiplayerMessage);
+            })
+            .on('broadcast', { event: 'heartbeat' }, ({ payload }) => {
+              handleAnyMessage({ type: 'heartbeat', ...payload } as MultiplayerMessage);
+            })
+            .on('broadcast', { event: 'disconnect' }, ({ payload }) => {
+              handleAnyMessage({ type: 'disconnect', ...payload } as MultiplayerMessage);
+            })
+            .subscribe();
+        }
+
         set(s => { s.isConnected = true; });
 
-        // Announce presence
+        // Announce presence + start heartbeat
         const { myId, myColor, displayName } = get();
         broadcast({ type: 'heartbeat', peerId: myId, displayName, color: myColor });
 
-        // Heartbeat every 5s + stale peer pruning
         _heartbeatInterval = setInterval(() => {
           const state = get();
           broadcast({ type: 'heartbeat', peerId: state.myId, displayName: state.displayName, color: state.myColor });
           pruneStale();
-        }, 5000);
+        }, 5_000);
 
-        // Cleanup on tab close
         if (typeof window !== 'undefined') {
           window.addEventListener('beforeunload', () => {
             broadcast({ type: 'disconnect', peerId: myId });
@@ -293,8 +381,8 @@ export const useMultiplayerEngine = create<MultiplayerState>()(
         const { myId } = get();
         broadcast({ type: 'disconnect', peerId: myId });
         if (_heartbeatInterval) { clearInterval(_heartbeatInterval); _heartbeatInterval = null; }
-        _channel?.close();
-        _channel = null;
+        _bcChannel?.close(); _bcChannel = null;
+        _supabaseChannel?.unsubscribe(); _supabaseChannel = null;
         set(s => { s.isConnected = false; s.peers = {}; s.peerCount = 0; });
       },
     };

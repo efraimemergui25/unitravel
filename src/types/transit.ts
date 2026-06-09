@@ -30,6 +30,7 @@ export interface RouteOption {
   isCheapest:    boolean;
   tags:          string[];
   surgeInfo?:    SurgeInfo;   // attached when a rideshare segment has surge
+  directionsUrl?: string;     // Google Maps Directions deeplink
 }
 
 export interface SurgeInfo {

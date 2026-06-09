@@ -1,5 +1,6 @@
 import type { AttractionEntity }                                                from '@/types/attractions';
 import type { AttractionEngineAdapter, AttractionSearchParams, AttractionEngineResult } from './index';
+import { bestAttractionUrl }                                                    from '@/utils/deeplinks';
 
 const BASE = 'https://api.geoapify.com/v2/places';
 
@@ -13,18 +14,19 @@ const CATEGORIES = [
   'tourism.attraction',
 ].join(',');
 
-// ── Geocode destination via Google ────────────────────────────────────────────
+// ── Geocode destination via Geoapify (uses same key, no Google dependency) ────
 async function geocode(destination: string): Promise<{ lat: number; lng: number } | null> {
-  const key = process.env.GOOGLE_PLACES_API_KEY;
+  const key = process.env.GEOAPIFY_API_KEY;
   if (!key) return null;
   try {
     const res  = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(destination)}&key=${key}`,
+      `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(destination)}&format=json&limit=1&apiKey=${key}`,
       { signal: AbortSignal.timeout(5_000) },
     );
-    const data = await res.json() as { results: Array<{ geometry: { location: { lat: number; lng: number } } }> };
-    const loc  = data.results?.[0]?.geometry?.location;
-    return loc ? { lat: loc.lat, lng: loc.lng } : null;
+    if (!res.ok) return null;
+    const data = await res.json() as { results: Array<{ lat: number; lon: number }> };
+    const r    = data.results?.[0];
+    return r ? { lat: r.lat, lng: r.lon } : null;
   } catch {
     return null;
   }
@@ -74,6 +76,12 @@ function transformPlace(place: any, destination: string): AttractionEntity {
     aiConfidence:      0.7,
     providers:         ['Geoapify'],
     sourceCount:       1,
+    bookingUrl:        bestAttractionUrl({
+      title:       props.name ?? 'Place',
+      destination,
+      lat:         place.geometry?.coordinates?.[1],
+      lon:         place.geometry?.coordinates?.[0],
+    }),
   };
 }
 
@@ -132,7 +140,7 @@ export const GeoapifyAdapter: AttractionEngineAdapter = {
       const data    = await res.json() as { features: unknown[] };
       const results = (data.features ?? [])
         .filter((f: unknown) => (f as { properties: { name?: string } }).properties?.name)
-        .map(f => transformPlace(f, params.destination, params.currency));
+        .map(f => transformPlace(f, params.destination));
 
       return { engineId: 'geoapify', engineName: 'Geoapify', status: 'ok', results, latencyMs: Date.now() - start };
     } catch (err) {

@@ -2,11 +2,24 @@
 
 export type ZoneId = 'flights' | 'lodging' | 'dining' | 'attractions' | 'transit' | 'map';
 
+export type EngineStatus =
+  | 'live'       // real API call, no key needed (e.g. Open-Meteo)
+  | 'needs-key'  // real API exists but requires a credentials setup
+  | 'aggregated' // search engine aggregator — results via Amadeus/similar GDS
+  | 'ui-only';   // chip is decorative; direct integration not yet built
+
 export interface Engine {
-  id:   string;
-  name: string;
-  icon: string;
-  tier: 1 | 2 | 3; // 1 = top tier (included in "Top 5" selection)
+  id:      string;
+  name:    string;
+  icon:    string;
+  tier:    1 | 2 | 3;        // 1 = top tier (included in AI picks)
+  status?: EngineStatus;      // defaults: tier-1 → 'aggregated', tier-2/3 → 'ui-only'
+}
+
+/** Resolve effective status — use explicit field or derive from tier. */
+export function resolveStatus(e: Engine): EngineStatus {
+  if (e.status) return e.status;
+  return e.tier === 1 ? 'aggregated' : 'ui-only';
 }
 
 export const ZONE_META: Record<ZoneId, { label: string; icon: string; color: string; gradient: string }> = {
@@ -23,48 +36,54 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Flights ──────────────────────────────────────────────────────────────────
 
   flights: [
-    { id: 'amadeus',         name: 'Amadeus GDS',     icon: '✈️', tier: 1 },
-    { id: 'google-flights',  name: 'Google Flights',  icon: '🔍', tier: 1 },
-    { id: 'kayak',           name: 'Kayak',           icon: '🎯', tier: 1 },
-    { id: 'skyscanner',      name: 'Skyscanner',      icon: '🛸', tier: 1 },
-    { id: 'expedia-f',       name: 'Expedia',         icon: '💼', tier: 1 },
-    { id: 'momondo',         name: 'Momondo',         icon: '🌍', tier: 1 },
-    { id: 'hopper',          name: 'Hopper',          icon: '🐰', tier: 2 },
-    { id: 'kiwi',            name: 'Kiwi.com',        icon: '🥝', tier: 2 },
-    { id: 'orbitz',          name: 'Orbitz',          icon: '🌐', tier: 2 },
-    { id: 'priceline',       name: 'Priceline',       icon: '💰', tier: 2 },
-    { id: 'cheapoair',       name: 'CheapOAir',       icon: '💸', tier: 2 },
-    { id: 'aeromexico',      name: 'Aeroméxico',      icon: '🦅', tier: 2 },
-    { id: 'united',          name: 'United',          icon: '✈️', tier: 2 },
-    { id: 'delta',           name: 'Delta',           icon: '△',  tier: 2 },
-    { id: 'american',        name: 'American',        icon: '🦅', tier: 2 },
-    { id: 'southwest',       name: 'Southwest',       icon: '❤️', tier: 3 },
-    { id: 'volaris',         name: 'Volaris',         icon: '🟣', tier: 3 },
-    { id: 'vivaaerobus',     name: 'VivaAerobus',     icon: '🟡', tier: 3 },
-    { id: 'copa',            name: 'Copa Airlines',   icon: '🌉', tier: 3 },
-    { id: 'latam',           name: 'LATAM',           icon: '🌎', tier: 3 },
-    { id: 'jetblue',         name: 'JetBlue',         icon: '💙', tier: 3 },
-    { id: 'spirit',          name: 'Spirit',          icon: '💛', tier: 3 },
-    { id: 'frontier',        name: 'Frontier',        icon: '🏔',  tier: 3 },
-    { id: 'airfrance',       name: 'Air France',      icon: '🔵', tier: 3 },
-    { id: 'klm',             name: 'KLM',             icon: '🟦', tier: 3 },
-    { id: 'british',         name: 'British Airways', icon: '🟥', tier: 3 },
-    { id: 'iberia',          name: 'Iberia',          icon: '🌊', tier: 3 },
-    { id: 'lufthansa',       name: 'Lufthansa',       icon: '🟨', tier: 3 },
-    { id: 'qatar',           name: 'Qatar Airways',   icon: '🟤', tier: 3 },
-    { id: 'emirates',        name: 'Emirates',        icon: '🌟', tier: 3 },
-    { id: 'aircanada',       name: 'Air Canada',      icon: '🍁',  tier: 3 },
+    // ── Tier 1: Real-search engines (require API key) ────────────────────────
+    { id: 'google-flights',  name: 'Google Flights',  icon: '🔍', tier: 1, status: 'needs-key'  },
+    { id: 'amadeus',         name: 'Amadeus GDS',     icon: '✈️', tier: 1, status: 'needs-key'  },
+    // ── Tier 1: Deep-link aggregators (require partner API key) ─────────────
+    { id: 'kayak',           name: 'Kayak',           icon: '🎯', tier: 1, status: 'needs-key'  },
+    { id: 'skyscanner',      name: 'Skyscanner',      icon: '🛸', tier: 1, status: 'needs-key'  },
+    { id: 'expedia-f',       name: 'Expedia',         icon: '💼', tier: 1, status: 'needs-key'  },
+    { id: 'momondo',         name: 'Momondo',         icon: '🌍', tier: 1, status: 'needs-key'  },
+    // ── Tier 2: Smart aggregators ────────────────────────────────────────────
+    { id: 'kiwi',            name: 'Budget Fares',    icon: '💰', tier: 2, status: 'needs-key'  },
+    { id: 'hopper',          name: 'Hopper',          icon: '🐰', tier: 2, status: 'ui-only'    },
+    { id: 'priceline',       name: 'Priceline',       icon: '💰', tier: 2, status: 'ui-only'    },
+    { id: 'cheapoair',       name: 'CheapOAir',       icon: '💸', tier: 2, status: 'ui-only'    },
+    { id: 'orbitz',          name: 'Orbitz',          icon: '🌐', tier: 2, status: 'ui-only'    },
+    // ── Tier 2: Major global airlines (top traffic worldwide) ─────────────────
+    { id: 'elal',            name: 'El Al',           icon: '🇮🇱', tier: 2, status: 'ui-only'    },
+    { id: 'emirates',        name: 'Emirates',        icon: '🌟', tier: 2, status: 'ui-only'    },
+    { id: 'turkish',         name: 'Turkish Airlines',icon: '🌙', tier: 2, status: 'ui-only'    },
+    { id: 'united',          name: 'United',          icon: '✈️', tier: 2, status: 'ui-only'    },
+    { id: 'delta',           name: 'Delta',           icon: '△',  tier: 2, status: 'ui-only'    },
+    { id: 'american',        name: 'American',        icon: '🦅', tier: 2, status: 'ui-only'    },
+    // ── Tier 3: Global majors ─────────────────────────────────────────────────
+    { id: 'lufthansa',       name: 'Lufthansa',       icon: '🟨', tier: 3, status: 'ui-only'    },
+    { id: 'airfrance',       name: 'Air France',      icon: '🔵', tier: 3, status: 'ui-only'    },
+    { id: 'british',         name: 'British Airways', icon: '🟥', tier: 3, status: 'ui-only'    },
+    { id: 'qatar',           name: 'Qatar Airways',   icon: '🟤', tier: 3, status: 'ui-only'    },
+    { id: 'etihad',          name: 'Etihad',          icon: '🇦🇪', tier: 3, status: 'ui-only'    },
+    { id: 'klm',             name: 'KLM',             icon: '🟦', tier: 3, status: 'ui-only'    },
+    { id: 'singapore',       name: 'Singapore Air',   icon: '🇸🇬', tier: 3, status: 'ui-only'    },
+    { id: 'cathay',          name: 'Cathay Pacific',  icon: '🇭🇰', tier: 3, status: 'ui-only'    },
+    { id: 'iberia',          name: 'Iberia',          icon: '🌊', tier: 3, status: 'ui-only'    },
+    { id: 'ryanair',         name: 'Ryanair',         icon: '💙', tier: 3, status: 'ui-only'    },
+    { id: 'easyjet',         name: 'EasyJet',         icon: '🟠', tier: 3, status: 'ui-only'    },
+    { id: 'wizzair',         name: 'Wizz Air',        icon: '💜', tier: 3, status: 'ui-only'    },
+    { id: 'southwest',       name: 'Southwest',       icon: '❤️', tier: 3, status: 'ui-only'    },
+    { id: 'aircanada',       name: 'Air Canada',      icon: '🍁', tier: 3, status: 'ui-only'    },
   ],
 
   // ── Lodging ───────────────────────────────────────────────────────────────────
 
   lodging: [
-    { id: 'amadeus-hotels',  name: 'Amadeus Hotels',  icon: '🏢', tier: 1 },
-    { id: 'airbnb',          name: 'Airbnb',          icon: '🏠', tier: 1 },
-    { id: 'booking',         name: 'Booking.com',     icon: '📘', tier: 1 },
-    { id: 'hotels-com',      name: 'Hotels.com',      icon: '🏨', tier: 1 },
-    { id: 'expedia-h',       name: 'Expedia Hotels',  icon: '💼', tier: 1 },
-    { id: 'marriott',        name: 'Marriott',        icon: '⭐', tier: 1 },
+    { id: 'google-hotels',   name: 'Google Hotels',   icon: '🔍', tier: 1, status: 'needs-key'},
+    { id: 'amadeus-hotels',  name: 'Amadeus Hotels',  icon: '🏢', tier: 1, status: 'needs-key'},
+    { id: 'airbnb',          name: 'Airbnb',          icon: '🏠', tier: 1, status: 'needs-key'},
+    { id: 'booking',         name: 'Booking.com',     icon: '📘', tier: 1, status: 'needs-key'},
+    { id: 'hotels-com',      name: 'Hotels.com',      icon: '🏨', tier: 1, status: 'needs-key'},
+    { id: 'expedia-h',       name: 'Expedia Hotels',  icon: '💼', tier: 1, status: 'needs-key'},
+    { id: 'marriott',        name: 'Marriott',        icon: '⭐', tier: 1, status: 'needs-key'},
     { id: 'hilton',          name: 'Hilton',          icon: '🏛',  tier: 2 },
     { id: 'hyatt',           name: 'Hyatt',           icon: '🌹', tier: 2 },
     { id: 'ihg',             name: 'IHG',             icon: '🌐', tier: 2 },
@@ -95,11 +114,12 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Dining ────────────────────────────────────────────────────────────────────
 
   dining: [
-    { id: 'opentable',       name: 'OpenTable',       icon: '🍽', tier: 1 },
-    { id: 'resy',            name: 'Resy',            icon: '📅', tier: 1 },
-    { id: 'google-maps-d',   name: 'Google Maps',     icon: '📍', tier: 1 },
-    { id: 'tripadvisor-d',   name: 'TripAdvisor',     icon: '🦉', tier: 1 },
-    { id: 'michelin',        name: 'Michelin Guide',  icon: '⭐', tier: 1 },
+    { id: 'yelp',            name: 'Local Discovery', icon: '🗺', tier: 1, status: 'live'      }, // OSM — free, no key
+    { id: 'google-maps-d',   name: 'Google Maps',     icon: '📍', tier: 1, status: 'needs-key' },
+    { id: 'opentable',       name: 'OpenTable',       icon: '🍽', tier: 1, status: 'needs-key' },
+    { id: 'resy',            name: 'Resy',            icon: '📅', tier: 1, status: 'needs-key' },
+    { id: 'tripadvisor-d',   name: 'TripAdvisor',     icon: '🦉', tier: 1, status: 'needs-key' },
+    { id: 'michelin',        name: 'Michelin Guide',  icon: '⭐', tier: 1, status: 'needs-key' },
     { id: 'infatuation',     name: 'Infatuation',     icon: '💕', tier: 2 },
     { id: 'eater',           name: 'Eater',           icon: '📰', tier: 2 },
     { id: 'zagat',           name: 'Zagat',           icon: '🟥', tier: 2 },
@@ -107,7 +127,6 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
     { id: 'tock',            name: 'Tock',            icon: '🕐', tier: 2 },
     { id: 'quandoo',         name: 'Quandoo',         icon: '🟢', tier: 2 },
     { id: 'zomato',          name: 'Zomato',          icon: '🔴', tier: 2 },
-    { id: 'yelp',            name: 'Yelp',            icon: '🌟', tier: 2 },
     { id: 'worlds50best',    name: "World's 50 Best", icon: '🏆', tier: 2 },
     { id: 'jamesbeard',      name: 'James Beard',     icon: '🎖',  tier: 3 },
     { id: 'oad',             name: 'OAD Awards',      icon: '🥇', tier: 3 },
@@ -130,11 +149,12 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Attractions ──────────────────────────────────────────────────────────────
 
   attractions: [
-    { id: 'tripadvisor-a',   name: 'TripAdvisor',     icon: '🦉', tier: 1 },
-    { id: 'google-places',   name: 'Google Places',   icon: '📍', tier: 1 },
-    { id: 'viator',          name: 'Viator',          icon: '🎫', tier: 1 },
-    { id: 'getyourguide',    name: 'GetYourGuide',    icon: '🎟', tier: 1 },
-    { id: 'airbnb-exp',      name: 'Airbnb Exp.',     icon: '🌟', tier: 1 },
+    { id: 'geoapify',        name: 'Geoapify',        icon: '📍', tier: 1, status: 'needs-key' },
+    { id: 'tripadvisor-a',   name: 'TripAdvisor',     icon: '🦉', tier: 1, status: 'needs-key' },
+    { id: 'google-places',   name: 'Google Places',   icon: '🔍', tier: 1, status: 'needs-key' },
+    { id: 'viator',          name: 'Viator',          icon: '🎫', tier: 1, status: 'needs-key' },
+    { id: 'getyourguide',    name: 'GetYourGuide',    icon: '🎟', tier: 1, status: 'needs-key' },
+    { id: 'airbnb-exp',      name: 'Airbnb Exp.',     icon: '🌟', tier: 1, status: 'needs-key' },
     { id: 'klook',           name: 'Klook',           icon: '🎪', tier: 2 },
     { id: 'musement',        name: 'Musement',        icon: '🎨', tier: 2 },
     { id: 'tiqets',          name: 'Tiqets',          icon: '🎭', tier: 2 },
@@ -165,7 +185,7 @@ export const ZONE_ENGINES: Record<ZoneId, Engine[]> = {
   // ── Transit ───────────────────────────────────────────────────────────────────
 
   transit: [
-    { id: 'google-maps-t',   name: 'Google Maps',     icon: '📍', tier: 1 },
+    { id: 'google-maps',     name: 'Google Maps',     icon: '📍', tier: 1, status: 'needs-key' },
     { id: 'rome2rio',        name: 'Rome2rio',        icon: '🗺', tier: 1 },
     { id: 'uber',            name: 'Uber',            icon: '⚫', tier: 1 },
     { id: 'lyft',            name: 'Lyft',            icon: '🟣', tier: 1 },

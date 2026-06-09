@@ -327,7 +327,7 @@ export function InitialHandshake({ prompt, onZoneLaunch }: Props) {
           color:         'var(--text-secondary)',
           letterSpacing: '-0.01em',
         }}>
-          {phase === 'thinking' ? 'Parsing your trip request...' : 'Workspace ready'}
+          {phase === 'thinking' ? 'Understanding your vision…' : 'Your workspace is ready'}
         </p>
       </div>
 
@@ -357,10 +357,10 @@ export function InitialHandshake({ prompt, onZoneLaunch }: Props) {
 
         {/* Thinking steps */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <ThinkingLine text="Analyzing intent..."        delay={0.05} done={phase !== 'thinking'} />
-          <ThinkingLine text="Detecting destination..."   delay={0.28} done={phase !== 'thinking'} />
-          <ThinkingLine text="Mapping to travel zones..."  delay={0.52} done={phase !== 'thinking'} />
-          <ThinkingLine text="Building workspace..."       delay={0.78} done={phase !== 'thinking'} />
+          <ThinkingLine text="Reading your request…"          delay={0.05} done={phase !== 'thinking'} />
+          <ThinkingLine text="Finding your destination…"      delay={0.28} done={phase !== 'thinking'} />
+          <ThinkingLine text="Matching the right zones…"      delay={0.52} done={phase !== 'thinking'} />
+          <ThinkingLine text="Preparing your workspace…"      delay={0.78} done={phase !== 'thinking'} />
         </div>
 
         {/* Context pills */}
@@ -408,7 +408,7 @@ export function InitialHandshake({ prompt, onZoneLaunch }: Props) {
                 color:          'var(--text-tertiary)',
                 letterSpacing:  '0.05em',
               }}>
-                LAUNCH ZONE
+                READY TO EXPLORE
               </p>
 
               {primaryZones.map((zone, i) => (
@@ -454,7 +454,7 @@ export function InitialHandshake({ prompt, onZoneLaunch }: Props) {
           >
             <input
               type="text"
-              placeholder="Refine your trip..."
+              placeholder="Add more details…"
               style={{
                 width:          '100%',
                 background:     'rgba(255,255,255,0.62)',

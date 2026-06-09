@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTravelEngine }          from '@/store/useTravelEngine';
 import { sanitizeTripForSharing, encodePayload } from '@/utils/PayloadSanitizer';
@@ -45,7 +45,8 @@ function CircularProgress({ progress }: { progress: number }) {
         strokeLinecap="round"
         strokeDasharray={circumference}
         animate={{ strokeDashoffset: offset }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+        // Instant-fill feel — fast easeOut matching dictation
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       />
       <defs>
         <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -65,51 +66,124 @@ function CopyButton({ url }: { url: string }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2200);
     });
   };
 
   return (
-    <div style={{
-      display:        'flex',
-      alignItems:     'center',
-      gap:            8,
-      padding:        '8px 12px',
-      borderRadius:   14,
-      background:     'rgba(255,255,255,0.55)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      border:         '1.5px solid rgba(255,255,255,0.70)',
-      boxShadow:      'inset 0 1px 0 rgba(255,255,255,1)',
-    }}>
+    // ── Glowing copyable URL (dictated) ───────────────────────────────────────
+    <motion.div
+      animate={{
+        boxShadow: copied
+          ? '0 0 0 2px rgba(48,209,88,0.35), inset 0 1px 0 rgba(255,255,255,1)'
+          : '0 0 20px rgba(0,122,255,0.12), inset 0 1px 0 rgba(255,255,255,1)',
+      }}
+      transition={{ duration: 0.25 }}
+      style={{
+        display:        'flex',
+        alignItems:     'center',
+        gap:            8,
+        padding:        '10px 14px',
+        borderRadius:   14,
+        background:     'rgba(255,255,255,0.60)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border:         `1.5px solid ${copied ? 'rgba(48,209,88,0.40)' : 'rgba(255,255,255,0.80)'}`,
+        transition:     'border-color 0.25s ease',
+      }}
+    >
       <span style={{
         flex: 1, fontSize: 10.5, fontWeight: 600, color: '#1C1C1E',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        letterSpacing: '-0.01em',
       }}>
         {url.replace('https://', '')}
       </span>
       <motion.button
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.93 }}
         onClick={handleCopy}
         style={{
-          paddingBlock: 5, paddingInline: 12,
-          borderRadius: 8, border: 'none', cursor: 'pointer',
-          background: copied ? '#30D15820' : GRADIENT,
-          color:       copied ? '#30D158'  : 'white',
+          paddingBlock: 6, paddingInline: 14,
+          borderRadius: 9, border: 'none', cursor: 'pointer',
+          background: copied ? 'rgba(48,209,88,0.15)' : GRADIENT,
+          color:       copied ? '#30D158' : 'white',
           fontSize:    10, fontWeight: 800,
           fontFamily:  'inherit', letterSpacing: '-0.01em',
-          flexShrink:  0, transition: 'background 0.2s, color 0.2s',
+          flexShrink:  0, transition: 'background 0.22s, color 0.22s',
+          boxShadow:   copied ? 'none' : '0 2px 10px rgba(0,122,255,0.30)',
         }}
       >
         {copied ? '✓ Copied' : 'Copy'}
       </motion.button>
-    </div>
+    </motion.div>
   );
 }
 
-// ── Share buttons ─────────────────────────────────────────────────────────────
+// ── Share buttons — dictated glass squares ────────────────────────────────────
+
+interface ShareSquareProps {
+  href?:     string;
+  onClick?:  () => void;
+  emoji:     string;
+  label:     string;
+  accentBg:  string;
+  accentBorder: string;
+  accentText: string;
+}
+
+function ShareSquare({ href, onClick, emoji, label, accentBg, accentBorder, accentText }: ShareSquareProps) {
+  const inner = (
+    <>
+      <span style={{ fontSize: 22, lineHeight: 1 }}>{emoji}</span>
+      <span style={{
+        fontSize: 10, fontWeight: 700, color: accentText,
+        fontFamily: 'inherit', letterSpacing: '-0.01em',
+      }}>
+        {label}
+      </span>
+    </>
+  );
+
+  const squareStyle: CSSProperties = {
+    display:        'flex',
+    flexDirection:  'column',
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            6,
+    padding:        '14px 10px',
+    borderRadius:   16,
+    background:     accentBg,
+    border:         `1.5px solid ${accentBorder}`,
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    boxShadow:      'inset 0 1px 0 rgba(255,255,255,0.7)',
+    cursor:         'pointer',
+    textDecoration: 'none',
+    flex:           1,
+  };
+
+  return href ? (
+    <motion.a
+      href={href} target="_blank" rel="noopener noreferrer"
+      style={squareStyle}
+      whileHover={{ scale: 1.04, y: -2 }}
+      whileTap={{ scale: 0.96 }}
+    >
+      {inner}
+    </motion.a>
+  ) : (
+    <motion.button
+      onClick={onClick}
+      style={squareStyle}
+      whileHover={{ scale: 1.04, y: -2 }}
+      whileTap={{ scale: 0.96 }}
+    >
+      {inner}
+    </motion.button>
+  );
+}
 
 function ShareButtons({ url, title }: { url: string; title: string }) {
   const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
@@ -121,36 +195,47 @@ function ShareButtons({ url, title }: { url: string; title: string }) {
   };
 
   const whatsapp  = `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`;
+  const instagram = `https://www.instagram.com/`;  // Instagram deep-link: copy URL then open
   const twitter   = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
 
   return (
-    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-      {canNativeShare && (
-        <motion.button
-          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+    // ── Glass squares grid (dictated) ─────────────────────────────────────────
+    <div style={{ display: 'flex', gap: 10 }}>
+      <ShareSquare
+        href={whatsapp}
+        emoji="💬"
+        label="WhatsApp"
+        accentBg="rgba(37,211,102,0.10)"
+        accentBorder="rgba(37,211,102,0.28)"
+        accentText="#1a8a43"
+      />
+      <ShareSquare
+        href={instagram}
+        emoji="📸"
+        label="Instagram"
+        accentBg="rgba(193,53,132,0.08)"
+        accentBorder="rgba(193,53,132,0.22)"
+        accentText="#c13584"
+      />
+      {canNativeShare ? (
+        <ShareSquare
           onClick={handleNative}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/40 border border-white/60 backdrop-blur-md text-[11px] font-bold text-[#1C1C1E] cursor-pointer"
-          style={{ fontFamily: 'inherit', letterSpacing: '-0.01em' }}
-        >
-          📤 Share
-        </motion.button>
+          emoji="📤"
+          label="More"
+          accentBg="rgba(0,122,255,0.08)"
+          accentBorder="rgba(0,122,255,0.22)"
+          accentText="#007AFF"
+        />
+      ) : (
+        <ShareSquare
+          href={twitter}
+          emoji="𝕏"
+          label="Post"
+          accentBg="rgba(0,0,0,0.05)"
+          accentBorder="rgba(0,0,0,0.12)"
+          accentText="#1C1C1E"
+        />
       )}
-      <motion.a
-        href={whatsapp} target="_blank" rel="noopener noreferrer"
-        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366]/10 border border-[#25D366]/30 backdrop-blur-md text-[11px] font-bold text-[#25D366] cursor-pointer"
-        style={{ textDecoration: 'none', fontFamily: 'inherit', letterSpacing: '-0.01em' }}
-      >
-        💬 WhatsApp
-      </motion.a>
-      <motion.a
-        href={twitter} target="_blank" rel="noopener noreferrer"
-        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1DA1F2]/10 border border-[#1DA1F2]/30 backdrop-blur-md text-[11px] font-bold text-[#1DA1F2] cursor-pointer"
-        style={{ textDecoration: 'none', fontFamily: 'inherit', letterSpacing: '-0.01em' }}
-      >
-        𝕏 Post
-      </motion.a>
     </div>
   );
 }
@@ -175,9 +260,9 @@ export function ViralExportModal({ isOpen, onClose }: ViralExportModalProps) {
     setState('generating');
     setProgress(0);
 
-    // Animate progress while building payload
+    // Instant-fill feel — 12 ticks × 40ms = 480ms total
     let tick = 0;
-    const totalTicks = 20;
+    const totalTicks = 12;
     const interval = setInterval(() => {
       tick++;
       setProgress(tick / totalTicks);
@@ -200,7 +285,7 @@ export function ViralExportModal({ isOpen, onClose }: ViralExportModalProps) {
         setShareUrl(appUrl);
         setState('ready');
       }
-    }, 50);
+    }, 40);
   }, [state, trip, days]);
 
   const hasEntities = days.some(d => d.entities.length > 0);
@@ -230,6 +315,7 @@ export function ViralExportModal({ isOpen, onClose }: ViralExportModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 10 }}
             transition={SPRING}
+            // ── Dictated modal CSS ───────────────────────────────────────────
             style={{
               position:        'fixed',
               insetBlockStart: '50%',
@@ -238,10 +324,10 @@ export function ViralExportModal({ isOpen, onClose }: ViralExportModalProps) {
               zIndex:          61,
               width:           'min(420px, 90vw)',
               borderRadius:    28,
-              background:      'rgba(255,255,255,0.65)',
+              background:      'rgba(255,255,255,0.50)',
               backdropFilter:  'blur(48px) saturate(1.9)',
               WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
-              border:          '1.5px solid rgba(255,255,255,0.80)',
+              border:          '1.5px solid rgba(255,255,255,0.60)',
               boxShadow:       'inset 0 1px 0 rgba(255,255,255,1), 0 32px 80px rgba(0,0,0,0.14)',
               padding:         28,
               textAlign:       'center',

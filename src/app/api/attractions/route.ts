@@ -20,10 +20,12 @@ const QuerySchema = z.object({
 });
 
 export interface AttractionEngineStatus {
-  engineId:  string;
-  status:    'ok' | 'needs_api_key' | 'error';
-  count:     number;
-  setupUrl?: string;
+  engineId:     string;
+  engineName:   string;
+  status:       'ok' | 'needs_api_key' | 'error';
+  count:        number;
+  deepLinkUrl?: string;
+  setupUrl?:    string;
 }
 
 export interface AttractionsSearchResponse {
@@ -101,13 +103,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<AttractionsSe
       const val: AttractionEngineResult = r.value;
       if (val.status === 'ok') allEntities.push(...val.results);
       return {
-        engineId: val.engineId,
-        status:   val.status,
-        count:    val.results.length,
-        setupUrl: val.setupUrl,
+        engineId:    val.engineId,
+        engineName:  val.engineName,
+        status:      val.status,
+        count:       val.results.length,
+        deepLinkUrl: val.deepLinkUrl,
+        setupUrl:    val.setupUrl,
       };
     }
-    return { engineId: adapters[i].id, status: 'error', count: 0 };
+    return { engineId: adapters[i].id, engineName: adapters[i].name, status: 'error', count: 0 };
   });
 
   const allNeedKey = engineStatus.every(e => e.status === 'needs_api_key');

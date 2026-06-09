@@ -30,43 +30,38 @@ function PeerTypingBadge({ name, color }: { name: string; color: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -8, scale: 0.92 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: -8, scale: 0.92 }}
+      animate={{ opacity: 1, x: 0,  scale: 1    }}
+      exit={{    opacity: 0, x: -8, scale: 0.92 }}
       transition={SPRING}
-      style={{
-        display:        'flex',
-        alignItems:     'center',
-        gap:            7,
-        paddingBlock:   6,
-        paddingInline:  10,
-        borderRadius:   10,
-        background:     'rgba(255,255,255,0.50)',
-        backdropFilter: 'blur(16px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(16px) saturate(1.8)',
-        border:         '1px solid rgba(255,255,255,0.55)',
-        boxShadow:      'inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 8px rgba(0,0,0,0.06)',
-        fontSize:       10.5,
-        fontWeight:     600,
-        color,
-        letterSpacing:  '-0.01em',
-        fontFamily:     'inherit',
-        marginBlockEnd: 4,
-      }}
+      // ── Dictated pill CSS ──────────────────────────────────────────────────
+      className="px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center gap-2"
+      style={{ marginBlockEnd: 4 }}
     >
-      {/* Color dot */}
+      {/* Peer color accent dot */}
       <span style={{
         width: 6, height: 6, borderRadius: '50%',
-        background:  color,
-        boxShadow:   `0 0 5px ${color}99`,
-        flexShrink:  0,
+        background: color, boxShadow: `0 0 5px ${color}99`,
+        flexShrink: 0,
       }} />
-      <span style={{ color: '#6E6E73', fontWeight: 500 }}>
-        {name} is typing to AI
+
+      {/* Three sequenced blue bounce dots (dictated) */}
+      <span className="flex items-center gap-[3px]">
+        {[0, 0.18, 0.36].map((delay, i) => (
+          <motion.div
+            key={i}
+            className="w-1 h-1 rounded-full bg-blue-400"
+            animate={{ y: [0, -3, 0], opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 0.9, repeat: Infinity, delay, ease: 'easeInOut' }}
+          />
+        ))}
       </span>
-      <span style={{ color, display: 'flex', alignItems: 'center' }}>
-        <TypingDot delay={0} />
-        <TypingDot delay={0.18} />
-        <TypingDot delay={0.36} />
+
+      {/* Label — supports multi-peer with peer name, or generic "Partner is typing..." */}
+      <span
+        className="text-[10.5px] font-medium tracking-tight"
+        style={{ color: '#6E6E73', fontFamily: 'inherit' }}
+      >
+        {name ? `${name} is typing...` : 'Partner is typing...'}
       </span>
     </motion.div>
   );

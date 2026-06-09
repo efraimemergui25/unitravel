@@ -73,6 +73,15 @@ function DragHandle({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTime, activeDay, days]);
 
+  // Click-to-add: dispatches zone-drag-commit so the zone layout global listener handles it
+  const handleClick = useCallback(() => {
+    if (committed || committing) return;
+    document.dispatchEvent(new CustomEvent('unitravel:zone-drag-commit', { detail: payload }));
+    setCommitted(true);
+    setTimeout(() => setCommitted(false), 2400);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committed, committing, payload.id, payload.title]);
+
   return (
     <motion.div
       ref={dragRef}
@@ -81,6 +90,7 @@ function DragHandle({
       dragMomentum={false}
       dragSnapToOrigin={true}
       onDragEnd={(_, info) => handleDragEnd(info)}
+      onClick={handleClick}
       whileDrag={{
         scale:     1.06,
         boxShadow: `0 16px 48px ${COLOR}3C, 0 0 0 2px ${COLOR}`,
@@ -119,9 +129,9 @@ function DragHandle({
             letterSpacing: '-0.01em',
           }}>
             {committed   ? '✓ Added to Timeline' :
-             committing  ? 'Committing…' :
-             selectedTime ? `Drag to timeline · ${selectedTime}` :
-             'Select a slot, then drag'}
+             committing  ? 'Adding…' :
+             selectedTime ? `Tap or drag · ${selectedTime}` :
+             'Tap to add · or drag to a day'}
           </div>
           {!committed && !committing && (
             <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 1 }}>
@@ -136,7 +146,7 @@ function DragHandle({
           background: `${COLOR}14`, border: `1px solid ${COLOR}28`,
           borderRadius: 6, paddingBlock: 3, paddingInline: 7,
         }}>
-          AUTO-RESERVE AI
+          + ADD
         </div>
       )}
     </motion.div>
@@ -286,7 +296,6 @@ function RestaurantCard({ restaurant }: { restaurant: MergedRestaurant }) {
         {/* Quick stats row */}
         <div style={{ display: 'flex', gap: 8 }}>
           <StatPill icon="⭐" label={`${restaurant.rating} / 10`} color={COLOR} />
-          <StatPill icon="🚗" label={`${restaurant.uberMinutes}min Uber`} color="#8E8E93" />
           <StatPill icon="📅" label={restaurant.reservationWindow} color="#8E8E93" />
         </div>
 
@@ -352,6 +361,37 @@ function RestaurantCard({ restaurant }: { restaurant: MergedRestaurant }) {
           selectedTime={selectedTime}
           dragRef={dragRef}
         />
+
+        {/* External reservation link — always shown */}
+        {restaurant.reservationUrl && (
+          <a
+            href={restaurant.reservationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              gap:            6,
+              padding:        '8px 14px',
+              borderRadius:   11,
+              background:     'rgba(255,255,255,0.82)',
+              backdropFilter: 'blur(20px)',
+              border:         '1px solid rgba(0,0,0,0.09)',
+              boxShadow:      '0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.90)',
+              fontSize:       11,
+              fontWeight:     700,
+              color:          '#1D1D1F',
+              letterSpacing:  '-0.015em',
+              textDecoration: 'none',
+              transition:     'box-shadow 0.18s ease',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <span style={{ fontSize: 13 }}>📍</span>
+            View on Google Maps →
+          </a>
+        )}
       </div>
     </motion.div>
   );

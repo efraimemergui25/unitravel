@@ -108,6 +108,7 @@ export interface TravelEngineState {
     endDate:     string;
     nights:      number;
     currency:    'USD';
+    origin:      string;   // departure city / airport code
   };
   days:               EngineDay[];
   budget:             BudgetProjection;
@@ -143,7 +144,7 @@ const buildInitialBudget = (days: EngineDay[]): BudgetProjection => ({
 
 interface TravelEngineActions {
   // Trip setup
-  setupTrip:        (params: { title: string; travelers: string[]; startDate: string; endDate: string; nights: number; totalBudget: number }) => void;
+  setupTrip:        (params: { title: string; travelers: string[]; startDate: string; endDate: string; nights: number; totalBudget: number; origin?: string }) => void;
   addDay:           (day: EngineDay) => void;
   // Pipeline
   runAIPipeline:    () => Promise<void>;
@@ -165,6 +166,8 @@ interface TravelEngineActions {
   revertCrisis:   (crisisId: string) => void;
   // Intra-day reorder with time-slot redistribution
   reorderDayEntities: (dayId: string, newOrder: PlacedEntity[]) => void;
+  // Manual expense entry
+  addManualExpense: (dayId: string, title: string, amount: number, category: EntityCategory, note?: string) => void;
   // Chat memory
   addChatMessage:   (msg: Omit<CategorizedMessage, 'timestamp'>) => void;
   clearChatHistory: () => void;
@@ -276,6 +279,7 @@ export const useTravelEngine = create<TravelEngineStore>()(
       endDate:   '',
       nights:    0,
       currency:  'USD',
+      origin:    '',
     },
     days:      [],
     budget:    buildInitialBudget([]),
@@ -297,13 +301,14 @@ export const useTravelEngine = create<TravelEngineStore>()(
     chatHistory:        [],
 
     // ── Trip setup ───────────────────────────────────────────────────────────
-    setupTrip: ({ title, travelers, startDate, endDate, nights, totalBudget }) =>
+    setupTrip: ({ title, travelers, startDate, endDate, nights, totalBudget, origin }) =>
       set(s => {
         s.trip.title     = title;
         s.trip.travelers = travelers;
         s.trip.startDate = startDate;
         s.trip.endDate   = endDate;
         s.trip.nights    = nights;
+        s.trip.origin    = origin ?? '';
         s.budget.total   = totalBudget;
         s.budget.dailyAllowance = nights > 0 ? Math.round(totalBudget / nights) : 0;
       }),
@@ -361,7 +366,7 @@ export const useTravelEngine = create<TravelEngineStore>()(
             .toISOString().split('T')[0];
 
         const flightParams = new URLSearchParams({
-          origin:        'TLV',
+          origin:        get().trip.origin || 'TLV',
           destination,
           departureDate: date,
           adults:        String(adults),
@@ -565,6 +570,30 @@ export const useTravelEngine = create<TravelEngineStore>()(
       crisis.undone = true;
     }),
 
+    // ── Manual expense entry ─────────────────────────────────────────────────
+    addManualExpense: (dayId, title, amount, category, note) => {
+      const entity: PlacedEntity = {
+        id:           `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        sourceId:     `manual-${Date.now()}`,
+        category,
+        title,
+        subtitle:     note ?? 'Manual entry',
+        price:        amount,
+        sourceCount:  1,
+        aiConfidence: 1,
+        tags:         ['manual'],
+        booked:       false,
+        placedAt:     Date.now(),
+        details:      { note: note ?? '' },
+      };
+      set(s => {
+        const day = s.days.find(d => d.id === dayId);
+        if (day) { day.entities.push(entity); s.activeDay = dayId; }
+        else if (s.days.length > 0) { s.days[0].entities.push(entity); }
+      });
+      get().calculatePredictiveBudget();
+    },
+
     // ── Predictive Budget Engine ─────────────────────────────────────────────
     calculatePredictiveBudget: () => set(s => {
       const breakdown: Record<EntityCategory, number> = { flight: 0, hotel: 0, restaurant: 0, activity: 0, transport: 0 };
@@ -634,7 +663,22 @@ export const useTravelEngine = create<TravelEngineStore>()(
     })),
     {
       name:    'unitravel-engine',
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persisted: unknown, fromVersion: number) => {
+        const s = persisted as Record<string, unknown>;
+        // v0→v1: nothing to migrate (first versioned release)
+        // v1→v2: ensure chatHistory exists
+        if (fromVersion < 2) {
+          if (!s.chatHistory) s.chatHistory = [];
+          if (!s.crisisHistory) s.crisisHistory = [];
+          if (s.budget && typeof s.budget === 'object') {
+            const b = s.budget as Record<string, unknown>;
+            if (!b.breakdown) b.breakdown = {};
+          }
+        }
+        return s;
+      },
       partialize: (state) => ({
         trip:               state.trip,
         days:               state.days,

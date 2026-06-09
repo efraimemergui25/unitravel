@@ -100,12 +100,28 @@ export async function onDragEndWithPhysics(
   const match = resolveBestDropZone(dragBounds, pointerX, pointerY);
 
   if (!match) {
-    // dragSnapToOrigin on the Framer element handles visual snap-back
+    // No visual drop zone found (e.g. user is on a plan zone, not management page).
+    // Fall back: commit to activeDay or days[0] so the entity is never silently lost.
+    const { useTravelEngine } = await import('@/store/useTravelEngine');
+    const state       = useTravelEngine.getState();
+    const fallbackId  = state.activeDay ?? state.days[0]?.id;
+    if (fallbackId) {
+      try {
+        await handleEntityDrop(entity, fallbackId, timeHint);
+        const day = state.days.find(d => d.id === fallbackId);
+        return {
+          committed:   true,
+          dayId:       fallbackId,
+          entityTitle: entity.title,
+          message:     `"${entity.title}" added to Day ${day?.dayNumber ?? 1}`,
+        };
+      } catch {}
+    }
     return {
       committed:   false,
       dayId:       null,
       entityTitle: entity.title,
-      message:     'No drop zone intersected — entity returned to origin',
+      message:     'No drop zone — set up your trip first',
     };
   }
 

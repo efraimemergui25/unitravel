@@ -60,7 +60,7 @@ const SegmentBar = memo(function SegmentBar({
       {show && (
         <>
           <span style={{ fontSize: 10, flexShrink: 0 }}>{icon}</span>
-          <span style={{ fontSize: 8, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {seg.label.split('(')[0].trim()}
           </span>
         </>
@@ -117,7 +117,7 @@ const RouteRow = memo(function RouteRow({
       {isRec && (
         <div style={{
           position: 'absolute', top: 8, right: 10,
-          fontSize: 8, fontWeight: 800, color: COLOR_REC,
+          fontSize: 9, fontWeight: 800, color: COLOR_REC,
           background: `${COLOR_REC}14`, borderRadius: 5,
           paddingBlock: 2, paddingInline: 6,
           border: `1px solid ${COLOR_REC}30`,
@@ -128,7 +128,7 @@ const RouteRow = memo(function RouteRow({
       {option.isFastest && !isRec && (
         <div style={{
           position: 'absolute', top: 8, right: 10,
-          fontSize: 8, fontWeight: 800, color: '#30D158',
+          fontSize: 9, fontWeight: 800, color: '#30D158',
           background: '#30D15814', borderRadius: 5,
           paddingBlock: 2, paddingInline: 6,
           border: '1px solid #30D15830',
@@ -139,7 +139,7 @@ const RouteRow = memo(function RouteRow({
       {option.isCheapest && !isRec && !option.isFastest && (
         <div style={{
           position: 'absolute', top: 8, right: 10,
-          fontSize: 8, fontWeight: 800, color: '#FF9F0A',
+          fontSize: 9, fontWeight: 800, color: '#FF9F0A',
           background: '#FF9F0A14', borderRadius: 5,
           paddingBlock: 2, paddingInline: 6,
           border: '1px solid #FF9F0A30',
@@ -175,7 +175,7 @@ const RouteRow = memo(function RouteRow({
           <span style={{ fontSize: 11, fontWeight: 700, color: '#1C1C1E' }}>{fmtCost(option.totalCost)}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <span style={{ fontSize: 8, color: '#8E8E93' }}>comfort</span>
+          <span style={{ fontSize: 9, color: '#8E8E93' }}>comfort</span>
           <span style={{ fontSize: 9, color: '#FF9F0A', letterSpacing: '-1px' }}>{COMFORT_LABELS[option.comfort]}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -186,7 +186,7 @@ const RouteRow = memo(function RouteRow({
         {/* Tags */}
         {option.tags.slice(0, 2).map(tag => (
           <span key={tag} style={{
-            fontSize: 8, fontWeight: 600, color: '#636366',
+            fontSize: 9, fontWeight: 600, color: '#636366',
             background: 'rgba(0,0,0,0.05)', borderRadius: 4,
             paddingBlock: 2, paddingInline: 5,
           }}>

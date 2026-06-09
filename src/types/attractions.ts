@@ -39,4 +39,5 @@ export interface AttractionEntity {
   aiConfidence:      number;
   providers:         string[];
   sourceCount:       number;
+  bookingUrl?:       string;  // Google Maps / Viator / GetYourGuide deeplink
 }

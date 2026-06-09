@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence }       from 'framer-motion';
 import { QRCodeSVG }                     from 'qrcode.react';
 import Link                              from 'next/link';
+import { Plane, Hotel, UtensilsCrossed, Compass, Train, MapPin, Zap, Moon, Sun } from 'lucide-react';
 import { useTravelEngine }               from '@/store/useTravelEngine';
 import type { PlacedEntity, EngineDay }  from '@/store/useTravelEngine';
 
@@ -15,12 +16,13 @@ const AMBER   = '#FF9F0A';
 const RED     = '#FF453A';
 const SPRING  = { type: 'spring', stiffness: 340, damping: 30 } as const;
 
-const CATEGORY_ICON: Record<string, string> = {
-  flight:     '✈️',
-  hotel:      '🏨',
-  restaurant: '🍽️',
-  activity:   '🎭',
-  transport:  '🚗',
+type CatIconComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const CATEGORY_ICON: Record<string, CatIconComp> = {
+  flight:     Plane,
+  hotel:      Hotel,
+  restaurant: UtensilsCrossed,
+  activity:   Compass,
+  transport:  Train,
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -149,9 +151,9 @@ function TodayEventPill({
         width: 32, height: 32, borderRadius: 9,
         background: `${color}18`, border: `1px solid ${color}22`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 16, flexShrink: 0,
+        flexShrink: 0,
       }}>
-        {CATEGORY_ICON[entity.category] ?? '📍'}
+        {(() => { const CI = CATEGORY_ICON[entity.category] ?? MapPin; return <CI size={15} color={color} strokeWidth={1.8} />; })()}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
@@ -173,7 +175,7 @@ function TodayEventPill({
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 1.6, repeat: Infinity }}
           style={{
-            fontSize: 8, fontWeight: 800, color,
+            fontSize: 9, fontWeight: 800, color,
             background: `${color}14`, border: `1px solid ${color}28`,
             borderRadius: 6, paddingBlock: 3, paddingInline: 7,
             letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0,
@@ -218,10 +220,10 @@ function PreTripState({ startDate, days }: { startDate: string; days: EngineDay[
       <motion.div
         animate={{ scale: [1, 1.06, 1] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 64 }}
+        style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(0,122,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         aria-hidden
       >
-        ✈️
+        <Plane size={34} color="#007AFF" strokeWidth={1.6} />
       </motion.div>
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -273,10 +275,12 @@ function PostTripState({ tripTitle, travelers, endDate }: {
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', height: '100%', gap: 24, padding: 40, textAlign: 'center',
     }}>
-      <div style={{ fontSize: 64 }} aria-hidden>🌅</div>
+      <div style={{ width: 80, height: 80, borderRadius: 24, background: 'linear-gradient(135deg, rgba(255,159,10,0.12), rgba(255,69,58,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden>
+        <Sun size={36} color="#FF9F0A" strokeWidth={1.5} />
+      </div>
       <div>
         <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, letterSpacing: '-0.04em', color: 'var(--text-primary)' }}>
-          Trip Complete
+          Journey Complete
         </h2>
         <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, lineHeight: 1.55, maxWidth: 300 }}>
           {travelers.length > 0 ? `${travelers.join(' & ')}'s ` : ''}
@@ -359,11 +363,13 @@ export default function OnTripPage() {
         background: '#F2F2F7',
         fontFamily: "-apple-system, 'SF Pro Display', Inter, sans-serif",
       }}>
-        <div style={{ fontSize: 56 }}>🗺️</div>
+        <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(0,122,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <MapPin size={32} color="#007AFF" strokeWidth={1.5} />
+        </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em' }}>No trip active</h2>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em' }}>No active trip</h2>
           <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6E6E73', fontWeight: 500, maxWidth: 280, lineHeight: 1.55 }}>
-            Build your itinerary on the main planner first.
+            Plan your trip on Unitravel — your live dashboard appears here.
           </p>
         </div>
         <Link href="/" style={{
@@ -473,10 +479,13 @@ export default function OnTripPage() {
                   fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.60)',
                   letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6,
                 }}>
-                  {currentEntity ? '⚡ Happening Now' : `✈ Next Up`}
+                  {currentEntity
+                    ? <><Zap size={10} color="rgba(255,255,255,0.60)" strokeWidth={2.5} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Happening Now</>
+                    : <><Plane size={10} color="rgba(255,255,255,0.60)" strokeWidth={2} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Next Up</>
+                  }
                 </div>
-                <div style={{ fontSize: 42, lineHeight: 1 }} aria-hidden>
-                  {CATEGORY_ICON[heroEntity.category] ?? '📍'}
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(255,255,255,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden>
+                  {(() => { const CI = CATEGORY_ICON[heroEntity.category] ?? MapPin; return <CI size={24} color="rgba(255,255,255,0.92)" strokeWidth={1.6} />; })()}
                 </div>
               </div>
               {heroEntity.time && (
@@ -580,7 +589,9 @@ export default function OnTripPage() {
               textAlign: 'center',
             }}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }} aria-hidden>🌙</div>
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(94,92,230,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }} aria-hidden>
+              <Moon size={24} color="#5E5CE6" strokeWidth={1.8} />
+            </div>
             <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
               All done for today
             </div>
@@ -602,7 +613,7 @@ export default function OnTripPage() {
               textTransform: 'uppercase', letterSpacing: '0.06em',
               paddingInline: 4, paddingBlock: '4px 10px',
             }}>
-              Today's Timeline
+              {"Today's Timeline"}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {todayDay.entities
@@ -681,9 +692,15 @@ export default function OnTripPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      {day.entities.slice(0, 3).map(e => (
-                        <span key={e.id} style={{ fontSize: 16 }}>{CATEGORY_ICON[e.category] ?? '📍'}</span>
-                      ))}
+                      {day.entities.slice(0, 3).map(e => {
+                        const EIcon = CATEGORY_ICON[e.category] ?? MapPin;
+                        const eColor = ({ flight:'#007AFF',hotel:'#5E5CE6',restaurant:'#FF9F0A',activity:'#30D158',transport:'#BF5AF2' } as Record<string,string>)[e.category] ?? '#6E6E73';
+                        return (
+                        <span key={e.id} style={{ width: 22, height: 22, borderRadius: 6, background: `${eColor}14`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <EIcon size={11} color={eColor} strokeWidth={2} />
+                        </span>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -731,7 +748,7 @@ function OnTripNav({ tripTitle }: { tripTitle: string }) {
         color: 'var(--text-primary)', letterSpacing: '-0.02em',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
-        {tripTitle || 'On-Trip OS'}
+        {tripTitle || 'Live Trip'}
       </div>
 
       <motion.div

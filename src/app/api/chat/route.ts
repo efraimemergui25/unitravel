@@ -2,7 +2,9 @@ import { streamText, convertToModelMessages, UIMessage, stepCountIs, tool } from
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { conciergeTools } from '@/services/AITools';
+import { updateUserDNATool } from '@/utils/DNAExtractor';
 import type { TravelDNA } from '@/utils/FinancialEngine';
+import type { FlightSearchResponse } from '@/app/api/flights/route';
 
 // ── Navigation tool — executes on server, client reacts to result ─────────────
 
@@ -97,6 +99,200 @@ const commitLodgingToTimeline = tool({
   }),
 });
 
+// ── triggerOmniSearch — multi-zone search dispatcher ─────────────────────────
+// Covers both aviation AND lodging; use executeAviationSearch when intent is
+// purely flight-focused. Use this when the user mentions hotels OR flights
+// without strong zone specificity, or when you need to open both zones.
+
+const triggerOmniSearch = tool({
+  description:
+    'Dispatch a real-time parallel search against the Aviation or Lodging zone. ' +
+    'MUST be called — not described — whenever the user asks for flights OR hotels. ' +
+    'Do NOT hallucinate dummy options. This triggers real engine adapters.',
+  inputSchema: z.object({
+    targetZone: z.enum(['aviation', 'lodging'])
+      .describe('"aviation" for flights/routes, "lodging" for hotels/stays'),
+    parameters: z.object({
+      dates: z.object({
+        departure: z.string().describe('Departure date YYYY-MM-DD'),
+        return:    z.string().optional().describe('Return date YYYY-MM-DD for round-trips'),
+      }),
+      origins:      z.array(z.string()).min(1).describe('Origin IATA codes or city names'),
+      destinations: z.array(z.string()).optional().describe('Destination IATA codes or cities'),
+      max_price:    z.number().min(0).optional().describe('Hard max price in USD per person'),
+      adults:       z.number().int().min(1).max(9).optional().default(1),
+      cabin_class:  z.enum(['economy', 'premium_economy', 'business', 'first']).optional(),
+    }),
+  }),
+  execute: async ({ targetZone, parameters }) => ({
+    action:     'omni_search_initiated' as const,
+    targetZone,
+    parameters,
+    timestamp:  Date.now(),
+  }),
+});
+
+// ── commitEntityToTimeline — minimal-schema direct commit ─────────────────────
+// Use when only entityId + targetDay + price are known (e.g. after an AI search
+// where full metadata was already shown in chat). Use commitToTimeline for richer
+// commits where category, title, and duration are available.
+
+const commitEntityToTimeline = tool({
+  description:
+    'Commit a search result entity directly to the LiquidTimeline with minimal schema. ' +
+    'Call ONLY on explicit user confirmation ("add it", "book it", "yes"). ' +
+    'Required: entityId from a prior search, the target day, price, category, and title.',
+  inputSchema: z.object({
+    entityId:  z.string().describe('ID from a prior executeAviationSearch / triggerOmniSearch result'),
+    targetDay: z.string().describe('Day ID e.g. "day-1", "day-3"'),
+    price:     z.number().min(0).describe('Confirmed price in USD'),
+    category:  z.enum(['flight', 'hotel', 'restaurant', 'activity', 'transport'])
+                .describe('Entity category — must match the actual result type'),
+    title:     z.string().describe('Entity display title'),
+  }),
+  execute: async (params) => ({
+    committed:   true as const,
+    ...params,
+    committedAt: Date.now(),
+  }),
+});
+
+// ── searchFlightsInline — real flight search that returns results in chat ─────
+// Unlike executeAviationSearch (which just navigates), this tool ACTUALLY calls
+// the Duffel + SerpAPI adapters and returns formatted results as structured data
+// that Claude can summarise and present to the user without leaving the chat.
+
+const searchFlightsInline = tool({
+  description:
+    'Search for real flights and return the top options DIRECTLY in the chat — ' +
+    'no zone navigation needed. Use this when the user asks "what are the cheapest ' +
+    'flights to X" or "show me options" and wants to see prices without switching views. ' +
+    'Always call this BEFORE making any booking commitment.',
+  inputSchema: z.object({
+    origin:        z.string().describe('Origin IATA code (3 letters, e.g. TLV, JFK, LHR)'),
+    destination:   z.string().describe('Destination IATA code (e.g. CDG, DXB, NRT)'),
+    departureDate: z.string().describe('YYYY-MM-DD departure date'),
+    cabinClass:    z.enum(['ECONOMY', 'BUSINESS', 'FIRST']).optional().default('ECONOMY'),
+    adults:        z.number().int().min(1).max(9).optional().default(1),
+    returnDate:    z.string().optional().describe('YYYY-MM-DD for round-trips'),
+    engines:       z.string().optional().describe('Comma-separated engine IDs from the USER-SELECTED ENGINES block. If not specified, uses all real adapters.'),
+  }),
+  execute: async ({ origin, destination, departureDate, cabinClass, adults, engines }) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+      const params  = new URLSearchParams({
+        origin, destination, departureDate,
+        travelClass: cabinClass ?? 'ECONOMY',
+        adults:      String(adults ?? 1),
+        maxResults:  '5',
+        engines:     engines ?? 'duffel,amadeus,google-flights,kiwi',
+      });
+
+      const res  = await fetch(`${baseUrl}/api/flights?${params}`, { signal: AbortSignal.timeout(18_000) });
+      const data = await res.json() as FlightSearchResponse;
+
+      if (data.status !== 'ok' || !data.results?.length) {
+        return {
+          status:  data.status,
+          message: data.setupMessage ?? 'No results found.',
+          results: [],
+        };
+      }
+
+      const top5 = data.results.slice(0, 5).map(f => ({
+        id:          f.id,
+        airline:     f.airline,
+        price:       f.totalPrice,
+        pricePerPax: f.pricePerPerson,
+        currency:    'USD',
+        departure:   f.departure,
+        arrival:     f.arrival,
+        duration:    f.durationLabel,
+        stops:       f.stops === 0 ? 'Non-stop' : `${f.stops} stop${f.stops > 1 ? 's' : ''}`,
+        cabin:       f.cabinClass,
+        co2:         f.co2Comparison,
+        bookingUrl:  f.bookingUrl,
+        source:      f.source,
+      }));
+
+      return {
+        status:      'ok',
+        origin,
+        destination,
+        date:        departureDate,
+        resultCount: data.results.length,
+        results:     top5,
+        cheapest:    top5.reduce((a, b) => a.price < b.price ? a : b),
+      };
+    } catch (err) {
+      return {
+        status:  'error',
+        message: err instanceof Error ? err.message : 'Search failed',
+        results: [],
+      };
+    }
+  },
+});
+
+// ── searchHotelsInline — real hotel search returning results in chat ───────────
+
+const searchHotelsInline = tool({
+  description:
+    'Search for real hotels and return top options DIRECTLY in the chat. ' +
+    'Call this whenever the user asks about accommodation, hotels, or where to stay. ' +
+    'Returns price per night, star rating, and location for the top 5 options.',
+  inputSchema: z.object({
+    cityCode:  z.string().describe('City IATA code or city name (e.g. MAD, CDG, "Paris")'),
+    checkIn:   z.string().describe('Check-in date YYYY-MM-DD'),
+    checkOut:  z.string().describe('Check-out date YYYY-MM-DD'),
+    adults:    z.number().int().min(1).max(9).optional().default(2),
+    currency:  z.enum(['USD', 'EUR', 'ILS']).optional().default('USD'),
+    engines:   z.array(z.string()).optional().describe('Hotel engine IDs from the USER-SELECTED ENGINES block. Defaults to all real adapters.'),
+  }),
+  execute: async ({ cityCode, checkIn, checkOut, adults, currency, engines }) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+      const res  = await fetch(`${baseUrl}/api/hotels`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ cityCode, checkInDate: checkIn, checkOutDate: checkOut, adults, currency, engines: (engines ?? ['duffel-stays', 'amadeus-hotels']).join(','), maxResults: 5 }),
+        signal:  AbortSignal.timeout(18_000),
+      });
+      const data = await res.json();
+
+      if (data.status !== 'ok' || !data.results?.length) {
+        return { status: data.status, message: data.setupMessage ?? 'No hotels found.', results: [] };
+      }
+
+      const top5 = data.results.slice(0, 5).map((h: {
+        id: string; name: string; pricePerNight: number; totalPrice: number;
+        stars: number; address: string; amenities: string[]; bookingUrl: string;
+      }) => ({
+        id:            h.id,
+        name:          h.name,
+        pricePerNight: h.pricePerNight,
+        totalPrice:    h.totalPrice,
+        stars:         h.stars,
+        address:       h.address,
+        topAmenities:  (h.amenities ?? []).slice(0, 3),
+        bookingUrl:    h.bookingUrl,
+      }));
+
+      return {
+        status:      'ok',
+        city:        cityCode,
+        checkIn, checkOut,
+        nights:      Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000),
+        resultCount: data.results.length,
+        results:     top5,
+        cheapest:    top5.reduce((a: typeof top5[0], b: typeof top5[0]) => a.pricePerNight < b.pricePerNight ? a : b),
+      };
+    } catch (err) {
+      return { status: 'error', message: err instanceof Error ? err.message : 'Hotel search failed', results: [] };
+    }
+  },
+});
+
 // ── Request shape ─────────────────────────────────────────────────────────────
 
 interface TripContext {
@@ -114,7 +310,16 @@ interface TripContext {
   };
   dnaProfile:    TravelDNA | null;
   activeDay:     string | null;
-  screenContext?: string;  // injected by useContextAwareness — what the user sees
+  screenContext?: string;
+  locale?:       'en-US' | 'he-IL';
+  // User-selected engines per zone — inline search tools respect these
+  selectedEngines?: {
+    flights?:     string[];
+    hotels?:      string[];
+    dining?:      string[];
+    attractions?: string[];
+    transit?:     string[];
+  };
 }
 
 const DEFAULT_CONTEXT: TripContext = {
@@ -127,6 +332,20 @@ const DEFAULT_CONTEXT: TripContext = {
   dnaProfile:  null,
   activeDay:   null,
 };
+
+// ── Cultural persona injection ────────────────────────────────────────────────
+
+function buildLocalePersona(locale: 'en-US' | 'he-IL' | undefined): string {
+  if (locale === 'he-IL') {
+    return `
+═══ CULTURAL KERNEL: ISRAELI MARKET ═══
+אתה יוניטראבל, קונסיירז׳ תיירות פרימיום לישראלים. דבר בעברית קולחת, טבעית ומקצועית — לא שפה מתורגמת. תן עדיפות לטיסות היוצאות מנתב״ג (TLV) ולהעדפות של הקהל הישראלי: מלונות בוטיק, אוכל כשר כשרלוונטי, יעדים פופולריים (תאילנד, קרואטיה, אמסטרדם, דובאי, ניו יורק). תמחר תמיד ב-₪ (ILS). תאריכים בפורמט DD/MM/YYYY.`;
+  }
+
+  return `
+═══ CULTURAL KERNEL: US MARKET ═══
+You are a high-end US travel concierge. Use American English, imperial units if asked, and prioritize US-centric flight hubs (JFK, LAX, ORD, MIA, SFO, BOS). Price in USD ($). Dates in MM/DD/YYYY format.`;
+}
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
@@ -169,7 +388,18 @@ Travel DNA Profile (calibrate every recommendation to this):
     ? `\n═══ USER'S LIVE SCREEN (resolve "that one", "the second", "book it" against this) ═══\n${ctx.screenContext}`
     : '';
 
+  const enginesBlock = ctx.selectedEngines ? `\n═══ USER-SELECTED SEARCH ENGINES ═══
+${ctx.selectedEngines.flights     ? `• Flights:      ${ctx.selectedEngines.flights.join(', ')}` : ''}
+${ctx.selectedEngines.hotels      ? `• Hotels:       ${ctx.selectedEngines.hotels.join(', ')}` : ''}
+${ctx.selectedEngines.dining      ? `• Dining:       ${ctx.selectedEngines.dining.join(', ')}` : ''}
+${ctx.selectedEngines.attractions ? `• Attractions:  ${ctx.selectedEngines.attractions.join(', ')}` : ''}
+${ctx.selectedEngines.transit     ? `• Transit:      ${ctx.selectedEngines.transit.join(', ')}` : ''}
+searchFlightsInline and searchHotelsInline already use these engine IDs automatically.` : '';
+
+  const todayISO = new Date().toISOString().split('T')[0];
+
   return `You are Unitravel AI — the world's most advanced AI travel operating system. You do not just give advice; you EXECUTE ACTIONS. You are the kernel of the OS.
+TODAY'S DATE: ${todayISO} — use this when the user asks about "this summer", "next month", upcoming dates, or seasonal advice.
 
 CRITICAL — GESTALT EXECUTION PROTOCOL: You are the Unitravel Autonomous Concierge. You guide the user using Gestalt psychology — perceive the whole intent, not just the words. You have direct programmatic control over the workspace. If the user wants flights, you MUST invoke executeAviationSearch. If they choose a room, invoke commitLodgingToTimeline. For any other entity confirmation, invoke commitToTimeline. Never fake text responses if a structural tool call is required. Every action you take is real — no theater, no placeholders.
 
@@ -183,17 +413,16 @@ ${ctx.activeDay ? `Active Day: ${ctx.activeDay}` : ''}
 ${dnaBlock}${screenBlock}
 
 ═══ AUTONOMOUS EXECUTION PROTOCOL ═══
-1. AVIATION_SEARCH: Any mention of flights/flying/routes → executeAviationSearch FIRST, then navigateWorkspace to 'flights'. Do not ask for dates if they're already in the trip context.
-2. LODGING_COMMIT: User confirms a specific hotel room → commitLodgingToTimeline immediately. "The suite", "that one", "yes book it" after a hotel result = confirmation.
-3. SEARCH_ON_REQUEST: Hotels/dining/activities → navigateWorkspace then executeOmniSearch immediately.
-4. COMMIT_ON_CONFIRMATION: Any non-lodging entity confirmed → commitToTimeline. No confirmation loop.
-3. SCREEN_AWARENESS: User saying "the second one" → use the visible results list above (result #2). "That hotel" = the focused/last visible hotel result.
-4. TIMELINE_SUGGESTION: High-confidence (>88%) DNA match that user hasn't decided on → mutateTimeline (requires user drag, not auto-commit).
-5. BUDGET_SYNC: After any commitToTimeline >$400 → adjustFinancialModel.
-6. DNA_LEARNING: Infer preferences from conversation → adjustDNA silently.
-7. ZERO WASTE: Every sentence is a precision instrument. Key insight first → data → action. Max 2 sentences prose.
-8. PERSONA: ${personaAddress} Confident, warm, precise. Never hedge. Never say "I think" — say "Here's what I found."
-9. BUDGET_ALERT: If burnRate > 0.75 → proactively flag with exact overrun amount.`;
+1. INLINE_SEARCH FIRST: When user asks for flights → call searchFlightsInline immediately (real results in chat, no navigation). When user asks for hotels → call searchHotelsInline. These return REAL prices and options. Present the top 3 with prices and ask which to book.
+2. NAVIGATE IF REQUESTED: If user says "show me the flights page" or "open stays" → navigateWorkspace. Don't navigate proactively when inline search covers the need.
+3. COMMIT_ON_CONFIRMATION: After user picks a result ("book the first one", "add that to day 3") → commitToTimeline or commitLodgingToTimeline with the entityId from the search result.
+4. SCREEN_AWARENESS: User saying "the second one" → use result #2 from the last searchFlightsInline/searchHotelsInline call above.
+5. TIMELINE_SUGGESTION: High-confidence (>88%) DNA match that user hasn't decided on → mutateTimeline (requires user drag, not auto-commit).
+6. BUDGET_SYNC: After any commitToTimeline >$400 → adjustFinancialModel.
+7. DNA_LEARNING: Infer preferences from conversation → adjustDNA silently.
+8. ZERO WASTE: Price first → details → action. Never say "I'll search" — just search. Max 2 sentences prose before showing results.
+9. PERSONA: ${personaAddress} Confident, warm, precise. Never hedge. Never say "I think" — say "Here's what I found."
+10. BUDGET_ALERT: If burnRate > 0.75 → proactively flag with exact overrun amount.${buildLocalePersona(ctx.locale)}${enginesBlock}`;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -210,7 +439,7 @@ export async function POST(req: Request) {
     model:      anthropic('claude-sonnet-4-6'),
     messages:   await convertToModelMessages(body.messages),
     system:     buildSystemPrompt(ctx),
-    tools:      { navigateWorkspace, executeAviationSearch, commitLodgingToTimeline, commitToTimeline, ...conciergeTools },
+    tools:      { navigateWorkspace, triggerOmniSearch, executeAviationSearch, searchFlightsInline, searchHotelsInline, commitLodgingToTimeline, commitToTimeline, commitEntityToTimeline, updateUserDNA: updateUserDNATool, ...conciergeTools },
     stopWhen:   stepCountIs(10),
     maxRetries: 2,
   });

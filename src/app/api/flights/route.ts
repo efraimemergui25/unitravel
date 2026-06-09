@@ -24,12 +24,13 @@ export type FlightSearchParams = z.infer<typeof FlightSearchSchema>;
 // ── Response shape ─────────────────────────────────────────────────────────────
 
 export interface EngineStatus {
-  engineId:     string;
-  engineName:   string;
-  status:       'ok' | 'needs_api_key' | 'error';
-  count:        number;
-  latencyMs:    number;
-  setupUrl?:    string;
+  engineId:      string;
+  engineName:    string;
+  status:        'ok' | 'needs_api_key' | 'error';
+  count:         number;
+  latencyMs:     number;
+  deepLinkUrl?:  string;
+  setupUrl?:     string;
   setupMessage?: string;
 }
 
@@ -66,10 +67,10 @@ export async function GET(req: NextRequest): Promise<NextResponse<FlightSearchRe
     destination:   p.get('destination')   ?? '',
     departureDate: p.get('departureDate') ?? '',
     returnDate:    p.get('returnDate')    ?? undefined,
-    adults:        p.get('adults'),
+    adults:        p.get('adults')        ?? undefined,   // null → default(2)
     travelClass:   p.get('travelClass')   ?? 'ECONOMY',
-    nonStop:       p.get('nonStop'),
-    maxResults:    p.get('maxResults'),
+    nonStop:       p.get('nonStop')       ?? undefined,   // null → default(false)
+    maxResults:    p.get('maxResults')    ?? undefined,   // null → default(10)
     currencyCode:  p.get('currencyCode')  ?? 'USD',
     engines:       p.get('engines')       ?? undefined,
   });
@@ -124,6 +125,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<FlightSearchRe
         status:       val.status === 'ok' ? 'ok' : val.status === 'needs_api_key' ? 'needs_api_key' : 'error',
         count:        val.results.length,
         latencyMs:    val.latencyMs,
+        deepLinkUrl:  val.deepLinkUrl,
         setupUrl:     val.setupUrl,
         setupMessage: val.setupMessage,
       };

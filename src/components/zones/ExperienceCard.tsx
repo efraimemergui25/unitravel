@@ -54,7 +54,7 @@ const WeatherBadge = memo(function WeatherBadge({ match }: { match: WeatherMatch
           <motion.span
             animate={{ rotate: 360 }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            style={{ fontSize: 8, display: 'inline-block' }}
+            style={{ fontSize: 9, display: 'inline-block' }}
           >
             ✦
           </motion.span>
@@ -133,7 +133,7 @@ const ProviderDots = memo(function ProviderDots({ providers }: { providers: stri
         />
       ))}
       {providers.length > 5 && (
-        <span style={{ fontSize: 8, color: '#8E8E93' }}>+{providers.length - 5}</span>
+        <span style={{ fontSize: 9, color: '#8E8E93' }}>+{providers.length - 5}</span>
       )}
       <span style={{ fontSize: 9, color: '#AEAEB2', marginInlineStart: 2 }}>
         {providers.length} platform{providers.length !== 1 ? 's' : ''}
@@ -211,7 +211,7 @@ export const ExperienceCard = memo(function ExperienceCard({
             position: 'absolute', insetBlockStart: 8, insetInlineStart: 10,
             background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)',
             borderRadius: 5, paddingBlock: 2, paddingInline: 6,
-            fontSize: 8, fontWeight: 700, color: '#30D158',
+            fontSize: 9, fontWeight: 700, color: '#30D158',
           }}>
             ⚡ Instant
           </div>

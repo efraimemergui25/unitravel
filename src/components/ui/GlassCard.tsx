@@ -4,11 +4,14 @@ import { motion, HTMLMotionProps } from 'framer-motion';
 import { forwardRef, ReactNode } from 'react';
 
 interface GlassCardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
-  variant?: 'default' | 'strong' | 'deep' | 'light';
-  glow?: 'blue' | 'teal' | 'gold' | 'coral' | 'emerald' | 'indigo' | 'none';
+  children?:    ReactNode;
+  className?:   string;
+  hoverEffect?: boolean;
+  // Backward-compat props for existing usages
+  variant?:  'default' | 'strong' | 'deep' | 'light';
+  glow?:     'blue' | 'teal' | 'gold' | 'coral' | 'emerald' | 'indigo' | 'none';
   specular?: boolean;
-  rounded?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
-  children?: ReactNode;
+  rounded?:  'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 }
 
 const glowMap = {
@@ -18,58 +21,62 @@ const glowMap = {
   coral:   '0 0 40px rgba(255,107,107,0.3),  0 0 80px rgba(255,107,107,0.12)',
   emerald: '0 0 40px rgba(48,209,88,0.3),    0 0 80px rgba(48,209,88,0.12)',
   indigo:  '0 0 40px rgba(94,92,230,0.3),    0 0 80px rgba(94,92,230,0.12)',
-  none: '',
+  none:    '',
 } as const;
 
 const variantMap = {
-  default: 'bg-white/[0.06] backdrop-blur-2xl border border-white/10',
+  // default matches the Apple-Light dictation: bg-white/30 backdrop-blur-2xl border border-white/60
+  default: 'bg-white/30 backdrop-blur-2xl border border-white/60',
   strong:  'bg-white/[0.10] backdrop-blur-[40px] border border-white/[0.15]',
   deep:    'bg-[#080B14]/75 backdrop-blur-[48px] border border-white/[0.07]',
   light:   'bg-white/[0.72] backdrop-blur-3xl border border-white/90',
 } as const;
 
-const roundedMap = {
-  sm:  'rounded-sm',
-  md:  'rounded-md',
-  lg:  'rounded-lg',
-  xl:  'rounded-xl',
-  '2xl': 'rounded-2xl',
-  '3xl': 'rounded-3xl',
-} as const;
+// rounded='2xl' (default) maps to the dictated rounded-[2rem]; others pass through for backward compat
+const roundedClass = (r: NonNullable<GlassCardProps['rounded']>) =>
+  r === '2xl' ? 'rounded-[2rem]' : `rounded-${r}`;
 
 export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
-  variant  = 'default',
-  glow     = 'none',
-  specular = true,
-  rounded  = '2xl',
-  className = '',
+  variant     = 'default',
+  glow        = 'none',
+  specular    = true,
+  rounded     = '2xl',
+  hoverEffect = false,
+  className   = '',
   children,
   style,
   ...props
 }, ref) => {
-  const shadow = [
-    variant === 'light'
-      ? '0 4px 24px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)'
-      : variant === 'deep'
-        ? '0 24px 64px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)'
-        : variant === 'strong'
-          ? '0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12)'
-          : '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)',
-    glow !== 'none' ? glowMap[glow] : '',
-  ].filter(Boolean).join(', ');
+  // Base shadow per variant
+  const baseShadow =
+    variant === 'light'  ? '0 4px 24px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)' :
+    variant === 'deep'   ? '0 24px 64px rgba(0,0,0,0.7),  inset 0 1px 0 rgba(255,255,255,0.06)'                          :
+    variant === 'strong' ? '0 16px 48px rgba(0,0,0,0.5),  inset 0 1px 0 rgba(255,255,255,0.12)'                          :
+    /* default ↓ dictated value */
+    '0 8px 32px rgba(0,0,0,0.05)';
+
+  const shadow = [baseShadow, glow !== 'none' ? glowMap[glow] : '']
+    .filter(Boolean).join(', ');
 
   return (
     <motion.div
       ref={ref}
-      className={`relative overflow-hidden ${variantMap[variant]} ${roundedMap[rounded]} ${className}`}
+      className={`relative overflow-hidden ${roundedClass(rounded)} ${variantMap[variant]} ${className}`}
       style={{ boxShadow: shadow, ...style }}
+      // ── Dictated spring physics ──────────────────────────────────────────────
+      whileHover={hoverEffect
+        ? { y: -5, scale: 1.01, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }
+        : undefined}
+      transition={hoverEffect
+        ? { type: 'spring', stiffness: 400, damping: 25 }
+        : undefined}
       {...props}
     >
       {specular && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.03) 100%)',
+            background:   'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.03) 100%)',
             borderRadius: 'inherit',
           }}
         />

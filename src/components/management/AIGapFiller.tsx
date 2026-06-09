@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback }    from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles }                from 'lucide-react';
 import { useTravelEngine }         from '@/store/useTravelEngine';
 import { detectDayGaps, resolveTimezone, utcToLocal } from '@/utils/TimezoneMath';
 import type { EngineDay }          from '@/store/useTravelEngine';
@@ -132,12 +133,11 @@ function AIGapNode({ gap, day }: { gap: TimeGap; day: EngineDay }) {
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
-          fontSize:       13,
           flexShrink:     0,
           position:       'relative',
         }}
       >
-        ✨
+        <Sparkles size={13} color="#5E5CE6" strokeWidth={1.8} />
       </motion.div>
 
       {/* Text */}

@@ -152,10 +152,97 @@ function libToHeroDefs(results: LibBentoFlight[]): HeroDef[] {
   });
 }
 
+// ── Destination photo map (Unsplash source — no API key, free) ───────────────
+
+const DEST_PHOTOS: Record<string, string> = {
+  MAD: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=800&q=80',
+  CDG: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&q=80',
+  NRT: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80',
+  JFK: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80',
+  LHR: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80',
+  DXB: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=80',
+  BCN: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?w=800&q=80',
+  FCO: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&q=80',
+  BKK: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80',
+  SIN: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=800&q=80',
+  AMS: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5902?w=800&q=80',
+  SYD: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800&q=80',
+  LIS: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80',
+  IST: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=800&q=80',
+  TLV: 'https://images.unsplash.com/photo-1576045515606-3be3c27e2a8a?w=800&q=80',
+  MIA: 'https://images.unsplash.com/photo-1514214246283-d427a95c5d2f?w=800&q=80',
+  LAX: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800&q=80',
+  MUC: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?w=800&q=80',
+  VIE: 'https://images.unsplash.com/photo-1516550135131-fe3dcbb7e4b0?w=800&q=80',
+  PRG: 'https://images.unsplash.com/photo-1541849546-216549ae216d?w=800&q=80',
+};
+
+function destPhoto(code: string | undefined): string | null {
+  if (!code) return null;
+  const iata = code.match(/\(([A-Z]{3})\)/)?.[1] ?? code.trim().toUpperCase().slice(0, 3);
+  return DEST_PHOTOS[iata] ?? null;
+}
+
 // ── States ────────────────────────────────────────────────────────────────────
 
 function IdleState({ from, to }: { from?: string; to?: string }) {
-  const routeLabel = from && to ? `${from} → ${to}` : 'Enter your route above to begin';
+  const hasRoute = from && to;
+  const photo    = destPhoto(to);
+
+  if (hasRoute && photo) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0 }}
+        transition={SPRING}
+        style={{
+          borderRadius: 22, overflow: 'hidden', position: 'relative',
+          height: 240, marginTop: 8, cursor: 'default',
+        }}
+      >
+        {/* Background photo */}
+        <img
+          src={photo}
+          alt={to}
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center',
+          }}
+        />
+        {/* Gradient overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(0deg, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.18) 60%, transparent 100%)',
+        }} />
+        {/* Glass info bar */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 22px 18px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.15, margin: 0, textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}>
+                {from} → {to}
+              </p>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', margin: '4px 0 0', fontWeight: 500, letterSpacing: '-0.01em' }}>
+                Select engines and hit Search to find the best fares
+              </p>
+            </div>
+            <motion.div
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ fontSize: 32, lineHeight: 1, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }}
+              aria-hidden
+            >✈️</motion.div>
+          </div>
+        </div>
+        {/* Specular top */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }} />
+      </motion.div>
+    );
+  }
+
+  // Fallback — no photo or no route
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -163,38 +250,24 @@ function IdleState({ from, to }: { from?: string; to?: string }) {
       exit={{ opacity: 0 }}
       transition={SPRING}
       style={{
-        display:        'flex',
-        flexDirection:  'column',
-        alignItems:     'center',
-        justifyContent: 'center',
-        height:         '100%',
-        minHeight:      480,
-        gap:            22,
-        textAlign:      'center',
-        paddingInline:  32,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100%', minHeight: 320, gap: 18, textAlign: 'center', paddingInline: 32,
       }}
     >
       <motion.div
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 60, lineHeight: 1 }}
+        style={{ fontSize: 52, lineHeight: 1 }}
         aria-hidden
-      >
-        ✈️
-      </motion.div>
+      >✈️</motion.div>
       <div>
-        <p style={{ fontSize: 22, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em', lineHeight: 1.2 }}>
-          Aviation Hub Ready
+        <p style={{ fontSize: 20, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em', lineHeight: 1.2, margin: 0 }}>
+          Where are you flying?
         </p>
-        <p style={{ fontSize: 13, color: '#6E6E73', marginBlockStart: 8, letterSpacing: '-0.01em' }}>
-          {routeLabel}
+        <p style={{ fontSize: 12.5, color: '#6E6E73', marginTop: 8, letterSpacing: '-0.01em', lineHeight: 1.6 }}>
+          Enter origin and destination above to see real-time prices across global engines.
         </p>
       </div>
-      <p style={{ fontSize: 12, color: '#AEAEB2', maxWidth: 340, lineHeight: 1.65 }}>
-        Select your engines in the control panel and launch an Omni-Search
-        across global aviation APIs simultaneously.
-        Unit's AI will distill results into curated hero options.
-      </p>
     </motion.div>
   );
 }
@@ -505,6 +578,97 @@ function DragHandle({ flight, color }: { flight: BentoFlight; color: string }) {
 
 // ── Hero bento card (in grid) ─────────────────────────────────────────────────
 
+function LayoverMicroDetail({ flight, color }: { flight: BentoFlight; color: string }) {
+  const hasLayover = flight.layovers.length > 0;
+
+  return (
+    <div style={{ position: 'relative', paddingBlock: 10 }}>
+      {/* Dashed route line */}
+      <div style={{
+        position:     'relative',
+        height:       2,
+        borderRadius: 999,
+        background:   'transparent',
+        borderBlockEnd: '1.5px dashed rgba(0,0,0,0.15)',
+      }}>
+        {/* Origin dot */}
+        <div style={{
+          position:   'absolute',
+          insetBlockStart: '50%',
+          insetInlineStart: 0,
+          transform:  'translate(-50%, -50%)',
+          width:      8, height: 8, borderRadius: '50%',
+          background: color,
+          boxShadow:  `0 0 0 3px ${color}20`,
+        }} />
+
+        {/* Layover dot(s) */}
+        {hasLayover && flight.layovers.map((lay, i) => {
+          const pos = ((i + 1) / (flight.layovers.length + 1)) * 100;
+          return (
+            <div key={lay.code} style={{ position: 'absolute', insetBlockStart: '50%', insetInlineStart: `${pos}%`, transform: 'translate(-50%, -50%)' }}>
+              {/* Pulsing yellow ring */}
+              <motion.div
+                animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                style={{
+                  position: 'absolute', inset: -4, borderRadius: '50%',
+                  background: '#FF9F0A', opacity: 0.4,
+                }}
+                aria-hidden
+              />
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: '#FF9F0A',
+                border: '2px solid white',
+                boxShadow: '0 0 0 2px rgba(255,159,10,0.35)',
+                position: 'relative', zIndex: 1,
+              }} />
+              {/* Layover label */}
+              <div style={{
+                position: 'absolute', top: 14, insetInlineStart: '50%',
+                transform: 'translateX(-50%)',
+                whiteSpace: 'nowrap',
+                fontSize: 9, fontWeight: 800, color: '#FF9F0A',
+                background: 'rgba(255,255,255,0.95)',
+                paddingBlock: 2, paddingInline: 5,
+                borderRadius: 6,
+                border: '1px solid rgba(255,159,10,0.20)',
+              }}>
+                {lay.code} · {lay.durationLabel}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Destination dot */}
+        <div style={{
+          position:   'absolute',
+          insetBlockStart: '50%',
+          insetInlineEnd: 0,
+          transform:  'translate(50%, -50%)',
+          width:      8, height: 8, borderRadius: '50%',
+          background: '#5E5CE6',
+          boxShadow:  '0 0 0 3px rgba(94,92,230,0.20)',
+        }} />
+      </div>
+
+      {/* Origin / Dest labels */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBlockStart: hasLayover ? 32 : 10 }}>
+        <span style={{ fontSize: 9, fontWeight: 800, color, letterSpacing: '0.04em' }}>{flight.origin}</span>
+        <span style={{ fontSize: 10, color: '#AEAEB2', fontWeight: 600 }}>{flight.durationLabel}</span>
+        <span style={{ fontSize: 9, fontWeight: 800, color: '#5E5CE6', letterSpacing: '0.04em' }}>{flight.destination}</span>
+      </div>
+
+      {/* Departure / Arrival times */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBlockStart: 2 }}>
+        <span style={{ fontSize: 11, fontWeight: 900, color: '#1D1D1F' }}>{flight.departure}</span>
+        <span style={{ fontSize: 11, fontWeight: 900, color: '#1D1D1F' }}>{flight.arrival}</span>
+      </div>
+    </div>
+  );
+}
+
 const HeroBentoCard = memo(function HeroBentoCard({
   hero,
   isExpanded,
@@ -517,6 +681,7 @@ const HeroBentoCard = memo(function HeroBentoCard({
   onClick:    () => void;
 }) {
   const { flight } = hero;
+  const [microOpen, setMicroOpen] = useState(false);
 
   return (
     <motion.div
@@ -637,6 +802,56 @@ const HeroBentoCard = memo(function HeroBentoCard({
             <p style={{ fontSize: 11, color: '#6E6E73', flex: 1, lineHeight: 1.55 }}>
               {hero.subLabel}
             </p>
+
+            {/* Micro-detail toggle */}
+            <motion.button
+              onClick={e => { e.stopPropagation(); setMicroOpen(o => !o); }}
+              whileHover={{ background: `${hero.color}0C` }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                display:       'flex',
+                alignItems:    'center',
+                gap:           5,
+                paddingBlock:  5,
+                paddingInline: 8,
+                borderRadius:  8,
+                background:    'rgba(0,0,0,0.028)',
+                border:        '1px solid rgba(0,0,0,0.06)',
+                cursor:        'pointer',
+                fontFamily:    'inherit',
+                alignSelf:     'flex-start',
+              }}
+              aria-expanded={microOpen}
+              aria-label="Toggle micro-details"
+            >
+              <span style={{ fontSize: 10, fontWeight: 700, color: hero.color }}>
+                View Micro-Details
+              </span>
+              <motion.span
+                animate={{ rotate: microOpen ? 180 : 0 }}
+                transition={{ duration: 0.22 }}
+                style={{ fontSize: 9, color: hero.color, lineHeight: 1 }}
+                aria-hidden
+              >
+                ▾
+              </motion.span>
+            </motion.button>
+
+            {/* Micro-detail expansion */}
+            <AnimatePresence>
+              {microOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <LayoverMicroDetail flight={flight} color={hero.color} />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Footer: price + drag handle */}
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBlockStart: 'auto' }}>
@@ -797,7 +1012,9 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
           <div style={{ display: 'flex', gap: 10, paddingBlockStart: 4 }}>
             <motion.button
               onClick={() => {
-                if (flight.bookingUrl) window.open(flight.bookingUrl, '_blank', 'noopener');
+                const url = flight.bookingUrl
+                  ?? `https://www.google.com/flights?q=${encodeURIComponent(flight.origin + ' to ' + flight.destination)}`;
+                window.open(url, '_blank', 'noopener');
               }}
               whileHover={{ scale: 1.02, boxShadow: `0 8px 28px ${hero.color}45` }}
               whileTap={{ scale: 0.98 }}
@@ -817,11 +1034,11 @@ function DetailView({ hero, onClose }: { hero: HeroDef; onClose: () => void }) {
                 fontWeight:     800,
                 letterSpacing:  '-0.01em',
                 border:         'none',
-                cursor:         flight.bookingUrl ? 'pointer' : 'default',
+                cursor:         'pointer',
                 fontFamily:     'inherit',
               }}
             >
-              Book on {flight.airline} →
+              {flight.bookingUrl ? `Book on ${flight.airline} →` : `Search on Google Flights →`}
             </motion.button>
 
             <motion.button

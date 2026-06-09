@@ -460,8 +460,41 @@ const HeroCard = memo(function HeroCard({
                 transition:     'background 0.2s, box-shadow 0.2s',
               }}
             >
-              {added ? '✓ Added' : entity.instantBook ? 'Add to Trip →' : 'Preview →'}
+              {added ? '✓ Added' : 'Add to Trip →'}
             </motion.button>
+
+            {/* External view link — Google Maps / Viator */}
+            {entity.bookingUrl && (
+              <motion.a
+                href={entity.bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ y: -1, boxShadow: '0 4px 14px rgba(0,0,0,0.10)' }}
+                transition={SPRING}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  display:        'flex',
+                  alignItems:     'center',
+                  gap:            5,
+                  paddingBlock:   9,
+                  paddingInline:  12,
+                  borderRadius:   12,
+                  border:         '1px solid rgba(0,0,0,0.09)',
+                  background:     'rgba(255,255,255,0.82)',
+                  backdropFilter: 'blur(20px)',
+                  color:          '#1D1D1F',
+                  fontSize:       11,
+                  fontWeight:     600,
+                  fontFamily:     'inherit',
+                  letterSpacing:  '-0.01em',
+                  textDecoration: 'none',
+                  boxShadow:      '0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.90)',
+                  cursor:         'pointer',
+                }}
+              >
+                📍 View
+              </motion.a>
+            )}
           </div>
         </div>
       </div>
@@ -499,10 +532,8 @@ export const ExperienceBento = memo(function ExperienceBento({
   apiStatus,
   apiMessage,
 }: ExperienceBentoProps) {
-  const { days, placeEntity } = useTravelEngine(s => ({
-    days:        s.days,
-    placeEntity: s.placeEntity,
-  }));
+  const days        = useTravelEngine(s => s.days);
+  const placeEntity = useTravelEngine(s => s.placeEntity);
   const { formatPrice } = useLocaleEngine();
 
   // Derive lodging GPS from booked hotel entities in the trip

@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import React from 'react';
 
 export interface GlassShimmerProps {
   height?:    number | string;
@@ -10,16 +11,44 @@ export interface GlassShimmerProps {
   variant?:   'default' | 'hero-card';
   className?: string;
   style?:     React.CSSProperties;
+  /**
+   * overlay=true — dictated absolute-positioned mode.
+   * Drop inside any position:relative container to sweep a frosted reflection.
+   * Renders: absolute inset-0 z-50 overflow-hidden rounded-[inherit] pointer-events-none
+   */
+  overlay?:   boolean;
 }
 
-export function GlassShimmer({
+// ── Overlay mode (DICTATED) ───────────────────────────────────────────────────
+// Absolute-positioned frosted glass sweep across any parent container
+
+function OverlayShimmer({ className = '' }: { className?: string }) {
+  return (
+    <div className={`absolute inset-0 z-50 overflow-hidden rounded-[inherit] pointer-events-none ${className}`}>
+      <motion.div
+        className="bg-gradient-to-r from-transparent via-white/40 to-transparent w-[200%] h-full"
+        animate={{ x: ['-100%', '100%'] }}
+        transition={{
+          duration:    1.8,
+          repeat:      Infinity,
+          ease:        'easeInOut',
+          repeatDelay: 0.5,
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Standalone skeleton mode (existing — used in Bentos + result cards) ───────
+
+function StandaloneShimmer({
   height,
   width,
   delay = 0,
   variant = 'default',
   className = '',
   style,
-}: GlassShimmerProps) {
+}: Omit<GlassShimmerProps, 'overlay'>) {
   return (
     <div
       className={`relative overflow-hidden ${className}`}
@@ -59,17 +88,12 @@ export function GlassShimmer({
         }}
       />
 
-      {/* Skeleton content */}
-      {variant === 'hero-card' ? (
-        <HeroCardSkeleton />
-      ) : (
-        <DefaultSkeleton />
-      )}
+      {variant === 'hero-card' ? <HeroCardSkeleton /> : <DefaultSkeleton />}
     </div>
   );
 }
 
-// ── Default skeleton lines ────────────────────────────────────────────────────
+// ── Skeleton layouts ──────────────────────────────────────────────────────────
 
 function DefaultSkeleton() {
   return (
@@ -81,26 +105,20 @@ function DefaultSkeleton() {
   );
 }
 
-// ── Aviation hero-card skeleton ───────────────────────────────────────────────
-
 function HeroCardSkeleton() {
   return (
     <div
       className="absolute inset-0 pointer-events-none"
       style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 18px 18px' }}
     >
-      {/* Badge row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ height: 20, width: 88, borderRadius: 999, background: 'rgba(0,0,0,0.06)' }} />
-        <div style={{ height: 20, width: 22, borderRadius: 5, background: 'rgba(0,0,0,0.04)' }} />
+        <div style={{ height: 20, width: 22, borderRadius: 5,   background: 'rgba(0,0,0,0.04)' }} />
       </div>
 
-      {/* Airline name + route */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, justifyContent: 'center', paddingBlock: 12 }}>
         <div style={{ height: 18, width: '58%', borderRadius: 6, background: 'rgba(0,0,0,0.07)' }} />
         <div style={{ height: 11, width: '42%', borderRadius: 4, background: 'rgba(0,0,0,0.04)' }} />
-
-        {/* Metrics pills */}
         <div style={{ display: 'flex', gap: 6, marginBlockStart: 6 }}>
           {([50, 46, 66] as number[]).map((w, i) => (
             <div key={i} style={{ height: 30, width: w, borderRadius: 8, background: 'rgba(0,0,0,0.04)' }} />
@@ -108,14 +126,20 @@ function HeroCardSkeleton() {
         </div>
       </div>
 
-      {/* Price + drag handle */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ height: 8, width: 52, borderRadius: 4, background: 'rgba(0,0,0,0.04)', marginBlockEnd: 5 }} />
+          <div style={{ height: 8,  width: 52, borderRadius: 4, background: 'rgba(0,0,0,0.04)', marginBlockEnd: 5 }} />
           <div style={{ height: 30, width: 82, borderRadius: 6, background: 'rgba(0,0,0,0.07)' }} />
         </div>
         <div style={{ height: 30, width: 58, borderRadius: 10, background: 'rgba(0,0,0,0.05)' }} />
       </div>
     </div>
   );
+}
+
+// ── Unified export ────────────────────────────────────────────────────────────
+
+export function GlassShimmer({ overlay = false, ...props }: GlassShimmerProps) {
+  if (overlay) return <OverlayShimmer className={props.className} />;
+  return <StandaloneShimmer {...props} />;
 }

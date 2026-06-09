@@ -18,6 +18,7 @@ const COLOR      = '#30D158';
 const GRADIENT   = 'linear-gradient(135deg, #30D158 0%, #00C7BE 100%)';
 
 const AI_PICKS = new Set([
+  'geoapify',
   'tripadvisor-a', 'viator', 'getyourguide', 'klook', 'tiqets',
   'airbnb-exp', 'musement', 'atlas-obscura', 'culture-trip',
 ]);

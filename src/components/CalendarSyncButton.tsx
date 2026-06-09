@@ -258,11 +258,18 @@ export function CalendarSyncButton() {
 
   function handleGoogle() {
     if (googleState !== 'idle') return;
+
+    // Google OAuth credentials not configured → fall back to ICS download
+    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+      handleApple();
+      return;
+    }
+
     setSyncState('syncing');
     setGoogleState('loading');
     try {
       CalendarSync.connectGoogle(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '',
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
         window.location.origin + '/api/calendar/callback',
       );
       // Can't know when popup auth completes — show "awaiting" state

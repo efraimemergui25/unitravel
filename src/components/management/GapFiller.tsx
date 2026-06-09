@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback }             from 'react';
 import { motion, AnimatePresence }           from 'framer-motion';
+import { Sparkles }                          from 'lucide-react';
 import { useTravelEngine }                   from '@/store/useTravelEngine';
 import { detectDayGaps, resolveTimezone, utcToLocal } from '@/utils/TimezoneMath';
 import type { TimeGap }                     from '@/utils/TimezoneMath';
@@ -96,18 +97,15 @@ function GapButton({ gap, day }: { gap: TimeGap; day: EngineDay }) {
 
       {/* Breathing icon */}
       <motion.div
-        animate={{ scale: [1, 1.12, 1] }}
-        transition={{ duration: 2.0, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ scale: [1, 1.10, 1], opacity: [0.8, 1, 0.8] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
         style={{
-          width:          26, height: 26,
-          borderRadius:   8, flexShrink: 0,
-          background:     `${PURPLE}12`,
-          border:         `1px solid ${PURPLE}26`,
-          display:        'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize:       12, color: PURPLE,
+          width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+          background: `${PURPLE}12`, border: `1px solid ${PURPLE}26`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
-        ✦
+        <Sparkles size={12} color={PURPLE} strokeWidth={2} />
       </motion.div>
 
       {/* Text */}

@@ -46,10 +46,12 @@ export interface BentoHotel {
 // ── Response shape ─────────────────────────────────────────────────────────────
 
 export interface HotelEngineStatus {
-  engineId:  string;
-  status:    'ok' | 'needs_api_key' | 'error';
-  count:     number;
-  setupUrl?: string;
+  engineId:     string;
+  engineName:   string;
+  status:       'ok' | 'needs_api_key' | 'error';
+  count:        number;
+  deepLinkUrl?: string;
+  setupUrl?:    string;
 }
 
 export interface HotelSearchResponse {
@@ -73,10 +75,10 @@ export async function GET(req: NextRequest): Promise<NextResponse<HotelSearchRes
     cityCode:     p.get('cityCode')     ?? '',
     checkInDate:  p.get('checkInDate')  ?? '',
     checkOutDate: p.get('checkOutDate') ?? '',
-    adults:       p.get('adults'),
-    roomQuantity: p.get('roomQuantity'),
+    adults:       p.get('adults')       ?? undefined,
+    roomQuantity: p.get('roomQuantity') ?? undefined,
     currency:     p.get('currency')     ?? 'USD',
-    maxResults:   p.get('maxResults'),
+    maxResults:   p.get('maxResults')   ?? undefined,
     engines:      p.get('engines')      ?? undefined,
   });
 
@@ -121,16 +123,19 @@ export async function GET(req: NextRequest): Promise<NextResponse<HotelSearchRes
       const val: HotelEngineResult = r.value;
       if (val.status === 'ok') allResults.push(...val.results);
       return {
-        engineId: val.engineId,
-        status:   val.status === 'ok' ? 'ok' : val.status === 'needs_api_key' ? 'needs_api_key' : 'error',
-        count:    val.results.length,
-        setupUrl: val.setupUrl,
+        engineId:    val.engineId,
+        engineName:  val.engineName,
+        status:      val.status === 'ok' ? 'ok' : val.status === 'needs_api_key' ? 'needs_api_key' : 'error',
+        count:       val.results.length,
+        deepLinkUrl: val.deepLinkUrl,
+        setupUrl:    val.setupUrl,
       };
     }
     return {
-      engineId: adapters[i].id,
-      status:   'error',
-      count:    0,
+      engineId:   adapters[i].id,
+      engineName: adapters[i].name,
+      status:     'error',
+      count:      0,
     };
   });
 

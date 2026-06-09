@@ -13,12 +13,13 @@ export interface FlightSearchParams {
 }
 
 export interface FlightEngineResult {
-  engineId:     string;
-  engineName:   string;
-  status:       'ok' | 'needs_api_key' | 'error' | 'timeout';
-  results:      BentoFlight[];
-  latencyMs:    number;
-  setupUrl?:    string;
+  engineId:      string;
+  engineName:    string;
+  status:        'ok' | 'needs_api_key' | 'error' | 'timeout';
+  results:       BentoFlight[];
+  latencyMs:     number;
+  deepLinkUrl?:  string;
+  setupUrl?:     string;
   setupMessage?: string;
 }
 
@@ -29,21 +30,23 @@ export interface FlightEngineAdapter {
 }
 
 export function needsApiKeyAdapter(
-  id:       string,
-  name:     string,
-  setupUrl: string,
-  envVar:   string,
+  id:          string,
+  name:        string,
+  setupUrl:    string,
+  envVar:      string,
+  deepLinkFn?: (p: FlightSearchParams) => string,
 ): FlightEngineAdapter {
   return {
     id,
     name,
-    async search() {
+    async search(params) {
       return {
         engineId:     id,
         engineName:   name,
         status:       'needs_api_key',
         results:      [],
         latencyMs:    0,
+        deepLinkUrl:  deepLinkFn ? deepLinkFn(params) : undefined,
         setupUrl,
         setupMessage: `Add ${envVar} to .env.local to enable ${name}.`,
       };

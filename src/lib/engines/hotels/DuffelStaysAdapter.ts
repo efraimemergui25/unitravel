@@ -1,47 +1,64 @@
 import type { BentoHotel }       from '@/app/api/hotels/route';
 import type { HotelEngineAdapter, HotelSearchParams, HotelEngineResult } from './index';
+import { bestHotelUrl }          from '@/utils/deeplinks';
 
 const BASE = 'https://api.duffel.com';
 
-// ── Major IATA city → coordinates ─────────────────────────────────────────────
+// ── City code → coordinates (both IATA airport and city codes) ───────────────
 const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+  // Americas
   NYC: { lat: 40.7128, lng: -74.0060 }, JFK: { lat: 40.6413, lng: -73.7781 },
   LAX: { lat: 34.0522, lng: -118.2437}, SFO: { lat: 37.7749, lng: -122.4194},
-  LHR: { lat: 51.5074, lng: -0.1278 },  CDG: { lat: 48.8566, lng: 2.3522  },
-  TLV: { lat: 32.0853, lng: 34.7818 },  AMS: { lat: 52.3676, lng: 4.9041  },
-  MEX: { lat: 19.4326, lng: -99.1332},  CUN: { lat: 21.1619, lng: -86.8515},
   MIA: { lat: 25.7617, lng: -80.1918},  ORD: { lat: 41.8781, lng: -87.6298},
-  DXB: { lat: 25.2048, lng: 55.2708 },  SIN: { lat: 1.3521,  lng: 103.8198},
-  NRT: { lat: 35.6762, lng: 139.6503},  HKG: { lat: 22.3193, lng: 114.1694},
-  BCN: { lat: 41.3851, lng: 2.1734  },  MAD: { lat: 40.4168, lng: -3.7038 },
-  FCO: { lat: 41.9028, lng: 12.4964 },  MXP: { lat: 45.4642, lng: 9.1900  },
-  BKK: { lat: 13.7563, lng: 100.5018},  SYD: { lat: -33.8688, lng: 151.2093},
+  BOS: { lat: 42.3601, lng: -71.0589},  SEA: { lat: 47.6062, lng: -122.3321},
+  MEX: { lat: 19.4326, lng: -99.1332},  CUN: { lat: 21.1619, lng: -86.8515},
   GRU: { lat: -23.5505, lng: -46.6333}, BOG: { lat: 4.7110, lng: -74.0721 },
-  YYZ: { lat: 43.6532, lng: -79.3832},  ICN: { lat: 37.5665, lng: 126.9780},
-  IST: { lat: 41.0082, lng: 28.9784 },  CAI: { lat: 30.0444, lng: 31.2357 },
+  YYZ: { lat: 43.6532, lng: -79.3832},  YVR: { lat: 49.2827, lng: -123.1207},
+  // Europe
+  LHR: { lat: 51.5074, lng: -0.1278 },  LON: { lat: 51.5074, lng: -0.1278 },
+  CDG: { lat: 48.8566, lng: 2.3522  },  PAR: { lat: 48.8566, lng: 2.3522  },
+  AMS: { lat: 52.3676, lng: 4.9041  },  FRA: { lat: 50.1109, lng: 8.6821  },
+  BCN: { lat: 41.3851, lng: 2.1734  },  MAD: { lat: 40.4168, lng: -3.7038 },
+  FCO: { lat: 41.9028, lng: 12.4964 },  ROM: { lat: 41.9028, lng: 12.4964 },
+  MXP: { lat: 45.4642, lng: 9.1900  },  MIL: { lat: 45.4642, lng: 9.1900  },
   MUC: { lat: 48.1351, lng: 11.5820 },  ZRH: { lat: 47.3769, lng: 8.5417  },
   VIE: { lat: 48.2082, lng: 16.3738 },  PRG: { lat: 50.0755, lng: 14.4378 },
   WAW: { lat: 52.2297, lng: 21.0122 },  BUD: { lat: 47.4979, lng: 19.0402 },
   CPH: { lat: 55.6761, lng: 12.5683 },  OSL: { lat: 59.9139, lng: 10.7522 },
   HEL: { lat: 60.1699, lng: 24.9384 },  ARN: { lat: 59.3293, lng: 18.0686 },
   LIS: { lat: 38.7223, lng: -9.1393 },  ATH: { lat: 37.9838, lng: 23.7275 },
+  IST: { lat: 41.0082, lng: 28.9784 },  DUB: { lat: 53.3498, lng: -6.2603 },
+  // Middle East & Africa
+  TLV: { lat: 32.0853, lng: 34.7818 },  DXB: { lat: 25.2048, lng: 55.2708 },
+  CAI: { lat: 30.0444, lng: 31.2357 },  NBO: { lat: -1.2921, lng: 36.8219 },
+  CPT: { lat: -33.9249, lng: 18.4241},
+  // Asia-Pacific
+  SIN: { lat: 1.3521,  lng: 103.8198},  NRT: { lat: 35.6762, lng: 139.6503},
+  TYO: { lat: 35.6762, lng: 139.6503},  HKG: { lat: 22.3193, lng: 114.1694},
+  BKK: { lat: 13.7563, lng: 100.5018},  SYD: { lat: -33.8688, lng: 151.2093},
+  ICN: { lat: 37.5665, lng: 126.9780},  BOM: { lat: 19.0760, lng: 72.8777 },
+  DEL: { lat: 28.6139, lng: 77.2090 },
 };
 
 async function geocodeCity(cityCode: string): Promise<{ lat: number; lng: number } | null> {
   const coords = CITY_COORDS[cityCode.toUpperCase()];
   if (coords) return coords;
 
-  const key = process.env.GOOGLE_PLACES_API_KEY;
-  if (!key) return null;
-  try {
-    const res  = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(cityCode)}&key=${key}`,
-      { signal: AbortSignal.timeout(5_000) },
-    );
-    const data = await res.json() as { results: Array<{ geometry: { location: { lat: number; lng: number } } }> };
-    const loc  = data.results?.[0]?.geometry?.location;
-    if (loc) return { lat: loc.lat, lng: loc.lng };
-  } catch { /* fall through */ }
+  // Fallback: Geoapify geocoding (uses same key we already have, no billing needed)
+  const geoapifyKey = process.env.GEOAPIFY_API_KEY;
+  if (geoapifyKey) {
+    try {
+      const res  = await fetch(
+        `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(cityCode)}&format=json&limit=1&apiKey=${geoapifyKey}`,
+        { signal: AbortSignal.timeout(5_000) },
+      );
+      if (res.ok) {
+        const data = await res.json() as { results: Array<{ lat: number; lon: number }> };
+        const r = data.results?.[0];
+        if (r) return { lat: r.lat, lng: r.lon };
+      }
+    } catch { /* fall through */ }
+  }
   return null;
 }
 
@@ -91,7 +108,13 @@ function transformAccommodation(acc: any, params: HotelSearchParams): BentoHotel
     roomType:      acc.cheapest_rate_currency ?? 'Standard Room',
     boardType:     'Room Only',
     available:     true,
-    bookingUrl:    `https://app.duffel.com`,
+    bookingUrl:    bestHotelUrl({
+      name:     acc.accommodation?.name ?? 'Hotel',
+      city:     params.cityCode,
+      checkIn:  checkIn,
+      checkOut: checkOut,
+      adults:   params.adults ?? 2,
+    }),
     source:        'Duffel Stays',
     offerId:       acc.id ?? '',
   };
@@ -153,13 +176,27 @@ export const DuffelStaysAdapter: HotelEngineAdapter = {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
+        const msg = err.errors?.[0]?.message ?? `Duffel Stays HTTP ${res.status}`;
+        // 403 = feature not enabled on this account — treat as needs_api_key
+        if (res.status === 403) {
+          return {
+            engineId:     'duffel-stays',
+            engineName:   'Duffel Stays',
+            status:       'needs_api_key',
+            results:      [],
+            latencyMs:    Date.now() - start,
+            deepLinkUrl:  `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(params.cityCode)}&checkin=${params.checkInDate}&checkout=${params.checkOutDate}&group_adults=${params.adults}`,
+            setupUrl:     'https://duffel.com/contact-us',
+            setupMessage: 'Duffel Stays requires a paid plan. Contact Duffel to enable.',
+          };
+        }
         return {
           engineId:     'duffel-stays',
           engineName:   'Duffel Stays',
           status:       'error',
           results:      [],
           latencyMs:    Date.now() - start,
-          setupMessage: err.errors?.[0]?.message ?? `Duffel Stays ${res.status}`,
+          setupMessage: msg,
         };
       }
 

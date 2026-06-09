@@ -200,6 +200,70 @@ export function detectTransitNeeds(
   return gaps;
 }
 
+// ── calculateTemporalShifts — spec entry point ────────────────────────────────
+
+export interface TemporalNewEvent {
+  id:        string;
+  title:     string;
+  time:      string;   // HH:MM
+  duration?: string;   // "2h 30m"
+  category?: string;
+}
+
+export interface TemporalShiftResult {
+  timeline:     PlacedEntity[];  // mutated, time-shifted array
+  shifts:       ShiftMutation[]; // which entities moved and by how much
+  transitNeeds: TransitGap[];    // pairs that still need transit buffer injection
+  description:  string;
+}
+
+// Injects newEvent into the timeline, cascades temporal shifts for every
+// downstream reservation that would overlap, injects transit buffers,
+// and returns the fully mutated timeline ready to commit to the store.
+export function calculateTemporalShifts(
+  timelineEntities: PlacedEntity[],
+  newEvent:         TemporalNewEvent,
+  transitBufferMin: number = 30,
+): TemporalShiftResult {
+  const injected: PlacedEntity = {
+    id:           newEvent.id,
+    title:        newEvent.title,
+    subtitle:     '',
+    time:         newEvent.time,
+    duration:     newEvent.duration,
+    category:     (newEvent.category ?? 'activity') as PlacedEntity['category'],
+    price:        0,
+    booked:       false,
+    tags:         [],
+    sourceId:     'anticipatory',
+    sourceCount:  1,
+    aiConfidence: 1,
+    details:      {},
+    placedAt:     Date.now(),
+  };
+
+  const withNew = [...timelineEntities, injected];
+
+  const plan    = computeShiftPlan(withNew, newEvent.id, newEvent.time, transitBufferMin);
+  const shiftMap = new Map<string, string>();
+  if (plan) for (const m of plan.affected) shiftMap.set(m.entityId, m.newTime);
+
+  const timeline = withNew.map(e => {
+    const shifted = shiftMap.get(e.id);
+    return shifted ? { ...e, time: shifted } : e;
+  });
+
+  const sorted      = timeline.filter(e => e.time).sort((a, b) => parseHHMMtoMin(a.time!) - parseHHMMtoMin(b.time!));
+  const transitNeeds = detectTransitNeeds(sorted, transitBufferMin);
+
+  return {
+    timeline,
+    shifts:       plan?.affected ?? [],
+    transitNeeds,
+    description:  plan?.description ?? `${newEvent.title} added without downstream conflicts.`,
+  };
+}
+
 // ── Flight delay simulation API ───────────────────────────────────────────────
 
 // Entry point called externally (e.g. from CrisisManager or a webhook).

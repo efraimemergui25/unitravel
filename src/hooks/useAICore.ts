@@ -6,6 +6,9 @@ import { DefaultChatTransport, type UIMessage }     from 'ai';
 import { useRouter }                                from 'next/navigation';
 import { useContextAwareness, buildScreenContext }  from '@/store/useContextAwareness';
 import { useTravelEngine }                          from '@/store/useTravelEngine';
+import { useUserDNA }                               from '@/store/useUserDNA';
+import { applyDNAMutations }                        from '@/utils/DNAExtractor';
+import type { UpdateDNAOutput }                     from '@/utils/DNAExtractor';
 import { useNavigationStore }                       from '@/store/useNavigationStore';
 import { useLocaleEngine }                          from '@/store/useLocaleEngine';
 import type { AggregatedResult }                    from '@/services/OmniAggregator';
@@ -26,11 +29,11 @@ export function useAICore(currentZone?: string) {
 
   // ── Trip context — reactive to store changes ────────────────────────────────
   const trip = useTravelEngine(s => ({
-    tripTitle:   s.tripTitle,
-    destination: s.destination,
-    startDate:   s.startDate,
-    endDate:     s.endDate,
-    travelers:   s.travelers ?? [],
+    tripTitle:   s.trip.title,
+    destination: s.trip.id,
+    startDate:   s.trip.startDate,
+    endDate:     s.trip.endDate,
+    travelers:   s.trip.travelers ?? [],
     budget:      s.budget,
     dnaProfile:  s.dnaProfile,
     activeDay:   s.activeDay,
@@ -76,7 +79,6 @@ export function useAICore(currentZone?: string) {
     (content: string) => {
       sendMessage({
         role:  'user',
-        content,
         parts: [{ type: 'text', text: content }],
       });
       // Patch transport body with fresh screen state on next micro-tick
@@ -97,8 +99,9 @@ export function useAICore(currentZone?: string) {
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'assistant') return;
 
-    for (const part of (last.parts ?? [])) {
-      if (part.type !== 'tool-invocation') continue;
+    for (const rawPart of (last.parts ?? [])) {
+      if (rawPart.type !== 'tool-invocation') continue;
+      const part = rawPart as unknown as { type: 'tool-invocation'; toolInvocation: { toolCallId: string; toolName: string; state: string; args: Record<string, unknown>; output?: unknown } };
 
       const inv  = part.toolInvocation;
       const key  = `${inv.toolCallId}:${inv.state}`;
@@ -111,6 +114,17 @@ export function useAICore(currentZone?: string) {
       if (toolName === 'executeAviationSearch' && state === 'call') {
         openZone('flights');
         router.push(ZONE_ROUTES.flights);
+      }
+
+      // ── OmniSearch dispatcher — flip workspace to the correct zone ────────
+      // Fires on 'call' (not 'output-available') so the zone opens before the
+      // server finishes executing — the loading matrix starts immediately.
+      if (toolName === 'triggerOmniSearch' && state === 'call') {
+        const { targetZone } = inv.args as { targetZone: 'aviation' | 'lodging' };
+        const zoneId = targetZone === 'aviation' ? 'flights' : 'hotels';
+        const route  = targetZone === 'aviation' ? ZONE_ROUTES.flights : ZONE_ROUTES.lodging;
+        openZone(zoneId as Parameters<typeof openZone>[0]);
+        router.push(route);
       }
 
       // ── Generic zone navigation ───────────────────────────────────────────
@@ -133,14 +147,43 @@ export function useAICore(currentZone?: string) {
           name:         String(out.hotelName),
           location:     '',
           destination:  trip.destination ?? '',
-          tier:         'premium',
+          tier:         'premium' as const,
           roomType:     String(out.roomType ?? 'Standard Room'),
           pricePerNight: Number(out.price),
           totalPrice:   Number(out.totalPrice),
           nights:       Number(out.nights ?? 1),
           rating:       0,
           reviewCount:  0,
-        } as AggregatedResult);
+          sentiment:    { positive: 0.8, neutral: 0.1, negative: 0.1, compound: 0.8 },
+          amenities:    [],
+          aiHighlight:  '',
+          tags:         [],
+        } as unknown as AggregatedResult);
+        store.calculatePredictiveBudget();
+      }
+
+      // ── Hidden DNA update — fires silently, never surfaces in chat UI ────
+      if (toolName === 'updateUserDNA' && state === 'output-available') {
+        const out = (inv as unknown as { output: UpdateDNAOutput }).output;
+        if (out?.mutations?.length) {
+          const { mutateDNA } = useUserDNA.getState();
+          applyDNAMutations(out.mutations, mutateDNA);
+        }
+      }
+
+      // ── Minimal-schema entity commit (commitEntityToTimeline) ────────────
+      if (toolName === 'commitEntityToTimeline' && state === 'output-available') {
+        const out = (inv as unknown as { output: Record<string, unknown> }).output;
+        const store = useTravelEngine.getState();
+        store.placeEntity(String(out.targetDay), {
+          id:          String(out.entityId),
+          category:    String(out.category),
+          sources:     ['ai-concierge'],
+          sourceCount: 1,
+          aiConfidence:0.95,
+          title:       String(out.title),
+          price:       Number(out.price),
+        } as unknown as AggregatedResult);
         store.calculatePredictiveBudget();
       }
 

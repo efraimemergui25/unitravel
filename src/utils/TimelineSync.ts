@@ -171,14 +171,24 @@ function buildAggregatedResult(
 
 // ── Main drop handler ─────────────────────────────────────────────────────────
 // Called by LiquidTimeline's `unitravel:zone-drag-commit` listener.
-// For restaurants with a known time: auto-injects a 30-min Uber transit block
-// via direct placeEntity (bypassing cascade — synthetic data, no search origin).
+// Sanitizes the incoming payload before any store mutation.
+// For restaurants with a known time: auto-injects a 30-min Uber transit block.
 
 export async function handleEntityDrop(
-  entity:      TimelineDropPayload,
+  rawEntity:   unknown,
   targetDayId: string,
   targetTime?: string,
 ): Promise<DropCascadeResult> {
+  const { sanitizeIncomingDropPayload } = await import('./PayloadSanitizer');
+  const result = sanitizeIncomingDropPayload(rawEntity);
+
+  if (!result.ok) {
+    console.warn('[TimelineSync] Rejected invalid drop payload:', result.reason, rawEntity);
+    return { success: false, error: result.reason } as unknown as DropCascadeResult;
+  }
+
+  const entity = result.payload;
+
   if (entity.type === 'restaurant' && targetTime) {
     const transit = buildTransitBlock(targetTime, entity.title);
     useTravelEngine.getState().placeEntity(targetDayId, transit);

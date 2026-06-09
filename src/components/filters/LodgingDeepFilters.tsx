@@ -8,7 +8,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useLodgingSync }                        from '@/store/useLodgingSync';
 import { useLocaleEngine }                       from '@/store/useLocaleEngine';
 import { AMENITY_LIST }                          from '@/store/useLodgingSync';
-import type { Amenity, VibeZone }                from '@/store/useLodgingSync';
+import type { Amenity, VibeZone, LodgingTier }   from '@/store/useLodgingSync';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -299,6 +299,114 @@ function VibeToggle({ zone, isActive, onToggle }: {
   );
 }
 
+// ── Ultra-Luxury / Smart-Value tier switch ────────────────────────────────────
+
+const GOLD = '#C9A84C';
+
+function LuxuryTierSwitch({
+  isUltraLuxury, onToggle,
+}: { isUltraLuxury: boolean; onToggle: () => void }) {
+  return (
+    <motion.button
+      onClick={onToggle}
+      animate={{
+        background:   isUltraLuxury
+          ? 'linear-gradient(135deg, rgba(201,168,76,0.14) 0%, rgba(255,215,100,0.10) 100%)'
+          : 'rgba(0,0,0,0.028)',
+        borderColor:  isUltraLuxury ? 'rgba(201,168,76,0.50)' : 'rgba(0,0,0,0.07)',
+        boxShadow:    isUltraLuxury
+          ? `0 2px 20px rgba(201,168,76,0.22), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(201,168,76,0.12)`
+          : 'inset 0 1px 0 rgba(255,255,255,0.80)',
+      }}
+      whileTap={{ scale: 0.975 }}
+      transition={{ duration: 0.22 }}
+      style={{
+        display:              'flex',
+        alignItems:           'center',
+        gap:                  10,
+        paddingBlock:         10,
+        paddingInline:        14,
+        borderRadius:         14,
+        border:               '1.5px solid',
+        cursor:               'pointer',
+        fontFamily:           'inherit',
+        backdropFilter:       'blur(24px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+        flexShrink:           0,
+        position:             'relative',
+        overflow:             'hidden',
+      }}
+      aria-pressed={isUltraLuxury}
+      aria-label="Toggle Ultra-Luxury tier"
+    >
+      {/* Gold shimmer overlay when active */}
+      <AnimatePresence>
+        {isUltraLuxury && (
+          <motion.div
+            key="gold-sheen"
+            initial={{ opacity: 0, x: '-100%' }}
+            animate={{ opacity: [0, 0.7, 0], x: ['-100%', '200%'] }}
+            transition={{ duration: 1.4, ease: 'easeInOut', delay: 0.05 }}
+            style={{
+              position:   'absolute',
+              inset:      0,
+              background: 'linear-gradient(105deg, transparent 30%, rgba(255,215,100,0.35) 50%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Toggle track */}
+      <div
+        style={{
+          position:     'relative',
+          width:        40,
+          height:       22,
+          borderRadius: 999,
+          background:   isUltraLuxury
+            ? `linear-gradient(90deg, ${GOLD}, rgba(255,215,100,0.80))`
+            : 'rgba(0,0,0,0.10)',
+          transition:   'background 0.22s',
+          flexShrink:   0,
+          boxShadow:    isUltraLuxury ? `0 2px 8px ${GOLD}55` : 'none',
+        }}
+      >
+        <motion.div
+          animate={{ x: isUltraLuxury ? 19 : 1 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+          style={{
+            position:   'absolute',
+            top:        2,
+            width:      18,
+            height:     18,
+            borderRadius: '50%',
+            background: 'white',
+            boxShadow:  '0 1px 5px rgba(0,0,0,0.18)',
+          }}
+        />
+      </div>
+
+      {/* Labels */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, textAlign: 'start' }}>
+        <span style={{
+          fontSize:      11,
+          fontWeight:    800,
+          letterSpacing: '-0.01em',
+          color:         isUltraLuxury ? GOLD : '#6E6E73',
+          transition:    'color 0.22s',
+        }}>
+          {isUltraLuxury ? '✦ Ultra-Luxury' : 'Smart Value'}
+        </span>
+        <span style={{ fontSize: 9, color: '#AEAEB2', fontWeight: 500 }}>
+          {isUltraLuxury ? 'Four Seasons · One&Only · Aman' : 'Best value per comfort tier'}
+        </span>
+      </div>
+    </motion.button>
+  );
+}
+
 // ── AI sync flash ─────────────────────────────────────────────────────────────
 
 function AISyncFlash({ show }: { show: boolean }) {
@@ -322,9 +430,12 @@ function AISyncFlash({ show }: { show: boolean }) {
 export function LodgingDeepFilters() {
   const {
     filters, toggleAmenity, toggleVibeZone,
-    setPriceRange, setDistanceRange, lastAISyncAt,
+    setPriceRange, setDistanceRange, lastAISyncAt, toggleTier,
   } = useLodgingSync();
   const { profile } = useLocaleEngine();
+
+  const isUltraLuxury = filters.tiers.includes('Ultra-Luxury' as LodgingTier);
+  const handleLuxuryToggle = () => toggleTier('Ultra-Luxury' as LodgingTier);
   const isRtl = profile.direction === 'rtl';
 
   const [showAIFlash, setShowAIFlash] = useState(false);
@@ -355,6 +466,8 @@ export function LodgingDeepFilters() {
             <div style={{ fontSize: 9.5, color: '#6E6E73', fontWeight: 500 }}>AI-synced · real-time</div>
           </div>
         </div>
+        <LuxuryTierSwitch isUltraLuxury={isUltraLuxury} onToggle={handleLuxuryToggle} />
+
         <div style={{ marginInlineStart: 'auto' }}>
           <AISyncFlash show={showAIFlash} />
         </div>

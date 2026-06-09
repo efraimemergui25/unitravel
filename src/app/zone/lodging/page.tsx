@@ -1,13 +1,20 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence }                  from 'framer-motion';
-import { LodgingControl }                           from '@/components/zones/LodgingControl';
-import { LodgingBento }                             from '@/components/results/LodgingBento';
-import type { LodgingSearchState }                  from '@/components/results/LodgingBento';
-import { useTravelEngine }                          from '@/store/useTravelEngine';
-import type { BentoHotel }                          from '@/app/api/hotels/route';
-import type { HotelSearchResponse }                 from '@/app/api/hotels/route';
+import { useState, useCallback, useEffect } from 'react';
+import { Calendar, Users }                    from 'lucide-react';
+import { ZoneShell, ZoneParamChip, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
+import { LodgingBento }                       from '@/components/results/LodgingBento';
+import type { LodgingSearchState }            from '@/components/results/LodgingBento';
+import { useTravelEngine }                    from '@/store/useTravelEngine';
+import { ZONE_ENGINES, resolveStatus }        from '@/lib/zoneEngines';
+import type { BentoHotel }                    from '@/app/api/hotels/route';
+import type { HotelSearchResponse }           from '@/app/api/hotels/route';
+
+const LODGING_AI_PICKS = new Set([
+  'google-hotels', 'amadeus-hotels', 'booking', 'airbnb', 'hotels-com', 'expedia-h',
+  'marriott', 'four-seasons', 'rosewood', 'one-only', 'mr-mrs-smith', 'design-hotels',
+]);
+const LODGING_ENGINES = ZONE_ENGINES['lodging'];
 
 // ── IATA city code lookup ─────────────────────────────────────────────────────
 
@@ -123,13 +130,17 @@ export default function LodgingPage() {
   const [searchState, setSearchState] = useState<LodgingSearchState>('idle');
   const [engineCount, setEngineCount] = useState(0);
   const [scanProgress, setScanProgress] = useState(0);
-  const [results,     setResults]     = useState<BentoHotel[] | null>(null);
-  const [apiStatus,   setApiStatus]   = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
-  const [apiMessage,  setApiMessage]  = useState<string | null>(null);
+  const [results,      setResults]      = useState<BentoHotel[] | null>(null);
+  const [apiStatus,    setApiStatus]    = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
+  const [apiMessage,   setApiMessage]   = useState<string | null>(null);
+
+  // Engine state
+  const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(LODGING_AI_PICKS));
+  const [enginesOpen,     setEnginesOpen]     = useState(false);
 
   // NL search state
-  const [nlQuery, setNlQuery] = useState('');
-  const nlRef = useRef<HTMLInputElement>(null);
+  const [nlQuery,   setNlQuery]   = useState('');
+  const [nlFocused, setNlFocused] = useState(false);
 
   // Sync store destination on mount
   useEffect(() => {
@@ -147,8 +158,9 @@ export default function LodgingPage() {
     setNlQuery('');
   }, [nlQuery]);
 
-  const handleSearch = useCallback(async (engineIds: string[]) => {
-    setEngineCount(engineIds.length);
+  const handleSearch = useCallback(async (engineIds?: string[]) => {
+    const ids = engineIds ?? [...selectedEngines];
+    setEngineCount(ids.length);
     setSearchState('loading');
     setScanProgress(0);
     setResults(null);
@@ -166,7 +178,7 @@ export default function LodgingPage() {
         checkOutDate: checkOut,
         adults:       String(adults),
         maxResults:   '10',
-        engines:      engineIds.join(','),
+        engines:      ids.join(','),
       });
 
       const res  = await fetch(`/api/hotels?${params.toString()}`);
@@ -190,219 +202,92 @@ export default function LodgingPage() {
       setApiMessage(err instanceof Error ? err.message : 'Network error');
       setTimeout(() => setSearchState('results'), 200);
     }
-  }, [cityName, checkIn, checkOut, adults]);
+  }, [selectedEngines, cityName, checkIn, checkOut, adults]); // eslint-disable-line
 
   const cityCode = cityToIata(cityName);
+  const canSearch = cityName.trim().length >= 2;
 
   return (
-    <div
-      style={{
-        display:       'flex',
-        flexDirection: 'column',
-        height:        '100%',
-        width:         '100%',
-        overflow:      'hidden',
-        gap:           12,
-      }}
-    >
-      {/* ── 1. Hospitality Matrix header + NL search ──────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...SPRING, delay: 0.04 }}
-        className="glass-panel mx-4 flex-shrink-0"
-        style={{ paddingInline: 20, paddingBlock: 16 }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBlockEnd: 12 }}>
-          <motion.span
-            animate={{ scale: [1, 1.08, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}
-            aria-hidden
-          >
-            🏨
-          </motion.span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <motion.h2
-              style={{
-                margin: 0, fontSize: 'clamp(1rem, 1.8vw, 1.35rem)',
-                fontWeight: 900, letterSpacing: '-0.04em',
-                color: 'var(--text-primary)', lineHeight: 1.15,
-              }}
-            >
-              Hospitality Matrix
-            </motion.h2>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginBlockStart: 2, letterSpacing: '-0.01em' }}>
-              30 global engines · AI dedup · hidden fee transparency
-            </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden' }}>
+
+      {/* ── Unified search card ─────────────────────────────────── */}
+      <ZoneShell
+        color="#5AC8FA"
+        gradient="linear-gradient(135deg, #5AC8FA 0%, #007AFF 100%)"
+        nlPlaceholder='Where to stay? — "5-star hotel in Rome Oct 5–10 for 2" or "boutique villa Bali"'
+        nlValue={nlQuery}
+        onNLChange={setNlQuery}
+        onNLApply={applyNLQuery}
+        nlFocused={nlFocused}
+        onNLFocus={() => setNlFocused(true)}
+        onNLBlur={() => setNlFocused(false)}
+        paramsRow={<>
+          {/* Destination */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 100, background: 'rgba(90,200,250,0.08)', border: '1px solid rgba(90,200,250,0.20)', flexShrink: 0 }}>
+            <span style={{ fontSize: 11 }}>🏙</span>
+            <input value={cityName} onChange={e => setCityName(e.target.value)} placeholder="City"
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.01em', width: 120, fontFamily: 'inherit' }} />
+            {cityName.trim() && (
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: '#5AC8FA', letterSpacing: '0.04em' }}>{cityCode}</span>
+            )}
           </div>
 
-          {/* Status pill */}
-          <AnimatePresence mode="wait">
-            {searchState === 'loading' && (
-              <ScanProgressPill key="progress" progress={scanProgress} engineCount={engineCount} />
-            )}
-            {searchState === 'results' && apiStatus === 'ok' && (
-              <StatusPill key="done" color={COLOR} label={`${results?.length ?? 0} hotels`} pulse />
-            )}
-            {searchState === 'results' && apiStatus === 'needs_api_key' && (
-              <StatusPill key="key" color="#FF9F0A" label="Connect API" />
-            )}
-            {searchState === 'results' && apiStatus === 'error' && (
-              <StatusPill key="err" color="#FF453A" label="Error" />
-            )}
-          </AnimatePresence>
-        </div>
+          <div style={{ width: 1, height: 16, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
 
-        {/* NL search input */}
-        <div
-          style={{
-            display:        'flex',
-            alignItems:     'center',
-            gap:            8,
-            paddingBlock:   8,
-            paddingInline:  14,
-            borderRadius:   12,
-            background:     `${COLOR}08`,
-            border:         `1.5px solid ${COLOR}28`,
-          }}
-        >
-          <motion.span
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2.4, repeat: Infinity }}
-            style={{ fontSize: 13, flexShrink: 0 }}
-            aria-hidden
-          >
-            ✦
-          </motion.span>
-          <input
-            ref={nlRef}
-            value={nlQuery}
-            onChange={e => setNlQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && applyNLQuery()}
-            placeholder='e.g. "Tulum suite oct 5-10 for 2" or "Paris villa 3 nights"'
-            style={{
-              flex:        1,
-              background:  'transparent',
-              border:      'none',
-              outline:     'none',
-              fontSize:    12,
-              fontWeight:  500,
-              color:       'var(--text-primary)',
-              fontFamily:  'inherit',
-              letterSpacing: '-0.01em',
-            }}
+          <ZoneParamChip icon={<Calendar size={11} color="#6E6E73" strokeWidth={2} />}>
+            <input type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer', width: 108 }} />
+          </ZoneParamChip>
+          <ZoneParamChip icon={<Calendar size={11} color="#BF5AF2" strokeWidth={2} />}>
+            <input type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer', width: 108 }} />
+          </ZoneParamChip>
+
+          <div style={{ width: 1, height: 16, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
+
+          <ZoneParamChip icon={<Users size={11} color="#6E6E73" strokeWidth={2} />}>
+            <select value={adults} onChange={e => setAdults(parseInt(e.target.value))}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer' }}>
+              {[1,2,3,4].map(n => <option key={n} value={n}>{n} adult{n !== 1 ? 's' : ''}</option>)}
+            </select>
+          </ZoneParamChip>
+
+          <ZoneParamChip>
+            <select value={roomType} onChange={e => setRoomType(e.target.value)}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer' }}>
+              {['Standard','Deluxe','Suite','Villa'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </ZoneParamChip>
+        </>}
+        engineCount={selectedEngines.size}
+        engineLabel={`AI · ${selectedEngines.size} engines`}
+        enginesOpen={enginesOpen}
+        onEnginesToggle={() => setEnginesOpen(v => !v)}
+        engineDrawer={
+          <ZoneEngineDrawer
+            engines={LODGING_ENGINES.map(e => ({ id: e.id, name: e.name, icon: e.icon, status: resolveStatus(e) }))}
+            selected={selectedEngines}
+            onToggle={id => setSelectedEngines(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+            onAIPick={() => setSelectedEngines(new Set(LODGING_AI_PICKS))}
+            onSelectAll={() => setSelectedEngines(new Set(LODGING_ENGINES.map(e => e.id)))}
+            onClear={() => setSelectedEngines(new Set())}
+            aiPicks={LODGING_AI_PICKS}
+            color="#5AC8FA"
           />
-          {nlQuery && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              onClick={applyNLQuery}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              style={{
-                paddingBlock: 5, paddingInline: 12, borderRadius: 8,
-                background:  COLOR, color: 'white', border: 'none',
-                fontSize: 11, fontWeight: 800, cursor: 'pointer',
-                fontFamily: 'inherit', flexShrink: 0, letterSpacing: '-0.01em',
-              }}
-            >
-              Apply →
-            </motion.button>
-          )}
-        </div>
-      </motion.div>
+        }
+        canSearch={canSearch}
+        onSearch={() => handleSearch()}
+        isSearching={searchState === 'loading'}
+        scanProgress={scanProgress}
+        apiStatus={apiStatus}
+        resultCount={results?.length}
+      />
 
-      {/* ── 2. Engine selector (horizontal strip) ─────────────────── */}
-      <div style={{ flexShrink: 0 }}>
-        <LodgingControl onSearch={handleSearch} isSearching={searchState === 'loading'} />
-      </div>
-
-      {/* ── 3. Structured search bar ──────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...SPRING, delay: 0.12 }}
-        className="glass-panel mx-4 flex-shrink-0"
-        style={{
-          display:     'flex',
-          alignItems:  'center',
-          gap:         8,
-          paddingInline: 16,
-          paddingBlock:  10,
-          flexWrap:    'wrap',
-          rowGap:      8,
-        }}
-      >
-        {/* City */}
-        <SearchInput
-          icon="🌍"
-          value={cityName}
-          placeholder="City (e.g. Tulum)"
-          onChange={setCityName}
-          badge={cityCode}
-          color={COLOR}
-        />
-
-        <span style={{ fontSize: 13, color: COLOR, fontWeight: 700, flexShrink: 0 }} aria-hidden>→</span>
-
-        {/* Check-in */}
-        <DateInput label="Check-in" value={checkIn} onChange={setCheckIn} />
-
-        {/* Check-out */}
-        <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} />
-
-        <div aria-hidden style={{ width: 1, height: 20, background: 'rgba(0,0,0,0.09)', marginInline: 2, flexShrink: 0 }} />
-
-        {/* Adults */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingBlock: 5, paddingInline: 9, borderRadius: 8,
-          background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.09)',
-        }}>
-          <span style={{ fontSize: 11 }} aria-hidden>👤</span>
-          <select
-            value={adults}
-            onChange={e => setAdults(parseInt(e.target.value))}
-            style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, fontWeight: 600, color: '#3C3C43', fontFamily: 'inherit', cursor: 'pointer' }}
-            aria-label="Adults"
-          >
-            {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} Adult{n !== 1 ? 's' : ''}</option>)}
-          </select>
-        </div>
-
-        {/* Room type */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingBlock: 5, paddingInline: 9, borderRadius: 8,
-          background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.09)',
-        }}>
-          <span style={{ fontSize: 11 }} aria-hidden>🛏</span>
-          <select
-            value={roomType}
-            onChange={e => setRoomType(e.target.value)}
-            style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, fontWeight: 600, color: '#3C3C43', fontFamily: 'inherit', cursor: 'pointer' }}
-            aria-label="Room type"
-          >
-            {['Standard', 'Superior', 'Deluxe', 'Suite', 'Villa'].map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-      </motion.div>
-
-      {/* ── 4. Results ────────────────────────────────────────────── */}
-      <div
-        style={{
-          flex:           1,
-          minHeight:      0,
-          overflowY:      'auto',
-          overflowX:      'hidden',
-          padding:        '4px 20px 32px',
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(0,0,0,0.12) transparent',
-        }}
-      >
+      {/* ── Results ────────────────────────────────────────────────── */}
+      <div style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+        padding: '8px 12px 24px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.07) transparent',
+      }}>
         <LodgingBento
           searchState={searchState}
           engineCount={engineCount}
@@ -416,100 +301,3 @@ export default function LodgingPage() {
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function SearchInput({ icon, value, placeholder, onChange, badge, color }: {
-  icon: string; value: string; placeholder: string;
-  onChange: (v: string) => void; badge: string; color: string;
-}) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      paddingBlock: 5, paddingInline: 9, borderRadius: 10,
-      background: `${color}0C`, border: `1px solid ${color}28`, flexShrink: 0,
-    }}>
-      <span style={{ fontSize: 13 }} aria-hidden>{icon}</span>
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 12, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.01em', width: 140, fontFamily: 'inherit' }}
-      />
-      <span style={{ fontSize: 10, fontWeight: 800, color, letterSpacing: '0.02em', flexShrink: 0 }}>{badge}</span>
-    </div>
-  );
-}
-
-function DateInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 5,
-      paddingBlock: 5, paddingInline: 9, borderRadius: 8,
-      background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.09)', flexShrink: 0,
-    }}>
-      <span style={{ fontSize: 11 }} aria-hidden>📅</span>
-      <input
-        type="date"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, fontWeight: 600, color: '#3C3C43', fontFamily: 'inherit', cursor: 'pointer' }}
-        aria-label={label}
-      />
-    </div>
-  );
-}
-
-function StatusPill({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
-  return (
-    <motion.div
-      initial={{ scale: 0.85, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.85, opacity: 0 }}
-      transition={SPRING}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBlock: 6, paddingInline: 12, borderRadius: 999, background: `${color}12`, border: `1.5px solid ${color}30`, fontSize: 11.5, fontWeight: 700, color, flexShrink: 0 }}
-    >
-      {pulse && (
-        <motion.span
-          animate={{ scale: [1, 1.35, 1] }}
-          transition={{ duration: 1.9, repeat: Infinity }}
-          style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }}
-          aria-hidden
-        />
-      )}
-      {label}
-    </motion.div>
-  );
-}
-
-function ScanProgressPill({ progress, engineCount }: { progress: number; engineCount: number }) {
-  const clamped = Math.min(100, Math.round(progress));
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={SPRING}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBlock: 7, paddingInline: 14, borderRadius: 999, background: `${COLOR}0D`, border: `1.5px solid ${COLOR}28`, flexShrink: 0 }}
-    >
-      <motion.span
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
-        style={{ fontSize: 11, color: COLOR, display: 'inline-block' }}
-        aria-hidden
-      >✦</motion.span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 120 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: COLOR, letterSpacing: '-0.01em' }}>
-          Scanning {engineCount} hotel engines
-        </span>
-        <div style={{ height: 3, borderRadius: 999, background: `${COLOR}1C`, overflow: 'hidden' }}>
-          <motion.div
-            animate={{ width: `${clamped}%` }}
-            transition={{ ease: 'easeOut', duration: 0.28 }}
-            style={{ height: '100%', background: `linear-gradient(90deg, ${COLOR}, #007AFF)`, borderRadius: 999 }}
-          />
-        </div>
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 800, color: COLOR, minWidth: 28, textAlign: 'end' }}>{clamped}%</span>
-    </motion.div>
-  );
-}

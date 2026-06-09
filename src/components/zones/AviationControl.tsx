@@ -2,7 +2,7 @@
 
 import { useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { ZONE_ENGINES } from '@/lib/zoneEngines';
+import { ZONE_ENGINES, resolveStatus, type EngineStatus } from '@/lib/zoneEngines';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -89,48 +89,63 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   );
 }
 
+// ── Status indicator ──────────────────────────────────────────────────────────
+
+const STATUS_META: Record<EngineStatus, { dot: string; label: string; title: string }> = {
+  'live':       { dot: '#30D158', label: 'Live',    title: 'Live — no API key needed'         },
+  'needs-key':  { dot: '#FF9F0A', label: 'Key',     title: 'Requires API credentials to use'  },
+  'aggregated': { dot: '#5AC8FA', label: 'Agg',     title: 'Aggregated via Amadeus GDS layer' },
+  'ui-only':    { dot: '#C7C7CC', label: '',         title: 'UI chip — direct API coming soon' },
+};
+
 // ── Glass Pill engine button ───────────────────────────────────────────────────
 
 const GlassPill = memo(function GlassPill({
-  id, name, icon, isActive, isAIPick, onToggle,
+  id, name, icon, status, isActive, isAIPick, onToggle,
 }: {
-  id: string; name: string; icon: string;
+  id: string; name: string; icon: string; status: EngineStatus;
   isActive: boolean; isAIPick: boolean;
   onToggle: () => void;
 }) {
+  const sm = STATUS_META[status];
+  const isUiOnly = status === 'ui-only';
+
   return (
     <motion.button
       onClick={onToggle}
       aria-pressed={isActive}
+      title={sm.title}
       whileHover={{ scale: 1.06, y: -1 }}
       whileTap={{ scale: 0.94 }}
       animate={isActive ? {
-        boxShadow: 'inset 0 0 10px rgba(255,255,255,0.8), 0 4px 14px rgba(0,122,255,0.16)',
+        boxShadow: `inset 0 0 10px rgba(255,255,255,0.8), 0 4px 14px rgba(0,122,255,0.16)`,
       } : {
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)',
       }}
       transition={{ ...SPRING_POP, boxShadow: { duration: 0.18 } }}
-      className={[
-        'px-5 py-2.5 rounded-full border backdrop-blur-md shadow-sm transition-all flex items-center gap-2 cursor-pointer font-medium',
-        isActive
-          ? 'bg-white/70 border-white shadow-[inset_0_2px_10px_rgba(255,255,255,1),0_4px_15px_rgba(0,0,0,0.05)]'
-          : 'bg-white/30 border-white/50 text-slate-700 hover:bg-white/50 hover:-translate-y-0.5',
-      ].join(' ')}
       style={{
         display:          'flex',
         alignItems:       'center',
         gap:              5,
-        fontSize:         11,
+        padding:          '6px 11px 6px 9px',
+        borderRadius:     100,
+        border:           `1px solid ${isActive ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.56)'}`,
+        background:       isActive ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.32)',
+        backdropFilter:   'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        fontSize:         10.5,
         fontWeight:       isActive ? 700 : 500,
-        color:            isActive ? COLOR : '#3C3C43',
+        color:            isActive ? COLOR : isUiOnly ? '#8E8E93' : '#3C3C43',
         cursor:           'pointer',
         fontFamily:       'inherit',
         userSelect:       'none',
         WebkitUserSelect: 'none',
         whiteSpace:       'nowrap',
         flexShrink:       0,
+        opacity:          isUiOnly && !isActive ? 0.75 : 1,
       }}
     >
+      {/* AI pick star */}
       {isAIPick && (
         <motion.span
           animate={{ color: isActive ? COLOR : 'rgba(174,174,178,0.7)', scale: isActive ? 1 : 0.8 }}
@@ -141,8 +156,26 @@ const GlassPill = memo(function GlassPill({
           ✦
         </motion.span>
       )}
-      <span style={{ fontSize: 13, lineHeight: 1 }} aria-hidden>{icon}</span>
+
+      {/* Engine icon */}
+      <span style={{ fontSize: 12, lineHeight: 1 }} aria-hidden>{icon}</span>
+
+      {/* Name */}
       <span>{name}</span>
+
+      {/* Status dot — only show for non-ui-only */}
+      {status !== 'ui-only' && (
+        <span style={{
+          width:        5,
+          height:       5,
+          borderRadius: '50%',
+          background:   sm.dot,
+          flexShrink:   0,
+          boxShadow:    `0 0 5px ${sm.dot}88`,
+        }} aria-hidden />
+      )}
+
+      {/* Active check */}
       <AnimatePresence>
         {isActive && (
           <motion.span
@@ -373,6 +406,7 @@ export function AviationControl({ onSearch, isSearching }: AviationControlProps)
             id={engine.id}
             name={engine.name}
             icon={engine.icon}
+            status={resolveStatus(engine)}
             isActive={selected.has(engine.id)}
             isAIPick={AI_PICKS.has(engine.id)}
             onToggle={() => toggleEngine(engine.id)}
@@ -380,24 +414,51 @@ export function AviationControl({ onSearch, isSearching }: AviationControlProps)
         ))}
       </div>
 
-      {/* AI caption */}
-      <AnimatePresence mode="wait">
-        {mode === 'ai' && (
-          <motion.p
-            key="ai-cap"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              fontSize: 10, color: COLOR, fontWeight: 500,
-              paddingInline: 14, paddingBlockEnd: 10, lineHeight: 1.6,
-            }}
-          >
-            ✦ AI optimized: {AI_PICKS.size} engines selected for best global coverage.
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* Footer: AI caption + status legend */}
+      <div style={{
+        display:     'flex',
+        alignItems:  'center',
+        justifyContent: 'space-between',
+        paddingInline: 14,
+        paddingBlockEnd: 10,
+        flexWrap:    'wrap',
+        gap:         6,
+      }}>
+        <AnimatePresence mode="wait">
+          {mode === 'ai' ? (
+            <motion.p
+              key="ai-cap"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ fontSize: 10, color: COLOR, fontWeight: 500, lineHeight: 1.6, margin: 0 }}
+            >
+              ✦ AI optimized: {AI_PICKS.size} engines for best global coverage.
+            </motion.p>
+          ) : (
+            <motion.p
+              key="god-cap"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ fontSize: 10, color: '#6E6E73', fontWeight: 500, lineHeight: 1.6, margin: 0 }}
+            >
+              {selected.size} of 30 engines active — search all simultaneously.
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {/* Status legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
+          {([
+            { dot: '#FF9F0A', label: 'Needs key' },
+            { dot: '#5AC8FA', label: 'Aggregated' },
+          ] as { dot: string; label: string }[]).map(({ dot, label }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: dot, boxShadow: `0 0 4px ${dot}88` }} />
+              <span style={{ fontSize: 9, fontWeight: 500, color: '#8E8E93', letterSpacing: '-0.005em' }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }

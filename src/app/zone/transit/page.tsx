@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef }  from 'react';
 import { motion, AnimatePresence }        from 'framer-motion';
+import { MapPin, Users, Train, Zap, AlertTriangle } from 'lucide-react';
 import { TransitControl }                 from '@/components/zones/TransitControl';
 import { MultiModalGraph }                from '@/components/results/MultiModalGraph';
 import { TransitBento }                   from '@/components/results/TransitBento';
@@ -9,6 +10,7 @@ import { useTravelEngine }                from '@/store/useTravelEngine';
 import { useLocaleEngine }                from '@/store/useLocaleEngine';
 import type { TransitQuery }              from '@/types/transit';
 import type { TransitSearchResponse }     from '@/app/api/transit/route';
+import { DeepLinkPanel }                  from '@/components/DeepLinkPanel';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +56,7 @@ export default function TransitPage() {
   const [results,      setResults]      = useState<TransitQuery[]>([]);
   const [setupUrl,     setSetupUrl]     = useState<string | undefined>();
   const [setupMessage, setSetupMessage] = useState<string | undefined>();
+  const [engineStatus, setEngineStatus] = useState<import('@/app/api/transit/route').TransitEngineStatus[] | null>(null);
 
   // Form state
   const [origin,      setOrigin]      = useState('');
@@ -65,7 +68,7 @@ export default function TransitPage() {
   const [nlPills, setNlPills] = useState<string[]>([]);
   const nlRef = useRef<HTMLInputElement>(null);
 
-  const { days } = useTravelEngine(s => ({ days: s.days }));
+  const days = useTravelEngine(s => s.days);
   const { profile } = useLocaleEngine();
   const isRtl = profile.direction === 'rtl';
   const isHe  = profile.locale === 'he-IL';
@@ -76,17 +79,17 @@ export default function TransitPage() {
     if (!nlQuery.trim()) return;
     const parsed = parseTransitNL(nlQuery.trim());
     const pills: string[] = [];
-    if (parsed.origin)      { setOrigin(parsed.origin);           pills.push(`📍 ${parsed.origin}`); }
-    if (parsed.destination) { setDestination(parsed.destination); pills.push(`🏁 ${parsed.destination}`); }
-    if (parsed.adults)      { setAdults(parsed.adults);           pills.push(`👥 ${parsed.adults}`); }
+    if (parsed.origin)      { setOrigin(parsed.origin);           pills.push(parsed.origin); }
+    if (parsed.destination) { setDestination(parsed.destination); pills.push(parsed.destination); }
+    if (parsed.adults)      { setAdults(parsed.adults);           pills.push(String(parsed.adults)); }
     if (pills.length) setNlPills(pills);
     setNlQuery('');
   }, [nlQuery]);
 
   const handleSearch = useCallback(async (engineIds: string[]) => {
     if (!origin.trim() || !destination.trim()) return;
-
-    setEngineCount(engineIds.length);
+    const ids = engineIds;
+    setEngineCount(ids.length);
     setSearchState('loading');
     setScanProgress(0);
     setSetupUrl(undefined);
@@ -127,6 +130,7 @@ export default function TransitPage() {
         return;
       }
 
+      setEngineStatus(data.engineStatus ?? null);
       setResults(data.results);
       setActiveQuery(0);
       // Pre-select the recommended route
@@ -150,14 +154,15 @@ export default function TransitPage() {
 
   return (
     <div
-      className="flex flex-col h-full w-full gap-0 relative"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', direction: isRtl ? 'rtl' : 'ltr' }}
+    >
+    <div
+      className="flex flex-col gap-0 relative"
       style={{
-        background: [
-          `radial-gradient(ellipse at 0% 0%, ${COLOR}06 0%, transparent 50%)`,
-          'radial-gradient(ellipse at 100% 100%, rgba(94,92,230,0.04) 0%, transparent 48%)',
-        ].join(', '),
-        direction: isRtl ? 'rtl' : 'ltr',
+        flex: 1,
+        minWidth: 0,
         overflow: 'hidden',
+        background: 'transparent',
       }}
     >
       {/* ── Header: h2 + NL search ───────────────────────────────────────── */}
@@ -168,38 +173,22 @@ export default function TransitPage() {
         className="glass-panel mx-4 mt-4 flex-shrink-0"
         style={{ paddingInline: 20, paddingBlock: 16 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBlockEnd: 12 }}>
-          <motion.span
-            animate={{ rotate: [0, 12, -8, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}
-            aria-hidden
-          >
-            🗺
-          </motion.span>
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBlockEnd: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, #BF5AF2, #5E5CE6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 3px 10px rgba(191,90,242,0.35)',
+          }}>
+            <Train size={16} color="#fff" strokeWidth={2} />
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <motion.h2
-              style={{
-                margin: 0,
-                fontSize: 'clamp(1rem, 1.8vw, 1.35rem)',
-                fontWeight: 900,
-                letterSpacing: '-0.04em',
-                color: 'var(--text-primary)',
-                lineHeight: 1.15,
-              }}
-            >
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.025em', lineHeight: 1.1 }}>
               {isHe ? 'מטריצת ניידות ותחבורה' : 'Mobility & Transit Matrix'}
-            </motion.h2>
-            <p style={{
-              margin: 0, fontSize: 11, fontWeight: 500,
-              color: 'var(--text-secondary)', marginBlockStart: 2,
-              letterSpacing: '-0.01em',
-            }}>
-              {isHe
-                ? '30 רשתות · בדיקת עמלת שיא · מרווח ציר זמן חכם'
-                : '30 networks · live surge detection · smart timeline buffering'}
-            </p>
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 500, color: '#6E6E73', marginTop: 1, letterSpacing: '-0.01em' }}>
+              {isHe ? '30 רשתות · בדיקת עמלת שיא · מרווח ציר זמן חכם' : '30 networks · surge detection · smart timeline buffering'}
+            </div>
           </div>
 
           {/* Scan progress / status */}
@@ -305,7 +294,7 @@ export default function TransitPage() {
             value={origin}
             onChange={setOrigin}
             placeholder={isHe ? 'מוצא' : 'From'}
-            icon="📍"
+            icon={<MapPin size={12} color="#BF5AF2" strokeWidth={2} />}
           />
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
             {isRtl ? '←' : '→'}
@@ -314,7 +303,7 @@ export default function TransitPage() {
             value={destination}
             onChange={setDestination}
             placeholder={isHe ? 'יעד' : 'To'}
-            icon="🏁"
+            icon={<MapPin size={12} color="#5E5CE6" strokeWidth={2} />}
           />
           {/* Adults */}
           <div style={{
@@ -323,7 +312,7 @@ export default function TransitPage() {
             borderRadius: 10, background: 'rgba(0,0,0,0.04)',
             border: '1px solid rgba(0,0,0,0.07)', flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11 }} aria-hidden>👥</span>
+            <Users size={11} color="#6E6E73" strokeWidth={2} aria-hidden />
             <button onClick={() => setAdults(a => Math.max(1, a - 1))}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1 }}
               aria-label={isHe ? 'הפחת' : 'Remove'}>−</button>
@@ -342,7 +331,7 @@ export default function TransitPage() {
                 background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.07)',
                 fontSize: 11, fontWeight: 500, color: '#3C3C43', flexShrink: 0,
               }}>
-                <span aria-hidden>⚡</span>
+                <Zap size={10} color="#BF5AF2" strokeWidth={2.5} aria-hidden />
                 <span>{isHe ? 'ניטור עמלת שיא פעיל' : 'Live surge monitoring'}</span>
               </div>
             </>
@@ -356,7 +345,7 @@ export default function TransitPage() {
       </div>
 
       {/* ── Results scroll area ──────────────────────────────────────────── */}
-      <div style={{
+      <div className="scroll-fade" style={{
         flex: 1, minHeight: 0,
         overflowY: 'auto', overflowX: 'hidden',
         padding: '16px 16px 36px',
@@ -478,7 +467,12 @@ export default function TransitPage() {
             </AnimatePresence>
           </>
         )}
+        {searchState === 'results' && (
+          <DeepLinkPanel engineStatus={engineStatus} label="Also search directly on" />
+        )}
       </div>
+    </div>
+
     </div>
   );
 }
@@ -487,7 +481,7 @@ export default function TransitPage() {
 
 function SearchInput({
   value, onChange, placeholder, icon,
-}: { value: string; onChange: (v: string) => void; placeholder: string; icon: string }) {
+}: { value: string; onChange: (v: string) => void; placeholder: string; icon: React.ReactNode }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
@@ -496,7 +490,7 @@ function SearchInput({
       border: '1px solid rgba(255,255,255,0.70)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
       flexShrink: 0,
     }}>
-      <span style={{ fontSize: 12 }} aria-hidden>{icon}</span>
+      <span aria-hidden style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -521,8 +515,10 @@ function IdleState({ isHe, hasInputs }: { isHe: boolean; hasInputs: boolean }) {
       <motion.div
         animate={{ scale: [1, 1.06, 1], opacity: [0.55, 1, 0.55] }}
         transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 44 }}
-      >🗺</motion.div>
+        style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(191,90,242,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Train size={28} color="#BF5AF2" strokeWidth={1.5} />
+      </motion.div>
       <div style={{ textAlign: 'center', maxWidth: 280 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBlockEnd: 6 }}>
           {isHe ? 'מוכן לתכנון תנועה' : 'Ready for routing'}
@@ -607,7 +603,9 @@ function NeedsApiKeyState({ setupUrl, message, isHe }: { setupUrl: string; messa
 function ErrorState({ message, isHe }: { message?: string; isHe: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center p-8 rounded-3xl bg-red-50/30 backdrop-blur-xl border border-red-100/50 h-full">
-      <div style={{ fontSize: 36, marginBlockEnd: 12 }}>⚠️</div>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,69,58,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBlockEnd: 12 }}>
+        <AlertTriangle size={22} color="#FF453A" strokeWidth={2} />
+      </div>
       <p style={{ fontSize: 13, fontWeight: 700, color: '#9A3412', marginBlockEnd: 4 }}>
         {isHe ? 'לא נמצאו מסלולים' : 'No routes found'}
       </p>

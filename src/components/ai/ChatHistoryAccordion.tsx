@@ -58,7 +58,7 @@ function HistoryBubble({ msg, color }: { msg: CategorizedMessage; color: string 
       >
         {msg.text.length > 160 ? msg.text.slice(0, 160) + '…' : msg.text}
       </div>
-      <span style={{ fontSize: 8.5, color: '#AEAEB2', fontWeight: 600, paddingInline: 3 }}>
+      <span style={{ fontSize: 9, color: '#AEAEB2', fontWeight: 600, paddingInline: 3 }}>
         {timeStr}
         {msg.toolsUsed?.length ? ` · ${msg.toolsUsed.join(', ')}` : ''}
       </span>

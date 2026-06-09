@@ -56,31 +56,29 @@ function GlassTag({ label, color, onRemove }: {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
       transition={SPRING_POP}
-      className="bg-white/50 border border-white/80 rounded-full px-3 py-1"
+      // ── Dictated tag CSS ──────────────────────────────────────────────────
+      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/50 border border-white/80 shadow-sm text-sm font-medium text-slate-700"
       style={{
-        display:        'inline-flex',
-        alignItems:     'center',
-        gap:            5,
-        fontSize:       10.5,
-        fontWeight:     700,
-        color,
-        fontFamily:     'inherit',
-        letterSpacing:  '-0.01em',
-        backdropFilter: 'blur(8px)',
+        backdropFilter:       'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        boxShadow:      'inset 0 1px 0 rgba(255,255,255,0.9)',
-        flexShrink:     0,
-        userSelect:     'none',
+        userSelect:           'none',
+        flexShrink:           0,
       }}
     >
+      {/* Per-trait color dot */}
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: color, boxShadow: `0 0 4px ${color}88`,
+        flexShrink: 0,
+      }} />
       {label}
       <button
         onClick={onRemove}
         aria-label={`Remove ${label}`}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          padding: 0, lineHeight: 1, color: `${color}99`, fontSize: 10,
-          fontFamily: 'inherit',
+          padding: 0, lineHeight: 1, color: 'rgba(100,116,139,0.5)',
+          fontSize: 14, fontFamily: 'inherit', marginInlineStart: 2,
         }}
       >
         ×
@@ -191,45 +189,67 @@ export function DNAPanel({ isOpen, onClose }: DNAPanelProps) {
             }}
           />
 
-          {/* Panel */}
+          {/* Panel — dictated CSS */}
           <motion.aside
             key="dna-panel"
-            initial={{ x: isRtl ? '-100%' : '100%', opacity: 0.8 }}
+            initial={{ x: isRtl ? '-100%' : '100%', opacity: 0.85 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: isRtl ? '-100%' : '100%', opacity: 0.8 }}
+            exit={{ x: isRtl ? '-100%' : '100%', opacity: 0.85 }}
             transition={SPRING}
-            className="fixed top-0 h-full w-96 bg-white/40 backdrop-blur-3xl border-l border-white/60 p-6"
+            // border-s = border-inline-start (left in LTR, right in RTL — always the inner edge)
+            className="fixed top-0 h-full w-96 bg-white/40 backdrop-blur-3xl border-s border-white/60 p-8"
             style={{
-              insetInlineEnd: 0,
+              insetInlineEnd:  0,
               insetBlockStart: 0,
-              zIndex:          50,
+              zIndex:          100,
               overflowY:       'auto',
+              overscrollBehavior: 'contain',
               direction:       isRtl ? 'rtl' : 'ltr',
+              // dictated shadow
               boxShadow:       isRtl
-                ? '10px 0 40px rgba(0,0,0,0.05)'
-                : '-10px 0 40px rgba(0,0,0,0.05)',
+                ? '20px 0 50px rgba(0,0,0,0.05)'
+                : '-20px 0 50px rgba(0,0,0,0.05)',
             }}
             role="complementary"
             aria-label="Travel DNA Profile"
           >
             <CloseButton onClose={onClose} isRtl={isRtl} />
 
-            {/* Header */}
-            <div style={{ marginBlockEnd: 24 }}>
+            {/* Header — glowing avatar + title */}
+            <div style={{ marginBlockEnd: 28 }}>
+
+              {/* Glowing avatar placeholder */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ ...SPRING, delay: 0.05 }}
-                style={{
-                  width: 40, height: 40, borderRadius: 12,
+                style={{ position: 'relative', width: 56, height: 56, marginBlockEnd: 16 }}
+              >
+                {/* Outer glow ring — pulses */}
+                <motion.div
+                  animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.65, 0.35] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    position: 'absolute', inset: -6,
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(0,122,255,0.22) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Avatar circle */}
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #007AFF 0%, #BF5AF2 100%)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, marginBlockEnd: 12,
-                  boxShadow: '0 4px 16px rgba(0,122,255,0.30)',
-                }}
-              >
-                🧬
+                  fontSize: 24,
+                  boxShadow: '0 4px 20px rgba(0,122,255,0.35), inset 0 1px 0 rgba(255,255,255,0.3)',
+                  border: '2px solid rgba(255,255,255,0.6)',
+                  position: 'relative',
+                }}>
+                  🧬
+                </div>
               </motion.div>
+
               <h2 style={{
                 margin: 0, fontSize: 18, fontWeight: 900,
                 color: 'var(--text-primary)', letterSpacing: '-0.04em',
@@ -240,9 +260,9 @@ export function DNAPanel({ isOpen, onClose }: DNAPanelProps) {
               <p style={{
                 margin: 0, marginBlockStart: 4,
                 fontSize: 11, color: '#6E6E73', fontWeight: 500,
-                fontFamily: 'inherit',
+                fontFamily: 'inherit', lineHeight: 1.5,
               }}>
-                What AI has learned about you across conversations.
+                What the AI has learned about you across conversations.
               </p>
             </div>
 

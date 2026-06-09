@@ -2,12 +2,19 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence }           from 'framer-motion';
-import { CulinaryControl }                   from '@/components/zones/CulinaryControl';
-import { VibeFilter }                        from '@/components/zones/VibeFilter';
+import { Calendar, Users, UtensilsCrossed }  from 'lucide-react';
+import { ZoneShell, ZoneParamChip, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
 import { DiningBento }                       from '@/components/results/DiningBento';
 import type { DiningSearchState }            from '@/components/results/DiningBento';
 import { useTravelEngine }                   from '@/store/useTravelEngine';
+import { ZONE_ENGINES, resolveStatus }       from '@/lib/zoneEngines';
 import type { MergedRestaurant }             from '@/app/api/dining/route';
+
+const DINING_AI_PICKS = new Set([
+  'michelin', 'opentable', 'resy', 'worlds50best', 'infatuation',
+  'eater', 'tock', 'zagat', 'tripadvisor-d',
+]);
+const DINING_ENGINES = ZONE_ENGINES['dining'];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +135,9 @@ export default function DiningPage() {
   const [results,       setResults]       = useState<MergedRestaurant[] | null>(null);
   const [apiStatus,     setApiStatus]     = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
   const [apiMessage,    setApiMessage]    = useState<string | null>(null);
+  const [nlFocused,     setNlFocused]     = useState(false);
+  const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(DINING_AI_PICKS));
+  const [enginesOpen,     setEnginesOpen]     = useState(false);
 
   useEffect(() => {
     const dest = [...new Set(days.map(d => d.destination))].filter(Boolean).join(', ');
@@ -145,8 +155,9 @@ export default function DiningPage() {
     setNlQuery('');
   }, [nlQuery]);
 
-  const handleSearch = useCallback(async (engineIds: string[]) => {
-    setEngineCount(engineIds.length);
+  const handleSearch = useCallback(async (engineIds?: string[]) => {
+    const ids = engineIds ?? [...selectedEngines];
+    setEngineCount(ids.length);
     setSearchState('loading');
     setScanProgress(0);
     setResults(null);
@@ -166,7 +177,7 @@ export default function DiningPage() {
           adults,
           vibes:     selectedVibes,
           diets:     selectedDiets,
-          engineIds,
+          engineIds: ids,
           tier:      'luxury',
         }),
       });
@@ -189,229 +200,74 @@ export default function DiningPage() {
       setApiMessage(err instanceof Error ? err.message : 'Network error');
       setTimeout(() => setSearchState('results'), 200);
     }
-  }, [destination, date, adults, selectedVibes, selectedDiets]);
+  }, [selectedEngines, destination, date, adults, selectedVibes, selectedDiets]); // eslint-disable-line
+
+  const canSearch = destination.trim().length >= 2;
 
   return (
-    <div style={{
-      position:  'relative',
-      height:    '100%',
-      width:     '100%',
-      overflow:  'hidden',
-      display:   'flex',
-      flexDirection: 'column',
-      background: [
-        `radial-gradient(ellipse at 0% 0%, ${COLOR}09 0%, transparent 52%)`,
-        'radial-gradient(ellipse at 100% 100%, rgba(255,69,58,0.04) 0%, transparent 48%)',
-        '#F2F2F7',
-      ].join(', '),
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden' }}>
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...SPRING, delay: 0.04 }}
-        className="glass-panel mx-4 mt-4 flex-shrink-0"
-        style={{ padding: '16px 18px 14px' }}
-      >
-        {/* Title row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <motion.h2
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            style={{
-              margin: 0, fontSize: 'clamp(1.1rem,1.8vw,1.45rem)',
-              fontWeight: 900, letterSpacing: '-0.04em',
-              color: 'var(--text-primary)', lineHeight: 1.1,
-            }}
-          >
-            Culinary & Dining Matrix
-          </motion.h2>
-          <motion.span
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2.4, repeat: Infinity }}
-            style={{ fontSize: 12, color: COLOR }}
-            aria-hidden
-          >
-            ✦
-          </motion.span>
-          <AnimatePresence mode="wait">
-            {searchState === 'loading' && (
-              <ScanProgressPill key="progress" progress={scanProgress} engineCount={engineCount} />
-            )}
-            {searchState === 'results' && apiStatus === 'ok' && (
-              <StatusPill key="done" color={COLOR} label={`${results?.length ?? 0} restaurants`} pulse />
-            )}
-            {searchState === 'results' && apiStatus === 'needs_api_key' && (
-              <StatusPill key="key" color="#FF9F0A" label="Connect Dining API" />
-            )}
-            {searchState === 'results' && apiStatus === 'error' && (
-              <StatusPill key="err" color="#FF453A" label="Search error" />
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* NL search row */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <div style={{
-            flex:                 1,
-            display:              'flex',
-            alignItems:           'center',
-            gap:                  8,
-            paddingBlock:         9,
-            paddingInline:        14,
-            borderRadius:         12,
-            background:           'rgba(0,0,0,0.035)',
-            border:               '1px solid rgba(0,0,0,0.07)',
-          }}>
-            <span style={{ fontSize: 14, flexShrink: 0 }} aria-hidden>🔍</span>
-            <input
-              value={nlQuery}
-              onChange={e => setNlQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && applyNlQuery()}
-              placeholder="e.g. romantic dinner for 2 in Tulum on Oct 12, vegan friendly…"
-              style={{
-                flex: 1, background: 'none', border: 'none', outline: 'none',
-                fontSize: 12, fontWeight: 500, color: 'var(--text-primary)',
-                fontFamily: 'inherit', letterSpacing: '-0.01em',
-              }}
-            />
+      {/* ── Unified search card ────────────────────────────────────── */}
+      <ZoneShell
+        color="#FF9F0A"
+        gradient="linear-gradient(135deg, #FF9F0A 0%, #FF453A 100%)"
+        nlPlaceholder='What are you craving? — "Michelin dinner for 2 in Rome, vegan" or "rooftop bar Tokyo"'
+        nlValue={nlQuery}
+        onNLChange={setNlQuery}
+        onNLApply={applyNlQuery}
+        nlFocused={nlFocused}
+        onNLFocus={() => setNlFocused(true)}
+        onNLBlur={() => setNlFocused(false)}
+        paramsRow={<>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 100, background: 'rgba(255,159,10,0.08)', border: '1px solid rgba(255,159,10,0.20)', flexShrink: 0 }}>
+            <UtensilsCrossed size={11} color="#FF9F0A" strokeWidth={2} />
+            <input value={destination} onChange={e => setDestination(e.target.value)} placeholder="City or destination"
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.01em', width: 140, fontFamily: 'inherit' }} />
           </div>
-          <motion.button
-            onClick={applyNlQuery}
-            whileHover={{ scale: 1.04, boxShadow: `0 6px 18px ${COLOR}40` }}
-            whileTap={{ scale: 0.97 }}
-            animate={{ opacity: nlQuery.trim() ? 1 : 0.42 }}
-            transition={SPRING}
-            style={{
-              paddingBlock:  9,
-              paddingInline: 18,
-              borderRadius:  12,
-              border:        'none',
-              background:    `linear-gradient(135deg, ${COLOR} 0%, #FF453A 100%)`,
-              color:         '#fff',
-              fontSize:      12,
-              fontWeight:    800,
-              letterSpacing: '-0.01em',
-              cursor:        nlQuery.trim() ? 'pointer' : 'default',
-              fontFamily:    'inherit',
-              flexShrink:    0,
-              boxShadow:     `0 3px 10px ${COLOR}30`,
-            }}
-          >
-            Apply
-          </motion.button>
-        </div>
-      </motion.div>
 
-      {/* ── Engine control strip ──────────────────────────────────────────── */}
-      <div style={{ paddingBlock: '8px 0' }}>
-        <CulinaryControl onSearch={handleSearch} isSearching={searchState === 'loading'} />
-      </div>
+          <div style={{ width: 1, height: 16, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
 
-      {/* ── Vibe & Diet filter ────────────────────────────────────────────── */}
-      <div style={{ paddingBlock: '6px 0' }}>
-        <VibeFilter
-          selectedVibes={selectedVibes}
-          selectedDiets={selectedDiets}
-          onVibesChange={setSelectedVibes}
-          onDietsChange={setSelectedDiets}
-        />
-      </div>
+          <ZoneParamChip icon={<Calendar size={11} color="#6E6E73" strokeWidth={2} />}>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer', width: 108 }} />
+          </ZoneParamChip>
 
-      {/* ── Structured search bar ────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...SPRING, delay: 0.14 }}
-        style={{
-          display:              'flex',
-          alignItems:           'center',
-          gap:                  10,
-          paddingInline:        16,
-          paddingBlock:         10,
-          flexShrink:           0,
-          flexWrap:             'wrap',
-          rowGap:               6,
-        }}
-      >
-        {/* Destination */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          paddingBlock: 6, paddingInline: 10, borderRadius: 10,
-          background: `${COLOR}0C`, border: `1px solid ${COLOR}26`, flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 12 }} aria-hidden>🍽️</span>
-          <input
-            value={destination}
-            onChange={e => setDestination(e.target.value)}
-            placeholder="City or destination"
-            style={{
-              background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 12, fontWeight: 700, color: '#1D1D1F',
-              letterSpacing: '-0.01em', width: 160, fontFamily: 'inherit',
-            }}
+          <ZoneParamChip icon={<Users size={11} color="#6E6E73" strokeWidth={2} />}>
+            <select value={adults} onChange={e => setAdults(parseInt(e.target.value))}
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer' }}>
+              {[1,2,3,4,5,6,8].map(n => <option key={n} value={n}>{n} {n !== 1 ? 'guests' : 'guest'}</option>)}
+            </select>
+          </ZoneParamChip>
+        </>}
+        engineCount={selectedEngines.size}
+        engineLabel={`AI · ${selectedEngines.size} engines`}
+        enginesOpen={enginesOpen}
+        onEnginesToggle={() => setEnginesOpen(v => !v)}
+        engineDrawer={
+          <ZoneEngineDrawer
+            engines={DINING_ENGINES.map(e => ({ id: e.id, name: e.name, icon: e.icon, status: resolveStatus(e) }))}
+            selected={selectedEngines}
+            onToggle={id => setSelectedEngines(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+            onAIPick={() => setSelectedEngines(new Set(DINING_AI_PICKS))}
+            onSelectAll={() => setSelectedEngines(new Set(DINING_ENGINES.map(e => e.id)))}
+            onClear={() => setSelectedEngines(new Set())}
+            aiPicks={DINING_AI_PICKS}
+            color="#FF9F0A"
           />
-        </div>
+        }
+        canSearch={canSearch}
+        onSearch={() => handleSearch()}
+        isSearching={searchState === 'loading'}
+        scanProgress={scanProgress}
+        apiStatus={apiStatus}
+        resultCount={results?.length}
+      />
 
-        <div aria-hidden style={{ width: 1, height: 16, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
-
-        {/* Date */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingBlock: 6, paddingInline: 10, borderRadius: 8,
-          background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 11 }} aria-hidden>📅</span>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{
-              background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 11.5, fontWeight: 600, color: '#3C3C43',
-              fontFamily: 'inherit', cursor: 'pointer',
-            }}
-            aria-label="Dining date"
-          />
-        </div>
-
-        {/* Adults */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingBlock: 6, paddingInline: 10, borderRadius: 8,
-          background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 11 }} aria-hidden>👤</span>
-          <select
-            value={adults}
-            onChange={e => setAdults(parseInt(e.target.value))}
-            style={{
-              background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 11.5, fontWeight: 600, color: '#3C3C43',
-              fontFamily: 'inherit', cursor: 'pointer',
-            }}
-            aria-label="Party size"
-          >
-            {[1,2,3,4,5,6,8].map(n => (
-              <option key={n} value={n}>{n} {n !== 1 ? 'Guests' : 'Guest'}</option>
-            ))}
-          </select>
-        </div>
-      </motion.div>
-
-      {/* ── Results ──────────────────────────────────────────────────────── */}
-      <div
-        className="no-scrollbar"
-        style={{
-          flex:          1,
-          overflowY:     'auto',
-          overflowX:     'hidden',
-          paddingInline: 16,
-          paddingBottom: 36,
-        }}
-      >
+      {/* ── Results ────────────────────────────────────────────────── */}
+      <div style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+        padding: '8px 12px 24px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.07) transparent',
+      }}>
         <DiningBento
           searchState={searchState}
           engineCount={engineCount}
@@ -422,35 +278,6 @@ export default function DiningPage() {
         />
       </div>
     </div>
-  );
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatusPill({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
-  return (
-    <motion.div
-      initial={{ scale: 0.85, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.85, opacity: 0 }}
-      transition={SPRING}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        paddingBlock: 5, paddingInline: 11, borderRadius: 999,
-        background: `${color}12`, border: `1.5px solid ${color}30`,
-        fontSize: 11, fontWeight: 700, color, flexShrink: 0,
-      }}
-    >
-      {pulse && (
-        <motion.span
-          animate={{ scale: [1, 1.35, 1] }}
-          transition={{ duration: 1.9, repeat: Infinity }}
-          style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }}
-          aria-hidden
-        />
-      )}
-      {label}
-    </motion.div>
   );
 }
 

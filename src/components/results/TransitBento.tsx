@@ -466,15 +466,15 @@ export const TransitBento = memo(function TransitBento({
         )}
       </AnimatePresence>
 
-      {/* CTA button */}
-      <div style={{ marginBlockStart: 14 }}>
+      {/* CTA buttons */}
+      <div style={{ marginBlockStart: 14, display: 'flex', gap: 8 }}>
         <motion.button
           onClick={handleAddToTrip}
           whileHover={{ scale: 1.02, boxShadow: `0 6px 20px ${COLOR}38` }}
           whileTap={{ scale: 0.98 }}
           transition={SPRING}
           style={{
-            width: '100%', paddingBlock: 11, paddingInline: 20,
+            flex: 1, paddingBlock: 11, paddingInline: 20,
             borderRadius: 14, border: 'none', cursor: 'pointer',
             background: addedToTrip ? '#30D158' : GRADIENT,
             color: '#fff', fontSize: 12, fontWeight: 800,
@@ -493,6 +493,31 @@ export const TransitBento = memo(function TransitBento({
             </>
           )}
         </motion.button>
+
+        {/* Navigate — opens Google Maps Directions */}
+        {option.directionsUrl && (
+          <motion.a
+            href={option.directionsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            whileHover={{ scale: 1.04, boxShadow: '0 4px 14px rgba(0,0,0,0.10)' }}
+            transition={SPRING}
+            onClick={e => e.stopPropagation()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              paddingBlock: 11, paddingInline: 14,
+              borderRadius: 14, border: '1px solid rgba(0,0,0,0.09)',
+              background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)',
+              color: '#1D1D1F', fontSize: 11, fontWeight: 700,
+              fontFamily: 'inherit', letterSpacing: '-0.01em',
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.90)',
+              flexShrink: 0,
+            }}
+          >
+            🗺 {isHe ? 'נווט' : 'Navigate'}
+          </motion.a>
+        )}
       </div>
     </motion.div>
   );

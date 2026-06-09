@@ -2,6 +2,7 @@ import { notFound }             from 'next/navigation';
 import { decodePayload }         from '@/utils/PayloadSanitizer';
 import type { PublicDay, PublicEntity } from '@/utils/PayloadSanitizer';
 import { ConversionWatermark }   from '@/components/plg/ConversionWatermark';
+import { Plane, Hotel, UtensilsCrossed, Compass, Train, MapPin } from 'lucide-react';
 
 // ── Metadata ──────────────────────────────────────────────────────────────────
 
@@ -22,13 +23,14 @@ export async function generateMetadata({ params }: { params: Promise<{ shareId: 
 
 // ── Sub-components (server) ───────────────────────────────────────────────────
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  flight:     '✈️',
-  hotel:      '🏨',
-  restaurant: '🍽️',
-  activity:   '🎯',
-  transport:  '🚌',
-  transit:    '🚌',
+type CatIconComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const CATEGORY_ICON: Record<string, CatIconComp> = {
+  flight:     Plane,
+  hotel:      Hotel,
+  restaurant: UtensilsCrossed,
+  activity:   Compass,
+  transport:  Train,
+  transit:    Train,
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -41,7 +43,7 @@ const CATEGORY_COLOR: Record<string, string> = {
 };
 
 function EntityCard({ entity }: { entity: PublicEntity }) {
-  const emoji = CATEGORY_EMOJI[entity.category] ?? '📍';
+  const CatIcon = CATEGORY_ICON[entity.category] ?? MapPin;
   const color = CATEGORY_COLOR[entity.category] ?? '#6E6E73';
 
   return (
@@ -66,9 +68,9 @@ function EntityCard({ entity }: { entity: PublicEntity }) {
         background:     `${color}15`,
         border:         `1.5px solid ${color}30`,
         display:        'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize:       18, flexShrink: 0,
+        flexShrink: 0,
       }}>
-        {emoji}
+        <CatIcon size={17} color={color} strokeWidth={1.8} />
       </div>
 
       {/* Content */}

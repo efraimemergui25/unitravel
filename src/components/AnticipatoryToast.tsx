@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback }           from 'react';
 import { motion, AnimatePresence }                     from 'framer-motion';
+import { Info, Zap, AlertTriangle, AlertOctagon }      from 'lucide-react';
 import { useTranslations }                             from 'next-intl';
 import { useTravelEngine }                             from '@/store/useTravelEngine';
 import { useToastStore }                               from '@/store/useToastStore';
@@ -14,11 +15,12 @@ const SEVERITY_COLOR: Record<CrisisSeverity, string> = {
   critical: '#FF6B6B',
 };
 
-const SEVERITY_ICON: Record<CrisisSeverity, string> = {
-  low:      '✦',
-  medium:   '⚡',
-  high:     '⚠️',
-  critical: '🚨',
+type SeverityIconComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const SEVERITY_ICON: Record<CrisisSeverity, SeverityIconComp> = {
+  low:      Info,
+  medium:   Zap,
+  high:     AlertTriangle,
+  critical: AlertOctagon,
 };
 
 function AnticipatoryToastItem({ event, onDismiss }: {
@@ -82,8 +84,8 @@ function AnticipatoryToastItem({ event, onDismiss }: {
         className="flex items-center gap-2.5 px-4 py-2.5"
         style={{ minWidth: expanded ? 320 : 0 }}
       >
-        <motion.span layout="position" className="text-base flex-shrink-0" style={{ filter: `drop-shadow(0 0 6px ${color})` }}>
-          {SEVERITY_ICON[event.severity]}
+        <motion.span layout="position" className="flex-shrink-0" style={{ filter: `drop-shadow(0 0 6px ${color})`, display: 'flex', alignItems: 'center' }}>
+          {(() => { const SI = SEVERITY_ICON[event.severity]; return <SI size={16} color={color} strokeWidth={2} />; })()}
         </motion.span>
         <motion.span layout="position" className="text-sm font-bold text-white/92 whitespace-nowrap flex-1 truncate">
           {event.title}

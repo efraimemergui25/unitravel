@@ -1,18 +1,21 @@
 'use client';
 
-import { motion }          from 'framer-motion';
+import { motion }            from 'framer-motion';
+import { Footprints, Car, Bus } from 'lucide-react';
 import type { PlacedEntity } from '@/store/useTravelEngine';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SPRING = { type: 'spring', stiffness: 380, damping: 28 } as const;
 
+type LucideComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+
 // ── Mode icon map ─────────────────────────────────────────────────────────────
 
-const MODE_META: Record<TransitMode, { icon: string; label: string }> = {
-  walk:    { icon: '🚶', label: 'walk'  },
-  drive:   { icon: '🚗', label: 'drive' },
-  transit: { icon: '🚌', label: 'ride'  },
+const MODE_META: Record<TransitMode, { icon: LucideComp; label: string }> = {
+  walk:    { icon: Footprints, label: 'walk'  },
+  drive:   { icon: Car,        label: 'drive' },
+  transit: { icon: Bus,        label: 'ride'  },
 };
 
 // ── Transit mode inference ────────────────────────────────────────────────────
@@ -50,7 +53,7 @@ export interface TransitBlockProps {
 export function TransitBlock({ from, to, transitMin, mode }: TransitBlockProps) {
   const minutes = transitMin ?? estimateTransitMin(from, to);
   const resolvedMode = mode ?? inferTransitMode(from.category, minutes);
-  const { icon, label } = MODE_META[resolvedMode];
+  const { icon: ModeIcon, label } = MODE_META[resolvedMode];
 
   const hours = Math.floor(minutes / 60);
   const mins  = minutes % 60;
@@ -58,78 +61,53 @@ export function TransitBlock({ from, to, transitMin, mode }: TransitBlockProps) 
     ? (mins > 0 ? `${hours}h ${mins}m ${label}` : `${hours}h ${label}`)
     : `${mins}m ${label}`;
 
+  const isTight = minutes <= 20;
+  const accentColor = isTight ? '#FF9F0A' : '#8E8E93';
+
   return (
     <motion.div
       initial={{ opacity: 0, scaleX: 0.88 }}
       animate={{ opacity: 1, scaleX: 1 }}
       exit={{ opacity: 0, scaleX: 0.88 }}
       transition={SPRING}
+      title={`Travel time: ${durationLabel}${isTight ? ' — tight connection' : ''}`}
       style={{
-        width:                '90%',
-        marginInline:         'auto',
-        height:               40,
-        borderRadius:         999,
-        background:           'rgba(255,255,255,0.10)',
-        backdropFilter:       'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border:               '1px dashed rgba(255,255,255,0.40)',
-        display:              'flex',
-        alignItems:           'center',
-        justifyContent:       'center',
-        gap:                  8,
-        flexShrink:           0,
+        width: '92%', marginInline: 'auto',
+        height: 34, borderRadius: 999,
+        background: isTight ? 'rgba(255,159,10,0.06)' : 'rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        border: `1px dashed ${isTight ? 'rgba(255,159,10,0.35)' : 'rgba(0,0,0,0.10)'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 7, flexShrink: 0, cursor: 'default',
       }}
     >
-      {/* Dashed connecting line — left */}
-      <div style={{
-        flex:          1,
-        height:        1,
-        borderBlockEnd: '1px dashed rgba(0,0,0,0.10)',
-        marginInlineStart: 14,
-      }} />
+      {/* Line left */}
+      <div style={{ flex: 1, height: 1, borderBlockEnd: `1px dashed ${isTight ? 'rgba(255,159,10,0.25)' : 'rgba(0,0,0,0.08)'}`, marginInlineStart: 12 }} />
 
-      {/* Icon + label */}
-      <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{icon}</span>
+      {/* Mode icon */}
+      <ModeIcon size={12} color={accentColor} strokeWidth={1.75} />
+
+      {/* Duration pill */}
       <span style={{
-        fontSize:      11,
-        fontWeight:    600,
-        color:         '#8E8E93',
-        letterSpacing: '-0.01em',
-        fontFamily:    'inherit',
-        whiteSpace:    'nowrap',
-        flexShrink:    0,
+        fontSize: 10, fontWeight: 700, color: accentColor,
+        background: isTight ? 'rgba(255,159,10,0.10)' : 'rgba(0,0,0,0.05)',
+        borderRadius: 6, padding: '2px 7px', letterSpacing: '-0.01em',
+        fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
       }}>
-        {durationLabel}
+        {durationLabel}{isTight ? ' ⚠' : ''}
       </span>
 
-      {/* Destination name */}
+      {/* Destination (truncated) */}
       {to.title && (
-        <>
-          <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.20)', flexShrink: 0 }}>·</span>
-          <span style={{
-            fontSize:      10,
-            fontWeight:    600,
-            color:         '#AEAEB2',
-            letterSpacing: '-0.01em',
-            fontFamily:    'inherit',
-            whiteSpace:    'nowrap',
-            maxWidth:      120,
-            overflow:      'hidden',
-            textOverflow:  'ellipsis',
-            flexShrink:    1,
-          }}>
-            {to.title}
-          </span>
-        </>
+        <span style={{
+          fontSize: 9.5, fontWeight: 600, color: '#AEAEB2',
+          letterSpacing: '-0.01em', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1,
+        }}>→ {to.title}</span>
       )}
 
-      {/* Dashed connecting line — right */}
-      <div style={{
-        flex:           1,
-        height:         1,
-        borderBlockEnd: '1px dashed rgba(0,0,0,0.10)',
-        marginInlineEnd: 14,
-      }} />
+      {/* Line right */}
+      <div style={{ flex: 1, height: 1, borderBlockEnd: `1px dashed ${isTight ? 'rgba(255,159,10,0.25)' : 'rgba(0,0,0,0.08)'}`, marginInlineEnd: 12 }} />
     </motion.div>
   );
 }

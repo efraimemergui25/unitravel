@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Plane, Hotel, UtensilsCrossed, Compass, Train, MapPin, Wallet } from 'lucide-react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import type { UIMessage, DynamicToolUIPart } from 'ai';
@@ -29,14 +30,18 @@ const TOOL_LABELS: Record<string, string> = {
   adjustDNA:            'Updating your Travel DNA...',
 };
 
-// ── Category emojis ───────────────────────────────────────────────────────────
+// ── Category icons ────────────────────────────────────────────────────────────
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  flight:    '✈️',
-  hotel:     '🏨',
-  restaurant:'🍽',
-  activity:  '🎭',
-  transport: '🚗',
+type CatIconComp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const CATEGORY_ICON: Record<string, CatIconComp> = {
+  flight:    Plane,
+  hotel:     Hotel,
+  restaurant:UtensilsCrossed,
+  activity:  Compass,
+  transport: Train,
+};
+const CATEGORY_COLOR: Record<string, string> = {
+  flight: '#007AFF', hotel: '#5E5CE6', restaurant: '#FF9F0A', activity: '#30D158', transport: '#BF5AF2',
 };
 
 // ── Suggestion chips ──────────────────────────────────────────────────────────
@@ -352,7 +357,8 @@ function TimelineResult({ output }: { output: MutateTimelineOutput }) {
   }, [entity]);
 
   const dayNumber = entity.dayId.replace('day-', '');
-  const catEmoji = CATEGORY_EMOJI[entity.category] ?? '📌';
+  const CatIcon   = CATEGORY_ICON[entity.category] ?? MapPin;
+  const catColor  = CATEGORY_COLOR[entity.category] ?? '#6E6E73';
 
   return (
     <motion.div
@@ -405,7 +411,9 @@ function TimelineResult({ output }: { output: MutateTimelineOutput }) {
           >
             {/* Entity header */}
             <div className="flex items-start gap-2 mb-2">
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{catEmoji}</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: `${catColor}12`, border: `1px solid ${catColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CatIcon size={13} color={catColor} strokeWidth={1.8} />
+              </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#1D1D1F' }}>
                   {entity.title}
@@ -512,7 +520,6 @@ function FinancialResult({ output }: { output: FinancialOutput }) {
 
   const isSaving = output.params.amount < 0;
   const absAmt   = Math.abs(output.params.amount);
-  const catEmoji = CATEGORY_EMOJI[output.params.category] ?? '💰';
 
   return (
     <AnimatePresence>
@@ -540,9 +547,9 @@ function FinancialResult({ output }: { output: FinancialOutput }) {
             color:          isSaving ? '#28A745' : '#C77800',
           }}
         >
-          <span>{catEmoji}</span>
+          <Wallet size={12} color={isSaving ? '#28A745' : '#C77800'} strokeWidth={2} />
           <span>
-            {isSaving ? '↓ Saving' : '↑ +'} ${absAmt.toLocaleString()}&nbsp;
+            {isSaving ? 'Saving' : '+'} ${absAmt.toLocaleString()}&nbsp;
             <span style={{ fontWeight: 400, opacity: 0.75 }}>
               &middot; {output.params.reason}
             </span>

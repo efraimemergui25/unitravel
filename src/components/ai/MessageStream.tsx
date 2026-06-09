@@ -4,6 +4,7 @@ import { useRef, useEffect }          from 'react';
 import { motion, AnimatePresence }    from 'framer-motion';
 import type { UIMessage }             from 'ai';
 import { GlassShimmer }               from '@/components/ui/GlassShimmer';
+import { GlassCard }                  from '@/components/ui/GlassCard';
 import { ExecutionPill }              from './ExecutionPill';
 
 // ── Animation config ──────────────────────────────────────────────────────────
@@ -12,44 +13,21 @@ const SPRING = { type: 'spring', stiffness: 340, damping: 30 } as const;
 
 const BUBBLE_IN = {
   initial:    { opacity: 0, y: 10, scale: 0.97 },
-  animate:    { opacity: 1, y: 0,  scale: 1 },
+  animate:    { opacity: 1, y: 0,  scale: 1    },
   exit:       { opacity: 0, y: -6, scale: 0.96 },
   transition: SPRING,
 } as const;
 
 // ── Tool label map ────────────────────────────────────────────────────────────
 
-function toolLabel(name: string, args: Record<string, unknown>): string {
-  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-  switch (name) {
-    case 'executeAviationSearch':
-      return `Scanning aviation engines — ${String(args.origin ?? '')} → ${String(args.destination ?? '')}`;
-    case 'commitLodgingToTimeline':
-      return `Booking ${String(args.hotelName ?? 'hotel')} → Day ${String(args.targetDay ?? '')}`;
-    case 'navigateWorkspace':
-      return `Opening ${cap(String(args.zoneId ?? ''))} Hub`;
-    case 'executeOmniSearch':
-      return `Scanning 30 engines — ${String(args.origin ?? args.destination ?? '')}`;
-    case 'commitToTimeline':
-      return `Committing "${String(args.title ?? '')}" to timeline`;
-    case 'mutateTimeline':
-      return `Placing "${String(args.title ?? '')}" for review`;
-    case 'adjustFinancialModel':
-      return 'Updating budget forecast';
-    case 'adjustDNA':
-      return 'Calibrating Travel DNA';
-    default:
-      return cap(name.replace(/([A-Z])/g, ' $1').trim());
-  }
-}
-
 function toExecState(state: string): 'executing' | 'done' | 'error' {
-  if (state === 'output-available')                        return 'done';
+  if (state === 'output-available')                          return 'done';
   if (state === 'output-error' || state === 'output-denied') return 'error';
   return 'executing';
 }
 
 // ── Tool invocation card ──────────────────────────────────────────────────────
+// Physically expands inside the chat feed while a tool is executing
 
 function ToolCard({
   toolName,
@@ -67,10 +45,16 @@ function ToolCard({
     toolName === 'executeOmniSearch'
   ) && state !== 'output-available';
 
+  const searchLabel =
+    toolName === 'executeOmniSearch'
+      ? 'Executing Omni-Search across 30 global engines...'
+      : `Scanning aviation engines — ${String(args.origin ?? '')} → ${String(args.destination ?? '')}`;
+
   return (
     <motion.div
       layout
       {...BUBBLE_IN}
+      // Audit: logical max-width, no physical left/right
       style={{ display: 'flex', flexDirection: 'column', gap: 8, maxInlineSize: '88%' }}
     >
       <ExecutionPill
@@ -80,18 +64,40 @@ function ToolCard({
         result={result}
       />
 
-      {/* GlassShimmer skeleton while aviation search is in-flight */}
+      {/* Physical expansion inside AI feed while tool runs */}
       <AnimatePresence>
         {isSearching && (
           <motion.div
-            key="shimmer"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 122 }}
-            exit={{ opacity: 0, height: 0 }}
+            key="search-card"
+            initial={{ opacity: 0, y: 8, scale: 0.97, height: 0 }}
+            animate={{ opacity: 1, y: 0, scale: 1,    height: 'auto' }}
+            exit={{   opacity: 0, y: -4, scale: 0.96, height: 0 }}
             transition={SPRING}
-            style={{ borderRadius: 18, overflow: 'hidden' }}
+            style={{ overflow: 'hidden' }}
           >
-            <GlassShimmer variant="hero-card" height={122} style={{ borderRadius: 18 }} />
+            {/* GlassCard with overlay GlassShimmer sweep — 60fps FM animation */}
+            <GlassCard
+              variant="light"
+              className="relative px-4 py-3 text-sm font-medium text-slate-600 tracking-tight"
+            >
+              <GlassShimmer overlay />
+
+              <span className="inline-flex items-center gap-1.5 mb-1.5">
+                {[0, 0.14, 0.28].map((d, i) => (
+                  <motion.span
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"
+                    animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                    transition={{ duration: 1, repeat: Infinity, delay: d, ease: 'easeInOut' }}
+                  />
+                ))}
+              </span>
+
+              {/* Gestalt-compliant line length */}
+              <p style={{ maxWidth: '52ch', lineHeight: 1.625, margin: 0 }}>
+                {searchLabel}
+              </p>
+            </GlassCard>
           </motion.div>
         )}
       </AnimatePresence>
@@ -104,43 +110,45 @@ function ToolCard({
 function MessageBubble({ message }: { message: UIMessage }) {
   const isUser = message.role === 'user';
 
-  // Exact CSS dictated — Tailwind logical properties for LTR/RTL
+  // ── Audit-hardened bubble CSS ─────────────────────────────────────────────
   const bubbleClass = isUser
-    ? 'max-w-[85%] ms-auto p-4 rounded-[1.5rem] rounded-te-none bg-white/60 backdrop-blur-md border border-white/80 text-slate-800 shadow-sm'
-    : 'max-w-[85%] me-auto p-4 rounded-[1.5rem] rounded-ts-none bg-white/30 backdrop-blur-3xl border border-white/40 text-slate-900 shadow-sm';
+    // User: dark, high-contrast, inline-end aligned via ms-auto
+    ? 'ms-auto max-w-[85%] p-4 mb-4 rounded-[1.5rem] rounded-tr-sm bg-slate-800 text-white shadow-md font-medium'
+    // AI: frosted glass, inline-start, top-left corner square
+    : 'me-auto max-w-[90%] p-4 mb-4 rounded-[1.5rem] rounded-tl-sm bg-white/40 backdrop-blur-3xl border border-white/60 text-slate-800 shadow-[0_4px_15px_rgba(0,0,0,0.02)]';
 
-  // Collect text content from parts
   const textContent = (message.parts ?? [])
     .filter(p => p.type === 'text')
     .map(p => (p as { type: 'text'; text: string }).text)
     .join('');
 
-  // Collect tool invocations
-  const toolParts = (message.parts ?? []).filter(
-    p => p.type === 'tool-invocation',
-  ) as Array<{
-    type:            'tool-invocation';
-    toolInvocation:  {
-      toolCallId: string;
-      toolName:   string;
-      args:       Record<string, unknown>;
-      state:      string;
-      output?:    unknown;
-    };
-  }>;
+  const toolParts = ((message.parts ?? []) as unknown[]).filter(
+    (p): p is {
+      type:           'tool-invocation';
+      toolInvocation: {
+        toolCallId: string;
+        toolName:   string;
+        args:       Record<string, unknown>;
+        state:      string;
+        output?:    unknown;
+      };
+    } => (p as { type?: string }).type === 'tool-invocation',
+  );
 
   return (
+    // ── Audit: width:100% + logical ms-auto/me-auto on bubble replaces
+    //    physical flex-end/flex-start on the container ──────────────────────
     <motion.div
       layout
       {...BUBBLE_IN}
       style={{
         display:       'flex',
         flexDirection: 'column',
-        alignItems:    isUser ? 'flex-end' : 'flex-start',
+        width:         '100%',
         gap:           8,
       }}
     >
-      {/* Tool invocation cards — rendered above the text bubble for AI messages */}
+      {/* Tool cards — rendered above text for AI messages */}
       {!isUser && toolParts.map(tp => (
         <ToolCard
           key={tp.toolInvocation.toolCallId}
@@ -151,16 +159,18 @@ function MessageBubble({ message }: { message: UIMessage }) {
         />
       ))}
 
-      {/* Text bubble — only rendered when there is text */}
       {textContent.trim().length > 0 && (
         <div className={bubbleClass}>
+          {/* ── Audit: leading-relaxed (1.625) + Gestalt 65ch line length ── */}
           <p
             style={{
+              margin:        0,
               fontSize:      13.5,
-              lineHeight:    1.55,
+              lineHeight:    1.625,           // leading-relaxed
               letterSpacing: '-0.01em',
               whiteSpace:    'pre-wrap',
               wordBreak:     'break-word',
+              maxWidth:      '65ch',          // Gestalt-compliant line length
             }}
           >
             {textContent}
@@ -171,7 +181,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
   );
 }
 
-// ── Loading indicator ─────────────────────────────────────────────────────────
+// ── Thinking indicator — 60fps spring, no CSS keyframes ──────────────────────
 
 function ThinkingIndicator() {
   return (
@@ -182,19 +192,20 @@ function ThinkingIndicator() {
       exit={{ opacity: 0, y: -4 }}
       transition={SPRING}
       style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           6,
-        paddingBlock:  8,
-        paddingInline: 14,
-        borderRadius:  999,
-        background:    'rgba(255,255,255,0.60)',
-        backdropFilter:'blur(24px)',
+        display:        'flex',
+        alignItems:     'center',
+        gap:            6,
+        paddingBlock:   8,
+        paddingInline:  14,
+        borderRadius:   999,
+        background:     'rgba(255,255,255,0.60)',
+        backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
-        border:        '1px solid rgba(255,255,255,0.80)',
-        boxShadow:     '0 2px 12px rgba(31,38,135,0.04)',
-        alignSelf:     'flex-start',
-        maxInlineSize: 'fit-content',
+        border:         '1px solid rgba(255,255,255,0.80)',
+        boxShadow:      '0 2px 12px rgba(31,38,135,0.04)',
+        // Audit: logical alignment — inline-start side (left in LTR, right in RTL)
+        marginInlineEnd: 'auto',
+        maxInlineSize:   'fit-content',
       }}
     >
       {[0, 0.18, 0.36].map((delay, i) => (
@@ -222,12 +233,10 @@ export interface MessageStreamProps {
 export function MessageStream({ messages, isLoading }: MessageStreamProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to latest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, isLoading]);
 
-  // Filter out the intro message from render (it's shown in the panel header)
   const visibleMessages = messages.filter(m => m.id !== 'aria-intro');
 
   return (
@@ -249,12 +258,9 @@ export function MessageStream({ messages, isLoading }: MessageStreamProps) {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {isLoading && (
-          <ThinkingIndicator key="thinking" />
-        )}
+        {isLoading && <ThinkingIndicator key="thinking" />}
       </AnimatePresence>
 
-      {/* Scroll anchor */}
       <div ref={bottomRef} style={{ height: 1 }} />
     </div>
   );

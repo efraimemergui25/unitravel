@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { User, Session }               from '@supabase/supabase-js';
-import { getSupabaseClient }                from '@/lib/supabase';
+import { getSupabaseClient }                from '@/lib/supabaseClient';
 
 export interface AuthState {
   user:        User | null;

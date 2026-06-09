@@ -77,14 +77,15 @@ const EXCHANGE_RATES: Record<Currency, number> = {
 // ── Store interface ───────────────────────────────────────────────────────────
 
 interface LocaleEngineState {
-  profile:       CulturalProfile;
+  profile:          CulturalProfile;
   // Actions
-  setLocale:     (locale: FullLocale) => void;
-  toggleLocale:  () => void;
+  setLocale:        (locale: FullLocale) => void;
+  toggleLocale:     () => void;
+  toggleDualBrain:  () => void; // public alias — fires DOM dir flip + store update
   // Derived helpers (computed, not stored)
-  formatPrice:   (usd: number) => string;
-  convertPrice:  (usd: number) => number;
-  formatDate:    (iso: string) => string;
+  formatPrice:      (usd: number) => string;
+  convertPrice:     (usd: number) => number;
+  formatDate:       (iso: string) => string;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -114,6 +115,8 @@ export const useLocaleEngine = create<LocaleEngineState>()(
         const current = get().profile.locale;
         get().setLocale(current === 'en-US' ? 'he-IL' : 'en-US');
       },
+
+      toggleDualBrain: () => get().toggleLocale(),
 
       // Format a USD amount into the active locale's currency string
       formatPrice: (usd) => {

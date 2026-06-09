@@ -1,10 +1,11 @@
 'use client';
 
 // useMonetizationEngine.ts — Silent affiliate revenue tracker.
-// Every placed entity records its commission silently. Admin overlay via Cmd+Shift+M.
+// Every placed entity records its commission silently. Admin overlay via Ctrl+Shift+M.
 
-import { create } from 'zustand';
-import { immer }  from 'zustand/middleware/immer';
+import { create }             from 'zustand';
+import { immer }              from 'zustand/middleware/immer';
+import { useEffect }          from 'react';
 import type { EntityCategory } from '@/store/useTravelEngine';
 
 // ── Affiliate commission rates by source/provider ────────────────────────────
@@ -17,6 +18,7 @@ const COMMISSION_RATES: Record<string, number> = {
   'airbnb':         0.03,
   'agoda':          0.06,
   // Flights
+  'duffel':         0.02,
   'skyscanner':     0.02,
   'kayak':          0.015,
   'kiwi':           0.025,
@@ -150,4 +152,23 @@ export function useAdminRevenue() {
     show:       s.showAdminPanel,
     toggle:     s.toggleAdminPanel,
   }));
+}
+
+// ── Ctrl+Shift+M keyboard combo ───────────────────────────────────────────────
+// Mount once at the app root (e.g. in layout.tsx or a global provider).
+// Ctrl+Shift+M toggles the floating admin ledger terminal.
+
+export function useAdminLedgerKeyCombo(): void {
+  const toggle = useMonetizationEngine(s => s.toggleAdminPanel);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'M') {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggle]);
 }
