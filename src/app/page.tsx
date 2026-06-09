@@ -61,8 +61,8 @@ function GlobeScene() {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const phi = Math.PI * (Math.sqrt(5) - 1);
-    // Brand colors at full vibrancy: #007AFF, #30D158, #FF9F0A, #FF453A, #BF5AF2, #5AC8FA, #FF2D55, #5E5CE6
-    const pal = [[0.0,0.478,1.0],[0.188,0.820,0.345],[1.0,0.624,0.039],[1.0,0.271,0.227],[0.749,0.353,0.949],[0.353,0.784,0.980],[1.0,0.176,0.333],[0.369,0.361,0.902]];
+    // Light-theme palette — vivid but works on white: Azure, Indigo, Violet, Emerald, Rose, Amber, Teal, Sky
+    const pal = [[0.0,0.478,1.0],[0.310,0.278,0.898],[0.498,0.239,0.902],[0.059,0.588,0.416],[1.0,0.227,0.388],[1.0,0.624,0.039],[0.0,0.784,0.745],[0.149,0.667,0.980]];
     for (let i = 0; i < count; i++) {
       const y = 1 - (i / (count - 1)) * 2;
       const r = Math.sqrt(Math.max(0, 1 - y * y));
@@ -73,8 +73,10 @@ function GlobeScene() {
     const dg = new THREE.BufferGeometry();
     dg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     dg.setAttribute('color',    new THREE.BufferAttribute(col, 3));
-    g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.018, vertexColors:true, sizeAttenuation:true, transparent:true, opacity:0.94, depthWrite:false })));
-    [{ r:2.25,color:'#0A0014',opacity:0.22 },{ r:2.65,color:'#007AFF',opacity:0.06 },{ r:3.10,color:'#30D158',opacity:0.032 }]
+    // Brighter, more visible points on light background
+    g.add(new THREE.Points(dg, new THREE.PointsMaterial({ size:0.022, vertexColors:true, sizeAttenuation:true, transparent:true, opacity:0.85, depthWrite:false })));
+    // Light-friendly shell layers — very subtle
+    [{ r:2.25,color:'#EEF2FF',opacity:0.18 },{ r:2.65,color:'#4F46E5',opacity:0.04 },{ r:3.10,color:'#06B6D4',opacity:0.025 }]
       .forEach(({r,color,opacity}) => g.add(new THREE.Mesh(new THREE.SphereGeometry(r,32,32), new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.BackSide}))));
     const pairs: [[number,number,number],[number,number,number]][] = [
       [[0.7,0.6,0.4],[-0.8,0.3,0.5]],[[-0.5,0.8,0.3],[0.6,-0.5,0.6]],
@@ -82,14 +84,14 @@ function GlobeScene() {
       [[0.8,-0.6,0.1],[-0.3,0.8,0.5]],[[0.1,0.5,-0.9],[0.9,0.3,0.3]],
       [[-0.6,-0.7,0.4],[0.5,0.5,-0.7]],[[0.4,-0.3,0.9],[-0.7,0.6,-0.4]],
     ];
-    // Full-vibrancy arc colors — no dimming
-    const ac=['#007AFF','#30D158','#FF9F0A','#FF453A','#BF5AF2','#5AC8FA','#FF2D55','#5E5CE6'];
+    // Vivid arc colors — high saturation for light bg
+    const ac=['#2563EB','#7C3AED','#0891B2','#059669','#E11D48','#D97706','#0D9488','#4F46E5'];
     pairs.forEach(([a,b],i) => {
       const s=new THREE.Vector3(...a).normalize().multiplyScalar(2.38);
       const e=new THREE.Vector3(...b).normalize().multiplyScalar(2.38);
       const m=s.clone().add(e).normalize().multiplyScalar(3.5);
       const geo=new THREE.BufferGeometry().setFromPoints(new THREE.QuadraticBezierCurve3(s,m,e).getPoints(60));
-      g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color:new THREE.Color(ac[i]),transparent:true,opacity:0.58})));
+      g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color:new THREE.Color(ac[i]),transparent:true,opacity:0.45})));
     });
     return g;
   }, []);
@@ -447,59 +449,112 @@ export default function Home() {
       <AnimatePresence>
         {stage === 'globe' && (
           <motion.div key="globe"
-            exit={{ opacity: 0, scale: 1.04, filter: 'blur(8px)' }}
-            transition={{ duration: 0.28 }}
-            style={{ position: 'absolute', inset: 0, background: '#03030A' }}
+            exit={{ opacity: 0, scale: 1.06, filter: 'blur(12px)' }}
+            transition={{ duration: 0.32 }}
+            style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(148deg, #F0F4FF 0%, #EDF0FE 20%, #F5F3FF 42%, #EFF8FF 68%, #F0FDF4 100%)',
+            }}
           >
+            {/* ── Ambient light blobs — soft, pastel ── */}
+            <div aria-hidden style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+              <div style={{ position:'absolute', top:'-18%', left:'-8%',  width:'60%', height:'60%', borderRadius:'50%', background:'radial-gradient(ellipse, rgba(99,102,241,0.14) 0%, transparent 65%)', animation:'breathe 18s ease-in-out infinite' }} />
+              <div style={{ position:'absolute', top:'-12%', right:'-6%', width:'52%', height:'52%', borderRadius:'50%', background:'radial-gradient(ellipse, rgba(139,92,246,0.10) 0%, transparent 65%)', animation:'breathe 22s ease-in-out infinite', animationDelay:'6s' }} />
+              <div style={{ position:'absolute', bottom:'-16%', left:'18%', width:'64%', height:'48%', borderRadius:'50%', background:'radial-gradient(ellipse, rgba(6,182,212,0.08) 0%, transparent 65%)', animation:'liquid-drift 26s ease-in-out infinite', animationDelay:'10s' }} />
+              <div style={{ position:'absolute', bottom:'10%', right:'-4%', width:'40%', height:'40%', borderRadius:'50%', background:'radial-gradient(ellipse, rgba(16,185,129,0.07) 0%, transparent 65%)', animation:'breathe 20s ease-in-out infinite', animationDelay:'3s' }} />
+              {/* Subtle central glow behind globe */}
+              <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:'60vmin', height:'60vmin', borderRadius:'50%', background:'radial-gradient(circle, rgba(99,102,241,0.09) 0%, rgba(139,92,246,0.05) 45%, transparent 70%)', filter:'blur(32px)', animation:'breathe 7s ease-in-out infinite', pointerEvents:'none' }} />
+            </div>
+
+            {/* ── Three.js Globe ── */}
             <div style={{ position: 'absolute', inset: 0 }}>
-              <div aria-hidden style={{ position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:'72vmin',height:'72vmin',borderRadius:'50%',background:'radial-gradient(circle,rgba(59,130,246,0.12) 0%,rgba(139,92,246,0.08) 45%,transparent 70%)',filter:'blur(28px)',animation:'breathe 5s ease-in-out infinite',pointerEvents:'none' }} />
               <Canvas camera={{ position: [0, 0, 6.8], fov: 42 }} gl={{ antialias: true, alpha: true }} style={{ width: '100%', height: '100%' }}>
-                <ambientLight intensity={0.25} />
-                <pointLight position={[6, 4, 4]}  color="#60A5FA" intensity={2.2} />
-                <pointLight position={[-5, -3, 3]} color="#A78BFA" intensity={1.6} />
+                <ambientLight intensity={2.2} />
+                <directionalLight position={[5, 5, 5]} intensity={1.0} color="#ffffff" />
+                <pointLight position={[6, 4, 4]}  color="#4F46E5" intensity={1.8} />
+                <pointLight position={[-5, -3, 3]} color="#0891B2" intensity={1.4} />
                 <GlobeScene />
               </Canvas>
             </div>
-            <div style={{ position:'absolute',inset:0,zIndex:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'space-between',padding:'44px 0 52px' }}>
+
+            {/* ── Overlay UI ── */}
+            <div style={{ position:'absolute', inset:0, zIndex:10, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'space-between', padding:'44px 0 60px' }}>
+
+              {/* Logo */}
               <motion.div
-                initial={{ opacity:0, y:-14 }} animate={{ opacity:1, y:0 }}
-                transition={{ duration:1.2, ease:[0.22,1,0.36,1], delay:0.6 }}
+                initial={{ opacity:0, y:-16 }} animate={{ opacity:1, y:0 }}
+                transition={{ duration:1.0, ease:[0.22,1,0.36,1], delay:0.4 }}
                 style={{ display:'flex', alignItems:'center', gap:10 }}
               >
-                <div style={{ width:32,height:32,borderRadius:10,background:'linear-gradient(135deg,#3B82F6,#7C3AED)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 28px rgba(59,130,246,0.60)' }}>
-                  <Sparkles size={14} color="#fff" strokeWidth={2.2} />
+                <div style={{
+                  width:36, height:36, borderRadius:12,
+                  background:'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow:'0 4px 24px rgba(79,70,229,0.32), 0 0 0 1px rgba(255,255,255,0.80)',
+                }}>
+                  <Sparkles size={15} color="#fff" strokeWidth={2.2} />
                 </div>
-                <span style={{ fontSize:15,fontWeight:800,letterSpacing:'-0.04em',background:'linear-gradient(90deg,#fff,rgba(255,255,255,0.58))',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text' }}>UNITRAVEL</span>
+                <span style={{
+                  fontSize:16, fontWeight:900, letterSpacing:'-0.04em',
+                  background:'linear-gradient(130deg,#1D1D1F 0%,#4F46E5 60%,#7C3AED 100%)',
+                  WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
+                }}>UNITRAVEL</span>
               </motion.div>
-              <motion.p
-                initial={{ opacity:0 }} animate={{ opacity:1 }}
-                transition={{ duration:1.4, delay:1.3 }}
-                style={{ fontSize:12.5,fontWeight:300,color:'rgba(226,232,240,0.35)',letterSpacing:'0.20em',textTransform:'uppercase',margin:0 }}
-              >Your AI Travel Operating System</motion.p>
-              <AnimatePresence>
-                {showTap && (
-                  <motion.button
-                    initial={{ opacity:0, y:14, scale:0.92 }}
-                    animate={{ opacity:1, y:0, scale:1 }}
-                    exit={{ opacity:0, scale:0.88 }}
-                    transition={{ type:'spring', stiffness:360, damping:28 }}
-                    onClick={advance}
-                    whileHover={{ scale:1.06, y:-2 }} whileTap={{ scale:0.95 }}
-                    style={{ display:'flex',alignItems:'center',gap:8,padding:'12px 30px',borderRadius:100,background:'rgba(59,130,246,0.10)',border:'1px solid rgba(59,130,246,0.30)',backdropFilter:'blur(16px)',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 0 40px rgba(59,130,246,0.16),inset 0 1px 0 rgba(255,255,255,0.07)' }}
-                    aria-label="Enter Unitravel"
-                  >
-                    {/* Inner span handles opacity-breathe; avoids Framer transform conflict on button */}
-                    <motion.span
-                      animate={{ opacity: [0.80, 1, 0.80] }}
-                      transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-                      style={{ display:'flex', alignItems:'center', gap:8 }}
+
+              {/* Tagline */}
+              <motion.div
+                initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
+                transition={{ duration:1.4, delay:1.0 }}
+                style={{ textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}
+              >
+                <p style={{
+                  fontSize:12, fontWeight:600, color:'rgba(79,70,229,0.55)',
+                  letterSpacing:'0.22em', textTransform:'uppercase', margin:0,
+                }}>Your AI Travel Operating System</p>
+
+                {/* CTA Button — shown after 1.4s */}
+                <AnimatePresence>
+                  {showTap && (
+                    <motion.button
+                      initial={{ opacity:0, y:18, scale:0.90 }}
+                      animate={{ opacity:1, y:0, scale:1 }}
+                      exit={{ opacity:0, scale:0.88 }}
+                      transition={{ type:'spring', stiffness:380, damping:26 }}
+                      onClick={advance}
+                      whileHover={{ scale:1.05, y:-3, boxShadow:'0 12px 40px rgba(79,70,229,0.30), 0 0 0 1.5px rgba(79,70,229,0.28)' }}
+                      whileTap={{ scale:0.96 }}
+                      style={{
+                        display:'flex', alignItems:'center', gap:10,
+                        padding:'14px 34px 14px 28px', borderRadius:100,
+                        background:'linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(240,244,255,0.92) 100%)',
+                        border:'1.5px solid rgba(99,102,241,0.22)',
+                        backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+                        cursor:'pointer', fontFamily:'inherit',
+                        boxShadow:'0 8px 32px rgba(99,102,241,0.18), 0 2px 8px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)',
+                      }}
+                      aria-label="Enter Unitravel"
                     >
-                      <span style={{ fontSize:12.5,fontWeight:600,color:'#93C5FD',letterSpacing:'0.08em',textTransform:'uppercase' }}>Begin your journey</span>
-                      <ArrowRight size={13} color="#93C5FD" strokeWidth={2.5} />
-                    </motion.span>
-                  </motion.button>
-                )}
-              </AnimatePresence>
+                      <div style={{
+                        width:28, height:28, borderRadius:9,
+                        background:'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        boxShadow:'0 2px 10px rgba(79,70,229,0.40)',
+                        flexShrink:0,
+                      }}>
+                        <Sparkles size={12} color="#fff" strokeWidth={2.5} />
+                      </div>
+                      <motion.span
+                        animate={{ opacity: [0.80, 1, 0.80] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+                        style={{ display:'flex', alignItems:'center', gap:8 }}
+                      >
+                        <span style={{ fontSize:13.5, fontWeight:700, color:'#3730A3', letterSpacing:'-0.01em' }}>Begin your journey</span>
+                        <ArrowRight size={14} color="#4F46E5" strokeWidth={2.5} />
+                      </motion.span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             </div>
           </motion.div>
         )}
