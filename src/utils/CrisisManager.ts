@@ -152,7 +152,7 @@ export function useCrisisManager() {
       () => daysRef.current,
       onCrisis,
     );
-    managerRef.current.start(55_000);
+    managerRef.current.start(90_000);
 
     return () => {
       managerRef.current?.stop();
@@ -160,10 +160,7 @@ export function useCrisisManager() {
     };
   }, []); // intentionally mount-only — state flows through refs
 
-  // Manual trigger for demos / testing
-  const triggerDemo = useCallback(() => {
-    managerRef.current?.simulateCrisis();
-  }, []);
+
 
   // On-demand flight poll (called from FlightCard or zone page)
   const pollFlight = useCallback(async (
@@ -191,5 +188,5 @@ export function useCrisisManager() {
     addToastRef.current(event);
   }, []);
 
-  return { triggerDemo, pollFlight };
+  return { pollFlight };
 }

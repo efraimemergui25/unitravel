@@ -2,11 +2,40 @@
 
 import { useLocaleEngine, type Currency } from '@/store/useLocaleEngine';
 
-// Live FX rates (mocked — swap for live API in production)
-const FX: Record<Currency, number> = {
+// ── FX rates cache ────────────────────────────────────────────────────────────
+// Seeded from Open Exchange Rates via /api/currency (ECB daily).
+// Falls back to last-known rates; refreshed client-side on mount once per session.
+
+let FX: Record<Currency, number> = {
   USD: 1,
-  ILS: 3.72,
+  ILS: 3.72, // fallback — overwritten by live fetch below
 };
+
+let fxFetched = false;
+
+/**
+ * Fetches live USD→ILS rate from /api/currency once per browser session.
+ * Subsequent calls are no-ops. Safe to call from any component.
+ */
+export async function refreshFXRates(): Promise<void> {
+  if (fxFetched || typeof window === 'undefined') return;
+  fxFetched = true;
+  try {
+    const res = await fetch('/api/currency?base=USD', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json() as { rates?: Record<string, number> };
+    if (data.rates?.ILS && data.rates.ILS > 0) {
+      FX = { USD: 1, ILS: data.rates.ILS };
+    }
+  } catch {
+    // keep fallback rates
+  }
+}
+
+// Auto-refresh on first client render
+if (typeof window !== 'undefined') {
+  void refreshFXRates();
+}
 
 // Locale tags for Intl.NumberFormat
 const INTL_LOCALE: Record<Currency, string> = {
@@ -55,5 +84,5 @@ export function useCurrencyFormatter() {
 export const CurrencyEngine = {
   format:  formatCurrency,
   convert: convertCurrency,
-  rates:   FX,
+  get rates() { return FX; },
 } as const;

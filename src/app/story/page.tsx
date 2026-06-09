@@ -290,10 +290,13 @@ function SectionNumbers() {
     <section ref={ref} style={{ padding:'120px 40px',background:'linear-gradient(180deg,#06060F 0%,#08081A 100%)' }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <motion.div initial={{ opacity:0,y:30 }} animate={seen ? { opacity:1,y:0 } : {}} transition={{ duration:0.7,ease:[0.22,1,0.36,1] }} style={{ textAlign:'center',marginBottom:64 }}>
-          <div style={{ fontSize:11,fontWeight:700,color:'#60A5FA',letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:16 }}>By the numbers</div>
+          <div style={{ fontSize:11,fontWeight:700,color:'#60A5FA',letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:16 }}>Our mission targets</div>
           <h2 style={{ fontSize:'clamp(2.4rem,5vw,3.8rem)',fontWeight:900,letterSpacing:'-0.05em',color:'#FAFAFA',margin:0,lineHeight:1.05 }}>
-            What we&apos;ve built
+            What we&apos;re building toward
           </h2>
+          <p style={{ fontSize:12,color:'rgba(226,232,240,0.28)',marginTop:12,letterSpacing:'-0.005em' }}>
+            Milestones that define our vision — tracked and updated as we grow.
+          </p>
         </motion.div>
         <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
           {STATS.map((s, i) => <StatCard key={s.label} s={s} delay={i * 0.09} />)}

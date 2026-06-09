@@ -63,8 +63,10 @@ export async function GET(req: NextRequest) {
       });
     }
   } else {
-    // Demo mode: generate a mock token so the UI can proceed
-    accessToken = `demo_${Date.now()}`;
+    // Google OAuth not configured — return a clear error instead of a fake token
+    return new NextResponse(buildPopupHtml({ success: false, error: 'google_calendar_not_configured' }), {
+      headers: { 'Content-Type': 'text/html' },
+    });
   }
 
   return new NextResponse(buildPopupHtml({ success: true, accessToken, expiresIn }), {

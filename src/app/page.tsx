@@ -344,7 +344,7 @@ export default function Home() {
   const router = useRouter();
   const [stage, setStage]         = useState<Stage>('globe');
   const [showTap, setShowTap]     = useState(false);
-  const [travelers]               = useState(() => 84 + Math.floor(Math.random() * 68));
+  const [travelers, setTravelers]    = useState(142);
 
   // ── Gestalt state ─────────────────────────────────────────────────────────
   // Feature 1 — Figure-Ground: which card has focus
@@ -390,6 +390,16 @@ export default function Home() {
       window.removeEventListener('keydown', onKey);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch real active-traveler count from Supabase
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch('/api/trips', { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count?: number } | null) => { if (d?.count && d.count > 0) setTravelers(d.count); })
+      .catch(() => { /* fallback to default */ });
+    return () => ctrl.abort();
   }, []);
 
   // Feature 5: trigger stats pulse 2.5s after main stage loads

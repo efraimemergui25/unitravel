@@ -52,8 +52,9 @@ export class CrisisManager {
     private onCrisis: (event: CrisisEvent, mutations: TimelineMutation[]) => void,
   ) {}
 
-  start(intervalMs = 55_000): void {
-    setTimeout(() => this.runCheck(), 5_000);
+  start(intervalMs = 90_000): void {
+    // Delay first check by 12s to let the app fully mount
+    setTimeout(() => this.runCheck(), 12_000);
     this.intervalId = setInterval(() => this.runCheck(), intervalMs);
   }
 
@@ -64,29 +65,6 @@ export class CrisisManager {
     }
   }
 
-  simulateCrisis(): void {
-    const event: CrisisEvent = {
-      id:          `crisis-demo-${Date.now()}`,
-      type:        'FLIGHT_DELAY',
-      severity:    'high',
-      triggeredAt: Date.now(),
-      title:       'MX412 Mexico City → Tulum delayed 47m',
-      resolution:  'Rental car pickup → 16:47. Hotel check-in → 17:15. Dinner reservation pushed to 21:00.',
-      strategy:    'PUSH_DOWNSTREAM',
-      mutations: [{
-        id:       `mut-demo-${Date.now()}`,
-        dayId:    'day-1',
-        entityId: 'demo-flight',
-        field:    'time',
-        oldValue: '08:00',
-        newValue: '08:47',
-      }],
-      canUndo: true,
-      undone:  false,
-    };
-    this.onCrisis(event, event.mutations);
-  }
-
   private runCheck(): void {
     const days = this.getDays();
     const allFlights = days.flatMap(d =>
@@ -95,25 +73,66 @@ export class CrisisManager {
         .map(e => ({ entity: e, day: d }))
     );
 
-    if (allFlights.length === 0) {
-      if (!this.firedFlights.has('__synthetic__') && Math.random() < 0.55) {
-        this.firedFlights.add('__synthetic__');
-        this.simulateCrisis();
-      }
-      return;
-    }
-
+    // ── Only check real flights in the user's actual timeline ──────────────
+    // No synthetic alerts, no random delays.
+    // A real conflict only fires when there is a genuine scheduling collision:
+    // a downstream entity has less than 30 minutes of buffer after a flight lands.
     for (const { entity: flight, day } of allFlights) {
       if (this.firedFlights.has(flight.id)) continue;
-      if (Math.random() > 0.30) continue;
 
-      const delayMinutes = Math.floor(Math.random() * 31) + 30;
-      const crisis = this.buildFlightDelayCrisis(flight, day, delayMinutes);
+      const crisis = this.detectTightTransfer(flight, day);
       if (crisis) {
         this.firedFlights.add(flight.id);
         this.onCrisis(crisis, crisis.mutations);
       }
     }
+  }
+
+  /** Fires only when a downstream entity has < 30 min buffer after a flight. */
+  private detectTightTransfer(
+    flight: { id: string; title: string; time?: string; duration?: string },
+    day: { id: string; entities: Array<{ id: string; title: string; time?: string; duration?: string; category: string }> },
+  ): CrisisEvent | null {
+    const flightTime = flight.time;
+    if (!flightTime) return null;
+    const [fH, fM] = flightTime.split(':').map(Number);
+    const flightDurationMins = parseDurationToMinutes(flight.duration ?? '2h 30m');
+    const arrivalMins = fH * 60 + fM + flightDurationMins;
+    const BUFFER = 30; // minutes
+
+    const tight = day.entities.filter(e => {
+      if (!e.time || e.id === flight.id) return false;
+      const [eH, eM] = e.time.split(':').map(Number);
+      const gap = eH * 60 + eM - arrivalMins;
+      return gap >= 0 && gap < BUFFER;
+    });
+
+    if (tight.length === 0) return null;
+
+    const mutations: TimelineMutation[] = tight.map(entity => ({
+      id:       `mut-${entity.id}-${Date.now()}`,
+      dayId:    day.id,
+      entityId: entity.id,
+      field:    'time' as const,
+      oldValue: entity.time!,
+      newValue: addMinutesToTime(entity.time!, BUFFER),
+    }));
+
+    const names = tight.slice(0, 2).map(e => e.title).join(', ');
+    const extra = tight.length > 2 ? ` +${tight.length - 2} more` : '';
+
+    return {
+      id:          `crisis-transfer-${Date.now()}`,
+      type:        'TRANSFER_TOO_TIGHT',
+      severity:    'medium',
+      triggeredAt: Date.now(),
+      title:       `Tight transfer: ${flight.title}`,
+      resolution:  `${names}${extra} buffer added — less than 30 min after landing.`,
+      strategy:    'PUSH_DOWNSTREAM',
+      mutations,
+      canUndo:     true,
+      undone:      false,
+    };
   }
 
   private buildFlightDelayCrisis(
