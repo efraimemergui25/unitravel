@@ -65,6 +65,47 @@ const PROMPT_CHIPS = [
 // EARTH GLOBE — OrbitControls handles drag natively (most reliable approach)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const DEST_PINS = [
+  { lat: 48.85,  lon:   2.35, color: '#FF9F0A' }, // Paris
+  { lat: 35.67,  lon: 139.65, color: '#FF453A' }, // Tokyo
+  { lat: 40.71,  lon: -74.01, color: '#007AFF' }, // New York
+  { lat: 25.20,  lon:  55.27, color: '#30D158' }, // Dubai
+  { lat:-33.87,  lon: 151.21, color: '#BF5AF2' }, // Sydney
+  { lat: 41.90,  lon:  12.50, color: '#FF2D55' }, // Rome
+];
+
+function latLonToXYZ(lat: number, lon: number, r: number): [number, number, number] {
+  const phi   = (90 - lat) * (Math.PI / 180);
+  const theta = (lon + 180) * (Math.PI / 180);
+  return [
+    -r * Math.sin(phi) * Math.cos(theta),
+     r * Math.cos(phi),
+     r * Math.sin(phi) * Math.sin(theta),
+  ];
+}
+
+function DestinationPins() {
+  return (
+    <>
+      {DEST_PINS.map((d, i) => {
+        const pos = latLonToXYZ(d.lat, d.lon, 2.23);
+        return (
+          <group key={i} position={pos}>
+            <mesh>
+              <sphereGeometry args={[0.030, 12, 12]} />
+              <meshBasicMaterial color={d.color} />
+            </mesh>
+            <mesh>
+              <sphereGeometry args={[0.072, 12, 12]} />
+              <meshBasicMaterial color={d.color} transparent opacity={0.22} />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 function EarthMesh() {
   const [dayMap, nightMap] = useTexture(['/earth-texture.jpg', '/earth-night.jpg']);
 
@@ -95,6 +136,7 @@ function GlobeScene() {
     <>
       <Suspense fallback={null}>
         <EarthMesh />
+        <DestinationPins />
       </Suspense>
       {/* OrbitControls — drag + autoRotate, no custom handlers needed */}
       <OrbitControls
@@ -363,6 +405,12 @@ export default function Home() {
   const tx = useTransform(sx, [-0.5, 0.5], [-8, 8]);
   const ty = useTransform(sy, [-0.5, 0.5], [-5, 5]);
 
+  // Globe parallax — subtle independent layer shift on mouse move
+  const gpx = useTransform(mx, [-0.5, 0.5], [-20, 20]);
+  const gpy = useTransform(my, [-0.5, 0.5], [-14, 14]);
+  const springGpx = useSpring(gpx, { stiffness: 42, damping: 20 });
+  const springGpy = useSpring(gpy, { stiffness: 42, damping: 20 });
+
   const advTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref keeps advance() current inside the keyboard effect
   const advanceRef = useRef<() => void>(() => {});
@@ -485,25 +533,33 @@ export default function Home() {
       <AnimatePresence>
         {stage === 'globe' && (
           <motion.div key="globe"
-            exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
-            transition={{ duration: 0.30 }}
-            style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 38%, #F4F0FF 65%, #EEF4FF 100%)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'space-between', padding: '44px 0 52px',
-            }}
+            exit={{ opacity: 0, scale: 1.06, filter: 'blur(14px)' }}
+            transition={{ duration: 0.28 }}
+            style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 38%, #F4F0FF 65%, #EEF4FF 100%)' }}
           >
-            {/* ── Globe circle — margin centering avoids Framer Motion transform conflict ── */}
+            {/* ── Atmospheric halo — soft glowing ring around globe ── */}
             <div style={{
-              position: 'absolute',
-              top: '50%', left: '50%',
-              width: '82vmin', height: '82vmin',
-              marginTop: '-41vmin', marginLeft: '-41vmin',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              boxShadow: '0 32px 80px rgba(60,100,200,0.20), 0 8px 32px rgba(60,100,200,0.10), 0 0 0 1px rgba(140,170,255,0.18)',
-            }}>
+              position: 'absolute', top: '50%', left: '50%',
+              width: '96vmin', height: '96vmin',
+              marginTop: '-48vmin', marginLeft: '-48vmin',
+              borderRadius: '50%', pointerEvents: 'none', zIndex: 0,
+              background: 'radial-gradient(ellipse at center, transparent 38%, rgba(100,140,255,0.09) 58%, rgba(120,160,255,0.06) 72%, transparent 86%)',
+            }} />
+
+            {/* ── Globe circle — parallax via x/y, margin centering avoids transform conflict ── */}
+            <motion.div
+              initial={{ scale: 0.06, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 52, damping: 20, delay: 0.05 }}
+              style={{
+                position: 'absolute', top: '50%', left: '50%',
+                width: '80vmin', height: '80vmin',
+                marginTop: '-40vmin', marginLeft: '-40vmin',
+                borderRadius: '50%', overflow: 'hidden', zIndex: 1,
+                boxShadow: '0 28px 72px rgba(50,90,200,0.22), 0 6px 28px rgba(50,90,200,0.12), 0 0 0 1px rgba(140,170,255,0.20)',
+                x: springGpx, y: springGpy,
+              }}
+            >
               <Canvas
                 camera={{ position: [0, 0, 6.2], fov: 44 }}
                 gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
@@ -511,55 +567,74 @@ export default function Home() {
               >
                 <GlobeScene />
               </Canvas>
-            </div>
+            </motion.div>
 
-            {/* ── UI overlay — logo top, CTA bottom, both pointer-interactive ── */}
+            {/* ── UI overlay: logo top · hero headline upper-center · CTA bottom ── */}
             <div style={{
               position: 'absolute', inset: 0, zIndex: 10,
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'space-between', padding: '44px 0 52px',
               pointerEvents: 'none',
             }}>
               {/* Logo */}
               <motion.div
-                initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
-                style={{ display: 'flex', alignItems: 'baseline', gap: 0, pointerEvents: 'auto' }}
+                initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1], delay: 0.55 }}
+                style={{ position: 'absolute', top: 44, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'baseline', gap: 0, pointerEvents: 'auto' }}
               >
-                <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.18em', color: '#1C1C1E', textTransform: 'uppercase' }}>UNIT</span>
-                <span style={{ fontSize: 15, fontWeight: 300, letterSpacing: '0.28em', color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase' }}>RAVEL</span>
+                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.20em', color: '#1C1C1E', textTransform: 'uppercase' }}>UNIT</span>
+                <span style={{ fontSize: 14, fontWeight: 300, letterSpacing: '0.30em', color: 'rgba(0,0,0,0.28)', textTransform: 'uppercase' }}>RAVEL</span>
               </motion.div>
 
-              {/* Tagline + CTA */}
+              {/* Hero headline — sits just above globe center */}
               <motion.div
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.1, delay: 0.85 }}
-                style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, pointerEvents: 'auto' }}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.9 }}
+                style={{
+                  position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)',
+                  textAlign: 'center', pointerEvents: 'none', width: 'max-content',
+                }}
               >
-                <p style={{
-                  fontSize: 10.5, fontWeight: 600, color: 'rgba(0,0,0,0.32)',
-                  letterSpacing: '0.28em', textTransform: 'uppercase', margin: 0,
-                }}>Your AI Travel Operating System</p>
+                <div style={{
+                  fontSize: 'clamp(28px, 4.5vw, 58px)', fontWeight: 900,
+                  letterSpacing: '-0.045em', lineHeight: 0.95,
+                  background: 'linear-gradient(130deg, #1C1C1E 0%, #1C1C1E 30%, #007AFF 58%, #5856D6 78%, #BF5AF2 95%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                  fontFamily: "-apple-system, 'SF Pro Display', Inter, sans-serif",
+                }}>
+                  The World<br />Is Yours
+                </div>
+              </motion.div>
 
+              {/* Tagline + CTA — bottom */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.0, delay: 1.2 }}
+                style={{
+                  position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
+                  textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, pointerEvents: 'auto',
+                }}
+              >
+                <p style={{ fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.28)', letterSpacing: '0.26em', textTransform: 'uppercase', margin: 0 }}>
+                  Your AI Travel Operating System
+                </p>
                 <AnimatePresence>
                   {showTap && (
                     <motion.button
-                      initial={{ opacity: 0, y: 14, scale: 0.90 }}
+                      initial={{ opacity: 0, y: 14, scale: 0.88 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.88 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+                      transition={{ type: 'spring', stiffness: 360, damping: 26 }}
                       onClick={advance}
-                      whileHover={{ scale: 1.04, y: -2, boxShadow: '0 20px 60px rgba(0,80,200,0.18), 0 4px 20px rgba(0,0,0,0.10), inset 0 1.5px 0 rgba(255,255,255,1)' }}
+                      whileHover={{ scale: 1.04, y: -2, boxShadow: '0 22px 60px rgba(0,80,200,0.20), 0 4px 20px rgba(0,0,0,0.09), inset 0 1.5px 0 rgba(255,255,255,1)' }}
                       whileTap={{ scale: 0.97 }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '13px 26px 13px 18px', borderRadius: 100,
-                        background: 'rgba(255,255,255,0.92)',
-                        border: '1px solid rgba(255,255,255,0.98)',
-                        backdropFilter: 'blur(40px) saturate(1.8)',
-                        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+                        background: 'rgba(255,255,255,0.94)',
+                        border: '1px solid rgba(255,255,255,1)',
+                        backdropFilter: 'blur(48px) saturate(1.9)',
+                        WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 8px 32px rgba(0,60,180,0.13), 0 2px 8px rgba(0,0,0,0.07), inset 0 1.5px 0 rgba(255,255,255,1)',
+                        boxShadow: '0 8px 32px rgba(0,60,180,0.12), 0 2px 8px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)',
                       }}
                       aria-label="Enter Unitravel"
                     >
@@ -567,8 +642,7 @@ export default function Home() {
                         width: 26, height: 26, borderRadius: 8,
                         background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 3px 12px rgba(0,122,255,0.45)',
-                        flexShrink: 0,
+                        boxShadow: '0 3px 12px rgba(0,122,255,0.48)', flexShrink: 0,
                       }}>
                         <Sparkles size={11} color="#fff" strokeWidth={2.5} />
                       </div>
