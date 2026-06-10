@@ -24,6 +24,14 @@ import { GuidedJourney }    from '@/components/GuidedJourney';
 type Stage   = 'globe' | 'flash' | 'main';
 type CardFocus = 'ai' | 'manual' | null;
 
+interface GlobeDrag {
+  dragging: boolean;
+  lastX:    number;
+  rotOffset: number;
+  velX:     number;
+  totalRot: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // STATIC DATA
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,29 +69,36 @@ const PROMPT_CHIPS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EARTH GLOBE SCENE — real texture, atmosphere, arc routes
+// EARTH GLOBE SCENE — real texture, drag rotation, atmosphere, arc routes
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EarthMesh() {
+function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
   const [dayMap, nightMap] = useTexture(['/earth-texture.jpg', '/earth-night.jpg']);
-  const earthRef  = useRef<THREE.Mesh>(null);
-  const nightRef  = useRef<THREE.Mesh>(null);
+  const earthRef = useRef<THREE.Mesh>(null);
+  const nightRef = useRef<THREE.Mesh>(null);
+  const autoRot  = useRef(0);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 0.055;
-    if (earthRef.current) earthRef.current.rotation.y = t;
-    if (nightRef.current) nightRef.current.rotation.y = t;
+  useFrame((_, delta) => {
+    if (!dragRef.current.dragging) {
+      autoRot.current += delta * 0.06;
+      // Inertia decay
+      dragRef.current.velX   *= 0.92;
+      dragRef.current.rotOffset += dragRef.current.velX;
+    }
+    const rot = autoRot.current + dragRef.current.rotOffset;
+    dragRef.current.totalRot = rot;
+    if (earthRef.current) earthRef.current.rotation.y = rot;
+    if (nightRef.current) nightRef.current.rotation.y = rot;
   });
 
   return (
     <group>
-      {/* Day side — PBR lit by the directional sun */}
       <mesh ref={earthRef}>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshStandardMaterial map={dayMap} roughness={0.68} metalness={0.04} />
+        <meshStandardMaterial map={dayMap} roughness={0.65} metalness={0.02} />
       </mesh>
 
-      {/* Night city-lights — AdditiveBlending: black→transparent, lights→glow */}
+      {/* Night city-lights — AdditiveBlending: black=transparent, cities glow */}
       <mesh ref={nightRef} renderOrder={1}>
         <sphereGeometry args={[2.2, 128, 128]} />
         <meshBasicMaterial
@@ -91,44 +106,32 @@ function EarthMesh() {
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           transparent
-          opacity={0.88}
+          opacity={0.82}
         />
       </mesh>
 
-      {/* Inner atmosphere haze */}
-      <mesh scale={1.016}>
+      {/* Thin inner haze */}
+      <mesh scale={1.012}>
         <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial
-          color={new THREE.Color('#4499FF')}
-          transparent opacity={0.09}
-          side={THREE.FrontSide} depthWrite={false}
-        />
+        <meshLambertMaterial color={new THREE.Color('#66AAFF')} transparent opacity={0.06} side={THREE.FrontSide} depthWrite={false} />
       </mesh>
 
-      {/* Primary atmosphere rim — backside for edge glow */}
-      <mesh scale={1.072}>
-        <sphereGeometry args={[2.2, 48, 48]} />
-        <meshLambertMaterial
-          color={new THREE.Color('#3377EE')}
-          transparent opacity={0.32}
-          side={THREE.BackSide} depthWrite={false}
-        />
+      {/* Atmosphere rim glow — BackSide so it forms an edge halo */}
+      <mesh scale={1.068}>
+        <sphereGeometry args={[2.2, 64, 64]} />
+        <meshLambertMaterial color={new THREE.Color('#4488FF')} transparent opacity={0.28} side={THREE.BackSide} depthWrite={false} />
       </mesh>
 
-      {/* Extended halo for depth */}
-      <mesh scale={1.14}>
+      {/* Outer halo for soft depth */}
+      <mesh scale={1.13}>
         <sphereGeometry args={[2.2, 32, 32]} />
-        <meshLambertMaterial
-          color={new THREE.Color('#1144BB')}
-          transparent opacity={0.13}
-          side={THREE.BackSide} depthWrite={false}
-        />
+        <meshLambertMaterial color={new THREE.Color('#2255CC')} transparent opacity={0.10} side={THREE.BackSide} depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
-function ArcRoutes() {
+function ArcRoutes({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
   const arcGroup = useMemo(() => {
     const pairs: [[number, number, number], [number, number, number]][] = [
       [[0.7, 0.6, 0.4],  [-0.8, 0.3, 0.5]],
@@ -142,28 +145,26 @@ function ArcRoutes() {
     const colors = ['#007AFF', '#5856D6', '#5AC8FA', '#30D158', '#FF2D55', '#FF9F0A', '#BF5AF2'];
     const g = new THREE.Group();
     pairs.forEach(([a, b], i) => {
-      const s = new THREE.Vector3(...a).normalize().multiplyScalar(2.28);
-      const e = new THREE.Vector3(...b).normalize().multiplyScalar(2.28);
+      const s   = new THREE.Vector3(...a).normalize().multiplyScalar(2.28);
+      const e   = new THREE.Vector3(...b).normalize().multiplyScalar(2.28);
       const mid = s.clone().add(e).normalize().multiplyScalar(3.3);
-      const points = new THREE.QuadraticBezierCurve3(s, mid, e).getPoints(80);
-      const geo = new THREE.BufferGeometry().setFromPoints(points);
-      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors[i]), transparent: true, opacity: 0.65, depthWrite: false });
+      const pts = new THREE.QuadraticBezierCurve3(s, mid, e).getPoints(80);
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors[i]), transparent: true, opacity: 0.55, depthWrite: false });
       g.add(new THREE.Line(geo, mat));
     });
     return g;
   }, []);
 
   const arcRef = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    if (arcRef.current) {
-      arcRef.current.rotation.y = clock.getElapsedTime() * 0.055;
-    }
+  useFrame(() => {
+    if (arcRef.current) arcRef.current.rotation.y = dragRef.current.totalRot;
   });
 
   return <group ref={arcRef}><primitive object={arcGroup} /></group>;
 }
 
-function GlobeScene() {
+function GlobeScene({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
   const { gl, scene } = useThree();
   useEffect(() => {
     gl.setClearColor(0x000000, 0);
@@ -172,18 +173,20 @@ function GlobeScene() {
 
   return (
     <>
-      {/* Low ambient so night side stays dark — city lights carry that area */}
-      <ambientLight intensity={0.28} />
-      {/* Primary sun — positioned forward-right so terminator shows but most globe is lit */}
-      <directionalLight position={[4.5, 2, 7]} intensity={2.4} color="#FFFBEE" />
-      {/* Soft blue fill from behind */}
-      <pointLight position={[-7, -3, -5]} intensity={0.38} color="#1133BB" />
-      {/* Hemisphere: sky-blue above, deep navy below */}
-      <hemisphereLight color="#AABFFF" groundColor="#000022" intensity={0.42} />
+      {/* Broad ambient so the unlit side is dark but not pitch black */}
+      <ambientLight intensity={0.22} />
+      {/* Main sun — forward-left, warm tone — lights Europe/Africa well */}
+      <directionalLight position={[-3, 1.5, 6]} intensity={2.6} color="#FFF8F0" castShadow={false} />
+      {/* Secondary fill from right — keeps Americas visible */}
+      <directionalLight position={[5, 0.5, 4]}  intensity={0.9}  color="#FFFBF0" />
+      {/* Cool blue back-fill for night-side depth */}
+      <pointLight position={[0, -4, -6]} intensity={0.28} color="#1133BB" />
+      {/* Hemisphere: pale sky above, deep navy below */}
+      <hemisphereLight color="#C8D8FF" groundColor="#000820" intensity={0.36} />
       <Suspense fallback={null}>
-        <EarthMesh />
+        <EarthMesh dragRef={dragRef} />
       </Suspense>
-      <ArcRoutes />
+      <ArcRoutes dragRef={dragRef} />
     </>
   );
 }
@@ -426,6 +429,8 @@ export default function Home() {
   const [travelers, setTravelers] = useState(142);
 
   const [showGuidedJourney, setShowGuidedJourney] = useState(false);
+  const globeDragRef = useRef<GlobeDrag>({ dragging: false, lastX: 0, rotOffset: 0, velX: 0, totalRot: 0 });
+
   const [focusedCard, setFocusedCard]     = useState<CardFocus>(null);
   const [hoveredZone, setHoveredZone]     = useState<number | null>(null);
   const [aiInputFocused, setAiInputFocused] = useState(false);
@@ -576,14 +581,34 @@ export default function Home() {
               <div style={{ position: 'absolute', bottom: '8%', right: '-3%', width: '38%', height: '38%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(48,209,88,0.06) 0%, transparent 65%)', animation: 'breathe 20s ease-in-out infinite', animationDelay: '3s' }} />
             </div>
 
-            {/* Three.js Earth Globe — TRANSPARENT canvas over light background */}
-            <div style={{ position: 'absolute', inset: 0 }}>
+            {/* Three.js Earth Globe — interactive drag rotation */}
+            <div
+              style={{ position: 'absolute', inset: 0, cursor: 'grab' }}
+              onPointerDown={e => {
+                globeDragRef.current.dragging = true;
+                globeDragRef.current.lastX    = e.clientX;
+                globeDragRef.current.velX     = 0;
+                (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={e => {
+                if (!globeDragRef.current.dragging) return;
+                const dx = e.clientX - globeDragRef.current.lastX;
+                globeDragRef.current.velX      = dx * 0.013;
+                globeDragRef.current.rotOffset += dx * 0.013;
+                globeDragRef.current.lastX     = e.clientX;
+              }}
+              onPointerUp={e => {
+                globeDragRef.current.dragging = false;
+                (e.currentTarget as HTMLElement).style.cursor = 'grab';
+              }}
+            >
               <Canvas
                 camera={{ position: [0, 0, 6.5], fov: 42 }}
                 gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
                 style={{ width: '100%', height: '100%', background: 'transparent' }}
               >
-                <GlobeScene />
+                <GlobeScene dragRef={globeDragRef} />
               </Canvas>
             </div>
 
@@ -594,20 +619,17 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                style={{
+                  padding: '7px 18px', borderRadius: 100,
+                  background: 'rgba(255,255,255,0.82)',
+                  backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
+                  border: '1px solid rgba(255,255,255,0.96)',
+                  boxShadow: '0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)',
+                  display: 'flex', alignItems: 'baseline', gap: 0,
+                }}
               >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 12,
-                  background: 'linear-gradient(135deg, #007AFF, #5856D6)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 20px rgba(0,122,255,0.28), 0 0 0 1px rgba(255,255,255,0.90)',
-                }}>
-                  <Sparkles size={15} color="#fff" strokeWidth={2.2} />
-                </div>
-                <span style={{
-                  fontSize: 16, fontWeight: 800, letterSpacing: '-0.04em',
-                  color: '#1D1D1F',
-                }}>UNITRAVEL</span>
+                <span style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.04em', color: '#1D1D1F' }}>UNIT</span>
+                <span style={{ fontSize: 13.5, fontWeight: 300, letterSpacing: '0.05em', color: '#48484A' }}>RAVEL</span>
               </motion.div>
 
               {/* Tagline + CTA */}
@@ -707,11 +729,9 @@ export default function Home() {
               transition={{ duration: 0.48, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
               style={{ position: 'absolute', top: 24, left: 24, right: 24, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', pointerEvents: 'none' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'auto' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(0,122,255,0.32)' }}>
-                  <Sparkles size={14} color="#fff" strokeWidth={2.2} />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-0.04em', color: '#1D1D1F' }}>UNITRAVEL</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, pointerEvents: 'auto' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-0.04em', color: '#1D1D1F' }}>UNIT</span>
+                <span style={{ fontSize: 13, fontWeight: 300, letterSpacing: '0.05em', color: '#48484A' }}>RAVEL</span>
               </div>
               <motion.div
                 initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
