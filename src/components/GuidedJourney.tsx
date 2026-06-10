@@ -335,10 +335,10 @@ function ProgressStrip({ progress }: { progress: number }) {
               }}
             >
               {done
-                ? <Check size={9} color="#30D158" strokeWidth={3} />
-                : <Icon  size={9} color={color}   strokeWidth={2.2} />
+                ? <Check size={10} color="#30D158" strokeWidth={3} />
+                : <Icon  size={10} color={color}   strokeWidth={2.2} />
               }
-              <span style={{ fontSize: 9, fontWeight: 700, color, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
                 {label}
               </span>
             </motion.div>
@@ -550,6 +550,98 @@ function ResumeBanner({ onContinue, onFresh }: { onContinue: () => void; onFresh
           style={{ padding: '6px 12px', borderRadius: 100, background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.10)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, color: '#3C3C43' }}>
           Start fresh
         </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WELCOME HERO — empty state before first message
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WELCOME_DEST_CHIPS = [
+  'Paris 🇫🇷', 'Tokyo 🇯🇵', 'New York 🗽', 'Dubai 🌆',
+  'Barcelona 🌊', 'Bali 🌿', 'London 🎭', 'Maldives 🐠',
+];
+
+function WelcomeHero({ onSelect }: { onSelect: (t: string) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 32 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96, y: -12, transition: { duration: 0.18 } }}
+      transition={SPF}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', padding: '0 32px 16px',
+        fontFamily: '-apple-system, "SF Pro Display", Inter, sans-serif',
+      }}
+    >
+      {/* Large AI logo */}
+      <motion.div
+        animate={{
+          scale: [1, 1.06, 1],
+          boxShadow: [
+            '0 10px 36px rgba(0,122,255,0.28)',
+            '0 14px 48px rgba(0,122,255,0.46)',
+            '0 10px 36px rgba(0,122,255,0.28)',
+          ],
+        }}
+        transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          width: 80, height: 80, borderRadius: 24,
+          background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 10px 36px rgba(0,122,255,0.28)',
+          marginBottom: 28,
+        }}
+      >
+        <Sparkles size={36} color="#fff" strokeWidth={1.8} />
+      </motion.div>
+
+      {/* Headline */}
+      <h1 style={{
+        fontSize: 'clamp(30px, 4.2vw, 46px)', fontWeight: 900,
+        color: '#1D1D1F', letterSpacing: '-0.04em',
+        lineHeight: 1.05, margin: '0 0 14px',
+        fontFamily: '-apple-system, "SF Pro Display", Inter, sans-serif',
+      }}>
+        Where would you<br />like to go?
+      </h1>
+
+      {/* Subtitle */}
+      <p style={{
+        fontSize: 16, fontWeight: 400, color: '#6E6E73',
+        letterSpacing: '-0.015em', lineHeight: 1.55,
+        margin: '0 0 36px', maxWidth: 380,
+      }}>
+        Tell me your dream destination and I&apos;ll plan an extraordinary trip
+      </p>
+
+      {/* Destination quick-pick chips */}
+      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 560 }}>
+        {WELCOME_DEST_CHIPS.map((chip, i) => (
+          <motion.button
+            key={chip}
+            initial={{ scale: 0.72, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28, delay: 0.12 + i * 0.05 }}
+            whileHover={{ scale: 1.06, y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,1)' }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => onSelect(chip)}
+            style={{
+              padding: '9px 18px', borderRadius: 100,
+              background: 'rgba(255,255,255,0.96)',
+              border: '1px solid rgba(0,0,0,0.10)',
+              boxShadow: '0 3px 12px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)',
+              fontSize: 13.5, fontWeight: 600, color: '#1D1D1F',
+              cursor: 'pointer', fontFamily: 'inherit',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {chip}
+          </motion.button>
+        ))}
       </div>
     </motion.div>
   );
@@ -818,7 +910,14 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
         display: 'flex', flexDirection: 'column', gap: 14,
         scrollbarWidth: 'none', position: 'relative', zIndex: 1,
         maxWidth: 720, width: '100%', marginInline: 'auto', boxSizing: 'border-box',
+        justifyContent: allMsgs.length === 0 ? 'center' : 'flex-start',
       }}>
+        <AnimatePresence>
+          {allMsgs.length === 0 && !isStreaming && (
+            <WelcomeHero key="welcome-hero" onSelect={t => handleSend(t)} />
+          )}
+        </AnimatePresence>
+
         <AnimatePresence initial={false}>
           {allMsgs.map((msg, i) => (
             <Bubble key={msg.id} msg={msg} distFromEnd={allMsgs.length - 1 - i} />
@@ -853,7 +952,7 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
 
           {/* Feature #6: Quick reply chips */}
           <AnimatePresence>
-            {!isStreaming && qrContext && (
+            {!isStreaming && qrContext && allMsgs.length > 0 && (
               <QuickReplies key={qrContext} context={qrContext} onSelect={t => handleSend(t)} />
             )}
           </AnimatePresence>
@@ -908,7 +1007,7 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
-                placeholder={isListening ? '🎤 Listening…' : 'Type your answer…'}
+                placeholder={isListening ? '🎤 Listening…' : allMsgs.length === 0 ? 'Where would you like to go?' : 'Type your answer…'}
                 rows={1}
                 style={{
                   flex: 1, background: 'transparent', border: 'none', outline: 'none',
