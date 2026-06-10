@@ -70,22 +70,15 @@ function EarthMesh() {
 
   return (
     <group>
-      {/* Day layer — PBR, well-lit */}
+      {/* Day texture — bright, vibrant */}
       <mesh>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshStandardMaterial map={dayMap} roughness={0.58} metalness={0.02} />
+        <meshStandardMaterial map={dayMap} roughness={0.55} metalness={0.0} />
       </mesh>
-
-      {/* Night city-lights — additively blended so they only show on dark side */}
+      {/* Night city-lights — only visible on unlit side via additive blend */}
       <mesh renderOrder={1}>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshBasicMaterial map={nightMap} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.88} />
-      </mesh>
-
-      {/* Thin atmosphere rim — tight scale keeps it subtle */}
-      <mesh scale={1.02}>
-        <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial color={new THREE.Color('#5599FF')} transparent opacity={0.09} side={THREE.BackSide} depthWrite={false} />
+        <meshBasicMaterial map={nightMap} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.75} />
       </mesh>
     </group>
   );
@@ -100,28 +93,28 @@ function GlobeScene() {
 
   return (
     <>
-      {/* High ambient — keeps Earth colorful, avoids pitch-black dark side */}
-      <ambientLight intensity={0.72} color="#FFFFFF" />
-      {/* Primary sun — upper right front, warm */}
-      <directionalLight position={[4, 2.5, 4]} intensity={1.75} color="#FFF9F0" />
-      {/* Subtle fill from left to show dark-side detail */}
-      <directionalLight position={[-3, 0, 2]}   intensity={0.28} color="#EEF3FF" />
+      {/* Very high ambient — globe is bright and colorful on light background */}
+      <ambientLight intensity={2.2} color="#FFFFFF" />
+      {/* Warm directional from upper-right-front for shading depth */}
+      <directionalLight position={[3, 2, 5]} intensity={1.4} color="#FFF8F0" />
+      {/* Cool fill from left */}
+      <directionalLight position={[-4, 1, 3]} intensity={0.5} color="#EEF3FF" />
 
       <Suspense fallback={null}>
         <EarthMesh />
       </Suspense>
 
-      {/* OrbitControls — battle-tested, handles mouse + touch drag natively */}
+      {/* OrbitControls — handles mouse drag + touch natively, pauses autoRotate on grab */}
       <OrbitControls
         enableZoom={false}
         enablePan={false}
         autoRotate
-        autoRotateSpeed={0.45}
+        autoRotateSpeed={0.5}
         enableDamping
-        dampingFactor={0.06}
-        rotateSpeed={0.55}
-        minPolarAngle={Math.PI * 0.22}
-        maxPolarAngle={Math.PI * 0.78}
+        dampingFactor={0.05}
+        rotateSpeed={0.6}
+        minPolarAngle={Math.PI * 0.20}
+        maxPolarAngle={Math.PI * 0.80}
       />
     </>
   );
@@ -500,95 +493,99 @@ export default function Home() {
       <AnimatePresence>
         {stage === 'globe' && (
           <motion.div key="globe"
-            exit={{ opacity: 0, scale: 1.04, filter: 'blur(10px)' }}
+            exit={{ opacity: 0, scale: 1.04, filter: 'blur(12px)' }}
             transition={{ duration: 0.30 }}
             style={{
               position: 'absolute', inset: 0,
-              background: 'radial-gradient(ellipse at 50% 40%, #0D1B3E 0%, #070E22 45%, #040810 100%)',
+              background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 38%, #F4F0FF 65%, #EEF4FF 100%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'space-between', padding: '44px 0 52px',
             }}
           >
-            {/* Deep-space nebula clouds */}
-            <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: '-20%', left: '-10%', width: '70%', height: '70%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(30,60,160,0.22) 0%, transparent 65%)', animation: 'breathe 24s ease-in-out infinite' }} />
-              <div style={{ position: 'absolute', top: '-15%', right: '-8%', width: '60%', height: '60%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(80,40,180,0.16) 0%, transparent 65%)', animation: 'breathe 28s ease-in-out infinite', animationDelay: '8s' }} />
-              <div style={{ position: 'absolute', bottom: '-10%', left: '15%', width: '65%', height: '50%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(20,50,140,0.14) 0%, transparent 65%)', animation: 'breathe 20s ease-in-out infinite', animationDelay: '4s' }} />
-            </div>
+            {/* ── Logo ── */}
+            <motion.div
+              initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+              style={{ display: 'flex', alignItems: 'baseline', gap: 0, zIndex: 10 }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.18em', color: '#1C1C1E', textTransform: 'uppercase' }}>UNIT</span>
+              <span style={{ fontSize: 15, fontWeight: 300, letterSpacing: '0.28em', color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase' }}>RAVEL</span>
+            </motion.div>
 
-            {/* Three.js Earth Globe — OrbitControls handles drag + auto-rotation */}
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden' }}>
+            {/* ── Globe — properly sized circular container ── */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+              style={{
+                position: 'absolute',
+                top: '50%', left: '50%',
+                transform: 'translate(-50%, -52%)',
+                width: 'min(84vw, 84vh)',
+                height: 'min(84vw, 84vh)',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                boxShadow: '0 40px 100px rgba(60,100,200,0.18), 0 8px 40px rgba(60,100,200,0.12), 0 0 0 1px rgba(140,170,255,0.20)',
+              }}
+            >
               <Canvas
-                camera={{ position: [0, 0, 6.5], fov: 42 }}
+                camera={{ position: [0, 0, 6.2], fov: 44 }}
                 gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-                style={{ width: '100%', height: '100%', background: 'transparent', cursor: 'grab' }}
+                style={{ width: '100%', height: '100%', background: 'transparent' }}
               >
                 <GlobeScene />
               </Canvas>
-            </div>
+            </motion.div>
 
-            {/* Overlay UI */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '44px 0 56px' }}>
+            {/* ── Tagline + CTA ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.1, delay: 0.85 }}
+              style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, zIndex: 10 }}
+            >
+              <p style={{
+                fontSize: 10.5, fontWeight: 600, color: 'rgba(0,0,0,0.32)',
+                letterSpacing: '0.28em', textTransform: 'uppercase', margin: 0,
+              }}>Your AI Travel Operating System</p>
 
-              {/* Logo */}
-              <motion.div
-                initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
-                style={{ display: 'flex', alignItems: 'baseline', gap: 0 }}
-              >
-                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase' }}>UNIT</span>
-                <span style={{ fontSize: 15, fontWeight: 300, letterSpacing: '0.28em', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>RAVEL</span>
-              </motion.div>
-
-              {/* Tagline + CTA */}
-              <motion.div
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.2, delay: 0.9 }}
-                style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}
-              >
-                <p style={{
-                  fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.38)',
-                  letterSpacing: '0.28em', textTransform: 'uppercase', margin: 0,
-                }}>Your AI Travel Operating System</p>
-
-                <AnimatePresence>
-                  {showTap && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 16, scale: 0.90 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.88 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-                      onClick={advance}
-                      whileHover={{ scale: 1.04, y: -3, boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1.5px 0 rgba(255,255,255,0.55)' }}
-                      whileTap={{ scale: 0.97 }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '14px 28px 14px 20px', borderRadius: 100,
-                        background: 'rgba(255,255,255,0.10)',
-                        border: '1px solid rgba(255,255,255,0.22)',
-                        backdropFilter: 'blur(60px) saturate(2)',
-                        WebkitBackdropFilter: 'blur(60px) saturate(2)',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 8px 40px rgba(0,0,0,0.40), inset 0 1.5px 0 rgba(255,255,255,0.40), inset 0 -1px 0 rgba(0,0,0,0.12)',
-                      }}
-                      aria-label="Enter Unitravel"
-                    >
-                      <div style={{
-                        width: 26, height: 26, borderRadius: 8,
-                        background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 3px 14px rgba(0,122,255,0.55), inset 0 1px 0 rgba(255,255,255,0.28)',
-                        flexShrink: 0,
-                      }}>
-                        <Sparkles size={11} color="#fff" strokeWidth={2.5} />
-                      </div>
-                      <span style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', letterSpacing: '0.01em' }}>
-                        Begin your journey
-                      </span>
-                      <ArrowRight size={13} color="rgba(255,255,255,0.40)" strokeWidth={2.5} />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </div>
+              <AnimatePresence>
+                {showTap && (
+                  <motion.button
+                    initial={{ opacity: 0, y: 14, scale: 0.90 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.88 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+                    onClick={advance}
+                    whileHover={{ scale: 1.04, y: -2, boxShadow: '0 20px 60px rgba(0,80,200,0.18), 0 4px 20px rgba(0,0,0,0.10), inset 0 1.5px 0 rgba(255,255,255,1)' }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '13px 26px 13px 18px', borderRadius: 100,
+                      background: 'rgba(255,255,255,0.92)',
+                      border: '1px solid rgba(255,255,255,0.98)',
+                      backdropFilter: 'blur(40px) saturate(1.8)',
+                      WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      boxShadow: '0 8px 32px rgba(0,60,180,0.13), 0 2px 8px rgba(0,0,0,0.07), inset 0 1.5px 0 rgba(255,255,255,1)',
+                    }}
+                    aria-label="Enter Unitravel"
+                  >
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 8,
+                      background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 3px 12px rgba(0,122,255,0.45)',
+                      flexShrink: 0,
+                    }}>
+                      <Sparkles size={11} color="#fff" strokeWidth={2.5} />
+                    </div>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1C1C1E', letterSpacing: '-0.01em' }}>
+                      Begin your journey
+                    </span>
+                    <ArrowRight size={13} color="rgba(0,0,0,0.28)" strokeWidth={2.5} />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
