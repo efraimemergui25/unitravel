@@ -7,8 +7,8 @@ import {
   useMotionValue, useSpring, useTransform,
 } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useTexture } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { useTexture, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   Plane, Hotel, UtensilsCrossed, Compass, Train, CloudSun,
@@ -24,13 +24,6 @@ import { GuidedJourney }    from '@/components/GuidedJourney';
 type Stage   = 'globe' | 'flash' | 'main';
 type CardFocus = 'ai' | 'manual' | null;
 
-interface GlobeDrag {
-  dragging: boolean;
-  lastX:    number;
-  rotOffset: number;
-  velX:     number;
-  totalRot: number;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATIC DATA
@@ -69,114 +62,36 @@ const PROMPT_CHIPS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EARTH GLOBE SCENE — real texture, drag rotation, atmosphere, stars
+// EARTH GLOBE — OrbitControls handles drag natively (most reliable approach)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Handles drag by attaching directly to gl.domElement — bypasses R3F event system
-function DragController({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
-  const { gl } = useThree();
-  useEffect(() => {
-    const canvas = gl.domElement;
-    canvas.style.cursor = 'grab';
-    const onDown = (e: PointerEvent) => {
-      dragRef.current.dragging = true;
-      dragRef.current.lastX    = e.clientX;
-      dragRef.current.velX     = 0;
-      canvas.style.cursor = 'grabbing';
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!dragRef.current.dragging) return;
-      const dx = e.clientX - dragRef.current.lastX;
-      dragRef.current.velX      = dx * 0.014;
-      dragRef.current.rotOffset += dx * 0.014;
-      dragRef.current.lastX     = e.clientX;
-    };
-    const onUp = () => {
-      dragRef.current.dragging = false;
-      canvas.style.cursor = 'grab';
-    };
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      canvas.removeEventListener('pointerdown', onDown);
-      canvas.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-  }, [gl, dragRef]);
-  return null;
-}
-
-// Deterministic starfield — no Math.random, golden-spiral distribution
-function StarField() {
-  const geo = useMemo(() => {
-    const count = 1400;
-    const pos   = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const r = 30 + (i / count) * 55;
-      const t = i * 2.3998;
-      const p = Math.acos(1 - 2 * (i / count));
-      pos[i * 3]     = r * Math.sin(p) * Math.cos(t);
-      pos[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
-      pos[i * 3 + 2] = r * Math.cos(p);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    return g;
-  }, []);
-
-  return (
-    <points geometry={geo}>
-      <pointsMaterial size={0.055} color="#FFFFFF" transparent opacity={0.50} sizeAttenuation />
-    </points>
-  );
-}
-
-function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
+function EarthMesh() {
   const [dayMap, nightMap] = useTexture(['/earth-texture.jpg', '/earth-night.jpg']);
-  const earthRef = useRef<THREE.Mesh>(null);
-  const nightRef = useRef<THREE.Mesh>(null);
-  const autoRot  = useRef(0);
-
-  useFrame((_, delta) => {
-    if (!dragRef.current.dragging) {
-      autoRot.current += delta * 0.055;
-      dragRef.current.velX      *= 0.92;
-      dragRef.current.rotOffset += dragRef.current.velX;
-    }
-    const rot = autoRot.current + dragRef.current.rotOffset;
-    dragRef.current.totalRot = rot;
-    if (earthRef.current) earthRef.current.rotation.y = rot;
-    if (nightRef.current) nightRef.current.rotation.y = rot;
-  });
 
   return (
     <group>
-      <mesh ref={earthRef}>
+      {/* Day layer — PBR, well-lit */}
+      <mesh>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshStandardMaterial map={dayMap} roughness={0.62} metalness={0.02} />
+        <meshStandardMaterial map={dayMap} roughness={0.58} metalness={0.02} />
       </mesh>
 
-      {/* Night city-lights — AdditiveBlending: black=transparent, cities glow */}
-      <mesh ref={nightRef} renderOrder={1}>
+      {/* Night city-lights — additively blended so they only show on dark side */}
+      <mesh renderOrder={1}>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshBasicMaterial map={nightMap} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.90} />
+        <meshBasicMaterial map={nightMap} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.88} />
       </mesh>
 
-      {/* Atmosphere — on dark background these look beautiful, not like a ring */}
-      <mesh scale={1.048}>
+      {/* Thin atmosphere rim — tight scale keeps it subtle */}
+      <mesh scale={1.02}>
         <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial color={new THREE.Color('#4477EE')} transparent opacity={0.14} side={THREE.BackSide} depthWrite={false} />
-      </mesh>
-      <mesh scale={1.10}>
-        <sphereGeometry args={[2.2, 32, 32]} />
-        <meshLambertMaterial color={new THREE.Color('#2244AA')} transparent opacity={0.06} side={THREE.BackSide} depthWrite={false} />
+        <meshLambertMaterial color={new THREE.Color('#5599FF')} transparent opacity={0.09} side={THREE.BackSide} depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
-function GlobeScene({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
+function GlobeScene() {
   const { gl, scene } = useThree();
   useEffect(() => {
     gl.setClearColor(0x000000, 0);
@@ -185,19 +100,29 @@ function GlobeScene({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> })
 
   return (
     <>
-      <DragController dragRef={dragRef} />
-      <ambientLight intensity={0.15} />
-      {/* Warm sun from upper-left-front */}
-      <directionalLight position={[-2.5, 2, 6.5]} intensity={2.8} color="#FFF6E8" />
-      {/* Soft secondary from right keeps Americas from going pitch-black */}
-      <directionalLight position={[5, 0, 3]}    intensity={0.55} color="#FFFBF5" />
-      {/* Deep blue back-light for depth */}
-      <pointLight position={[0, -3, -7]}         intensity={0.22} color="#0A1F66" />
-      <hemisphereLight color="#C0CCFF" groundColor="#000510" intensity={0.28} />
+      {/* High ambient — keeps Earth colorful, avoids pitch-black dark side */}
+      <ambientLight intensity={0.72} color="#FFFFFF" />
+      {/* Primary sun — upper right front, warm */}
+      <directionalLight position={[4, 2.5, 4]} intensity={1.75} color="#FFF9F0" />
+      {/* Subtle fill from left to show dark-side detail */}
+      <directionalLight position={[-3, 0, 2]}   intensity={0.28} color="#EEF3FF" />
+
       <Suspense fallback={null}>
-        <EarthMesh dragRef={dragRef} />
+        <EarthMesh />
       </Suspense>
-      <StarField />
+
+      {/* OrbitControls — battle-tested, handles mouse + touch drag natively */}
+      <OrbitControls
+        enableZoom={false}
+        enablePan={false}
+        autoRotate
+        autoRotateSpeed={0.45}
+        enableDamping
+        dampingFactor={0.06}
+        rotateSpeed={0.55}
+        minPolarAngle={Math.PI * 0.22}
+        maxPolarAngle={Math.PI * 0.78}
+      />
     </>
   );
 }
@@ -440,7 +365,6 @@ export default function Home() {
   const [travelers, setTravelers] = useState(142);
 
   const [showGuidedJourney, setShowGuidedJourney] = useState(false);
-  const globeDragRef = useRef<GlobeDrag>({ dragging: false, lastX: 0, rotOffset: 0, velX: 0, totalRot: 0 });
 
   const [focusedCard, setFocusedCard]     = useState<CardFocus>(null);
   const [hoveredZone, setHoveredZone]     = useState<number | null>(null);
@@ -590,14 +514,14 @@ export default function Home() {
               <div style={{ position: 'absolute', bottom: '-10%', left: '15%', width: '65%', height: '50%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(20,50,140,0.14) 0%, transparent 65%)', animation: 'breathe 20s ease-in-out infinite', animationDelay: '4s' }} />
             </div>
 
-            {/* Three.js Earth Globe — DragController handles cursor/events from inside Canvas */}
-            <div style={{ position: 'absolute', inset: 0 }}>
+            {/* Three.js Earth Globe — OrbitControls handles drag + auto-rotation */}
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden' }}>
               <Canvas
                 camera={{ position: [0, 0, 6.5], fov: 42 }}
                 gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-                style={{ width: '100%', height: '100%', background: 'transparent' }}
+                style={{ width: '100%', height: '100%', background: 'transparent', cursor: 'grab' }}
               >
-                <GlobeScene dragRef={globeDragRef} />
+                <GlobeScene />
               </Canvas>
             </div>
 
