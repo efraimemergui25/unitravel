@@ -440,6 +440,57 @@ function QuickReplies({ context, onSelect }: { context: QuickReplyContext; onSel
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST-COMMIT ZONE ACTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ZONE_ACTIONS = [
+  { emoji: '✈️', label: 'Search Flights',    zone: 'flights',     color: '#007AFF', bg: 'rgba(0,122,255,0.07)',   border: 'rgba(0,122,255,0.18)'  },
+  { emoji: '🏨', label: 'Browse Hotels',     zone: 'lodging',     color: '#5AC8FA', bg: 'rgba(90,200,250,0.07)',  border: 'rgba(90,200,250,0.20)' },
+  { emoji: '🍽️', label: 'Find Restaurants', zone: 'dining',      color: '#FF9F0A', bg: 'rgba(255,159,10,0.07)',  border: 'rgba(255,159,10,0.18)' },
+  { emoji: '⭐', label: 'Experiences',       zone: 'attractions', color: '#30D158', bg: 'rgba(48,209,88,0.07)',   border: 'rgba(48,209,88,0.18)'  },
+  { emoji: '🗺️', label: 'Full Itinerary',   zone: 'management',  color: '#BF5AF2', bg: 'rgba(191,90,242,0.07)',  border: 'rgba(191,90,242,0.18)' },
+];
+
+function PostCommitActions({ onNavigate }: { onNavigate: (zone: string) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3, ...SP }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingBlock: 4 }}
+    >
+      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#AEAEB2', letterSpacing: '0.10em', textTransform: 'uppercase' }}>
+        Where to next?
+      </span>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {ZONE_ACTIONS.map((a, i) => (
+          <motion.button
+            key={a.zone}
+            initial={{ scale: 0.78, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28, delay: 0.36 + i * 0.055 }}
+            whileHover={{ scale: 1.07, y: -2, boxShadow: `0 8px 24px ${a.color}28, inset 0 1px 0 rgba(255,255,255,1)` }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => onNavigate(a.zone)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 16px', borderRadius: 100,
+              background: a.bg, border: `1.5px solid ${a.border}`,
+              backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+              boxShadow: `0 2px 10px ${a.color}14, inset 0 1px 0 rgba(255,255,255,0.90)`,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{a.emoji}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>{a.label}</span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TRIP READY CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -711,6 +762,8 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
       .catch(() => {});
   }, [rawDest, destPhoto]);
 
+  const navigatedRef = useRef(false);
+
   // ── Detect commitTrip ─────────────────────────────────────────────────────
   useEffect(() => {
     if (tripData) return;
@@ -726,6 +779,25 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
       }
     }
   }, [messages, tripData]); // eslint-disable-line
+
+  // ── Detect navigateZone — close GuidedJourney then push route ─────────────
+  useEffect(() => {
+    if (navigatedRef.current) return;
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue;
+      for (const part of msg.parts) {
+        if (part.type !== 'dynamic-tool') continue;
+        const dp = part as DynamicToolUIPart;
+        if (dp.toolName === 'navigateZone' && dp.state === 'output-available') {
+          const result = dp.output as { zone: string; navigated: boolean };
+          if (result?.navigated && result.zone) {
+            navigatedRef.current = true;
+            setTimeout(() => { onSwitch(); router.push(`/zone/${result.zone}`); }, 900);
+          }
+        }
+      }
+    }
+  }, [messages]); // eslint-disable-line
 
   const commitToStore = useCallback((data: CommitTripArgs) => {
     const today = new Date();
@@ -940,12 +1012,20 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {tripData && !isStreaming && (
+            <PostCommitActions
+              key="post-commit"
+              onNavigate={(zone) => { onSwitch(); router.push(`/zone/${zone}`); }}
+            />
+          )}
+        </AnimatePresence>
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Bottom area ───────────────────────────────────────────────── */}
-      {!tripData && (
-        <div style={{ position: 'relative', zIndex: 10, maxWidth: 720, width: '100%', marginInline: 'auto', boxSizing: 'border-box' }}>
+      {/* ── Bottom area ─────────────────────────────────────────────── */}
+      <div style={{ position: 'relative', zIndex: 10, maxWidth: 720, width: '100%', marginInline: 'auto', boxSizing: 'border-box' }}>
 
           {/* Design #4: Needs panel */}
           <NeedsPanel fields={fields} />
@@ -1065,7 +1145,6 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
             </div>
           </motion.div>
         </div>
-      )}
     </motion.div>
   );
 }
