@@ -15,7 +15,7 @@ import {
   MessageSquare, LayoutGrid, ArrowRight, Sparkles, Mic, Zap,
 } from 'lucide-react';
 import { useTravelEngine } from '@/store/useTravelEngine';
-import { NeuralOnboarding } from '@/components/NeuralOnboarding';
+import { GuidedJourney }    from '@/components/GuidedJourney';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -65,54 +65,63 @@ const PROMPT_CHIPS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function EarthMesh() {
-  const texture = useTexture('/earth-texture.jpg');
-  const earthRef = useRef<THREE.Mesh>(null);
-  const atmosRef = useRef<THREE.Mesh>(null);
+  const [dayMap, nightMap] = useTexture(['/earth-texture.jpg', '/earth-night.jpg']);
+  const earthRef  = useRef<THREE.Mesh>(null);
+  const nightRef  = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    if (earthRef.current) {
-      earthRef.current.rotation.y = t * 0.055;
-    }
-    if (atmosRef.current) {
-      atmosRef.current.rotation.y = t * 0.04;
-    }
+    const t = clock.getElapsedTime() * 0.055;
+    if (earthRef.current) earthRef.current.rotation.y = t;
+    if (nightRef.current) nightRef.current.rotation.y = t;
   });
 
   return (
     <group>
-      {/* Earth sphere with texture */}
+      {/* Day side — PBR lit by the directional sun */}
       <mesh ref={earthRef}>
-        <sphereGeometry args={[2.2, 64, 64]} />
-        <meshPhongMaterial
-          map={texture}
-          specularMap={texture}
-          specular={new THREE.Color(0x222244)}
-          shininess={8}
+        <sphereGeometry args={[2.2, 128, 128]} />
+        <meshStandardMaterial map={dayMap} roughness={0.68} metalness={0.04} />
+      </mesh>
+
+      {/* Night city-lights — AdditiveBlending: black→transparent, lights→glow */}
+      <mesh ref={nightRef} renderOrder={1}>
+        <sphereGeometry args={[2.2, 128, 128]} />
+        <meshBasicMaterial
+          map={nightMap}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          transparent
+          opacity={0.88}
         />
       </mesh>
 
-      {/* Atmosphere glow — semi-transparent outer shell */}
-      <mesh ref={atmosRef} scale={1.045}>
+      {/* Inner atmosphere haze */}
+      <mesh scale={1.016}>
+        <sphereGeometry args={[2.2, 64, 64]} />
+        <meshLambertMaterial
+          color={new THREE.Color('#4499FF')}
+          transparent opacity={0.09}
+          side={THREE.FrontSide} depthWrite={false}
+        />
+      </mesh>
+
+      {/* Primary atmosphere rim — backside for edge glow */}
+      <mesh scale={1.072}>
         <sphereGeometry args={[2.2, 48, 48]} />
         <meshLambertMaterial
-          color={new THREE.Color('#4488FF')}
-          transparent
-          opacity={0.06}
-          side={THREE.FrontSide}
-          depthWrite={false}
+          color={new THREE.Color('#3377EE')}
+          transparent opacity={0.32}
+          side={THREE.BackSide} depthWrite={false}
         />
       </mesh>
 
-      {/* Bright outer atmosphere halo */}
-      <mesh scale={1.09}>
+      {/* Extended halo for depth */}
+      <mesh scale={1.14}>
         <sphereGeometry args={[2.2, 32, 32]} />
         <meshLambertMaterial
-          color={new THREE.Color('#88BBFF')}
-          transparent
-          opacity={0.025}
-          side={THREE.BackSide}
-          depthWrite={false}
+          color={new THREE.Color('#1144BB')}
+          transparent opacity={0.13}
+          side={THREE.BackSide} depthWrite={false}
         />
       </mesh>
     </group>
@@ -163,9 +172,14 @@ function GlobeScene() {
 
   return (
     <>
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[5, 3, 5]} intensity={1.2} color="#FFFFFF" />
-      <pointLight position={[-8, -4, -4]} intensity={0.3} color="#2244AA" />
+      {/* Low ambient so night side stays dark — city lights carry that area */}
+      <ambientLight intensity={0.28} />
+      {/* Primary sun — positioned forward-right so terminator shows but most globe is lit */}
+      <directionalLight position={[4.5, 2, 7]} intensity={2.4} color="#FFFBEE" />
+      {/* Soft blue fill from behind */}
+      <pointLight position={[-7, -3, -5]} intensity={0.38} color="#1133BB" />
+      {/* Hemisphere: sky-blue above, deep navy below */}
+      <hemisphereLight color="#AABFFF" groundColor="#000022" intensity={0.42} />
       <Suspense fallback={null}>
         <EarthMesh />
       </Suspense>
@@ -407,12 +421,11 @@ export default function Home() {
   const router            = useRouter();
   const setupTrip         = useTravelEngine(s => s.setupTrip);
   const addDay            = useTravelEngine(s => s.addDay);
-  const onboardingComplete = useTravelEngine(s => s.onboardingComplete);
   const [stage, setStage]     = useState<Stage>('globe');
   const [showTap, setShowTap] = useState(false);
   const [travelers, setTravelers] = useState(142);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
+  const [showGuidedJourney, setShowGuidedJourney] = useState(false);
   const [focusedCard, setFocusedCard]     = useState<CardFocus>(null);
   const [hoveredZone, setHoveredZone]     = useState<number | null>(null);
   const [aiInputFocused, setAiInputFocused] = useState(false);
@@ -471,13 +484,8 @@ export default function Home() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [stage]);
 
-  // Show onboarding on first visit once main stage is reached
-  useEffect(() => {
-    if (stage === 'main' && !onboardingComplete) {
-      const t = setTimeout(() => setShowOnboarding(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, [stage, onboardingComplete]);
+  // NeuralOnboarding no longer auto-triggers on home page.
+  // It shows inside zone pages for first-time users (see zone layout).
 
   const goTo = useCallback((path: string, query?: string) => {
     if (query) {
@@ -822,7 +830,7 @@ export default function Home() {
 
                       <div style={{ position: 'relative', zIndex: 1 }}>
                         <AIChatInput
-                          onSend={(q) => goTo('/zone/management', q)}
+                          onSend={() => setShowGuidedJourney(true)}
                           cardHovered={focusedCard === 'ai'}
                           onFocusChange={setAiInputFocused}
                         />
@@ -833,7 +841,7 @@ export default function Home() {
                         animate={{ opacity: aiInputFocused ? 1 : 0.88 }}
                         whileHover={{ scale: 1.02, opacity: 1 }}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => goTo('/zone/management')}
+                        onClick={() => setShowGuidedJourney(true)}
                         transition={{ duration: 0.16 }}
                         style={{
                           marginTop: 'auto', paddingTop: 14,
@@ -1025,10 +1033,12 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ════ NEURAL ONBOARDING — first visit overlay ════ */}
-      {showOnboarding && (
-        <NeuralOnboarding onClose={() => setShowOnboarding(false)} />
-      )}
+      {/* ════ GUIDED AI JOURNEY — full screen chat overlay ════ */}
+      <AnimatePresence>
+        {showGuidedJourney && (
+          <GuidedJourney onSwitch={() => setShowGuidedJourney(false)} />
+        )}
+      </AnimatePresence>
 
     </div>,
     document.body
