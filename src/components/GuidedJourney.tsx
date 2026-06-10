@@ -726,6 +726,20 @@ function GuidedJourneyInner({ initialMessages, onSwitch, onFresh }: {
 
   const isStreaming = status === 'streaming' || status === 'submitted';
 
+  // ── Auto-send prefill query from main-stage search input ─────────────────
+  useEffect(() => {
+    if (initialMessages.length > 0) return;
+    try {
+      const prefill = sessionStorage.getItem('unitravel:onboarding:prefill');
+      if (!prefill) return;
+      sessionStorage.removeItem('unitravel:onboarding:prefill');
+      const t = setTimeout(() => {
+        sendMessage({ role: 'user', parts: [{ type: 'text', text: prefill }] });
+      }, 200);
+      return () => clearTimeout(t);
+    } catch {}
+  }, []); // eslint-disable-line
+
   // ── Persist messages ──────────────────────────────────────────────────────
   useEffect(() => {
     if (messages.length > 0) {

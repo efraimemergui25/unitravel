@@ -429,6 +429,14 @@ export default function Home() {
     router.push('/zone/flights');
   }, [router]);
 
+  // Open GuidedJourney — optionally pre-load a query as the first user message
+  const openGuidedJourney = useCallback((query?: string) => {
+    if (query?.trim()) {
+      try { sessionStorage.setItem('unitravel:onboarding:prefill', query.trim()); } catch {}
+    }
+    setShowGuidedJourney(true);
+  }, []);
+
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
   const sx = useSpring(mx, { stiffness: 48, damping: 18 });
@@ -826,13 +834,13 @@ export default function Home() {
                     <div aria-hidden style={{ position: 'absolute', top: 2.5, insetInlineStart: '8%', insetInlineEnd: '8%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 35%, rgba(255,255,255,1) 65%, transparent)', borderRadius: 999, pointerEvents: 'none' }} />
 
                     <AIChatInput
-                      onSend={() => setShowGuidedJourney(true)}
+                      onSend={openGuidedJourney}
                       cardHovered={focusedCard === 'ai'}
                       onFocusChange={() => {}}
                     />
 
                     <motion.button
-                      onClick={() => setShowGuidedJourney(true)}
+                      onClick={() => openGuidedJourney()}
                       whileHover={{ scale: 1.01, boxShadow: '0 14px 44px rgba(0,122,255,0.38), inset 0 1.5px 0 rgba(255,255,255,0.30)' }}
                       whileTap={{ scale: 0.98 }}
                       style={{
@@ -887,6 +895,34 @@ export default function Home() {
                         );
                       })}
                     </div>
+                  </motion.div>
+
+                  {/* ③b Build manually */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.42, delay: 0.50, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ width: '100%', marginBottom: 18, display: 'flex', justifyContent: 'center' }}
+                  >
+                    <motion.button
+                      whileHover={{ scale: 1.03, backgroundColor: 'rgba(191,90,242,0.08)' }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => goTo('/zone/management')}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '9px 20px', borderRadius: 100,
+                        background: 'rgba(191,90,242,0.05)',
+                        border: '1.5px solid rgba(191,90,242,0.22)',
+                        backdropFilter: 'blur(24px)',
+                        boxShadow: '0 2px 12px rgba(191,90,242,0.10), inset 0 1px 0 rgba(255,255,255,0.88)',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>✏️</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#BF5AF2', letterSpacing: '-0.014em' }}>Build manually</span>
+                      <span style={{ fontSize: 11.5, fontWeight: 500, color: 'rgba(0,0,0,0.38)', letterSpacing: '-0.01em' }}>— drag &amp; drop your itinerary</span>
+                      <ArrowRight size={12} color="rgba(191,90,242,0.60)" strokeWidth={2.5} />
+                    </motion.button>
                   </motion.div>
 
                   {/* ④ Ready-made trip templates */}
