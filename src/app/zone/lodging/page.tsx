@@ -12,7 +12,8 @@ import type { HotelSearchResponse, HotelEngineStatus } from '@/app/api/hotels/ro
 import { EngineStatusStrip }                  from '@/components/results/EngineStatusStrip';
 
 const LODGING_AI_PICKS = new Set([
-  'google-hotels', 'amadeus-hotels', 'booking', 'airbnb', 'hotels-com', 'expedia-h',
+  'duffel-stays', 'amadeus-hotels',                                  // real search — keys are set
+  'google-hotels', 'booking', 'airbnb', 'hotels-com', 'expedia-h',
   'marriott', 'four-seasons', 'rosewood', 'one-only', 'mr-mrs-smith', 'design-hotels',
 ]);
 const LODGING_ENGINES = ZONE_ENGINES['lodging'];

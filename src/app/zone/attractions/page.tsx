@@ -12,8 +12,9 @@ import type { AttractionEntity }       from '@/types/attractions';
 import { EngineStatusStrip }           from '@/components/results/EngineStatusStrip';
 
 const EXP_AI_PICKS = new Set([
-  'geoapify', 'tripadvisor-a', 'viator', 'getyourguide', 'klook',
-  'tiqets', 'airbnb-exp', 'musement', 'atlas-obscura', 'culture-trip',
+  'google-places', 'geoapify',    // real search — keys are set
+  'viator', 'getyourguide', 'klook',
+  'tiqets', 'airbnb-exp', 'musement', 'atlas-obscura', 'culture-trip', 'tripadvisor-a',
 ]);
 const EXP_ENGINES = ZONE_ENGINES['attractions'];
 

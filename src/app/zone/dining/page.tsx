@@ -11,6 +11,7 @@ import type { MergedRestaurant, DiningEngineStatus } from '@/app/api/dining/rout
 import { EngineStatusStrip }               from '@/components/results/EngineStatusStrip';
 
 const DINING_AI_PICKS = new Set([
+  'google-places', 'yelp', 'foursquare',   // real data — keys are set
   'michelin', 'opentable', 'resy', 'worlds50best', 'infatuation',
   'eater', 'tock', 'zagat', 'tripadvisor-d',
 ]);

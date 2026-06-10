@@ -1,5 +1,6 @@
 import type { AttractionEntity } from '@/types/attractions';
-import { GeoapifyAdapter }        from './GeoapifyAdapter';
+import { GeoapifyAdapter }                   from './GeoapifyAdapter';
+import { GooglePlacesAttractionsAdapter }    from './GooglePlacesAttractionsAdapter';
 
 // ── Attraction Engine Adapter interface ───────────────────────────────────────
 
@@ -60,11 +61,11 @@ const BOOKING  = 'https://join.booking.com/affiliation/portal/en/signup';
 
 export const ATTRACTION_ADAPTERS: Record<string, AttractionEngineAdapter> = {
   'geoapify':       GeoapifyAdapter,
+  'google-places':  GooglePlacesAttractionsAdapter,  // real — GOOGLE_PLACES_API_KEY is set
 
   'getyourguide':   needsKey('getyourguide',   'GetYourGuide',   GYG,    'GETYOURGUIDE_API_KEY',   (p) => `https://www.getyourguide.com/s/?q=${_enc(p.destination)}&type=1&date_from=${p.startDate}&date_to=${p.endDate}&travelers=${p.adults}`),
   'viator':         needsKey('viator',         'Viator',         VIATOR, 'VIATOR_API_KEY',         (p) => `https://www.viator.com/search/${_enc(p.destination)}?startDate=${p.startDate}&endDate=${p.endDate}`),
   'klook':          needsKey('klook',          'Klook',          KLOOK,  'KLOOK_API_KEY',          (p) => `https://www.klook.com/en-US/search/?keyword=${_enc(p.destination)}`),
-  'google-places':  needsKey('google-places',  'Google Places',  GPLACES,'GOOGLE_PLACES_API_KEY',  (p) => `https://www.google.com/maps/search/things+to+do+in+${_enc(p.destination)}`),
   'tripadvisor-a':  needsKey('tripadvisor-a',  'TripAdvisor',    TA,     'TRIPADVISOR_API_KEY',    (p) => `https://www.tripadvisor.com/Search?q=${_enc(p.destination)}+attractions`),
   'airbnb-exp':     needsKey('airbnb-exp',     'Airbnb Exp.',    'https://www.airbnb.com/experiences', 'AIRBNB_API_KEY', (p) => `https://www.airbnb.com/s/${_enc(p.destination)}/experiences`),
   'musement':       needsKey('musement',       'Musement',       'https://api.musement.com', 'MUSEMENT_API_KEY', (p) => `https://www.musement.com/us/search/${_enc(p.destination).replace(/%20/g,'-').toLowerCase()}/`),

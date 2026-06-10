@@ -1,9 +1,8 @@
 import { needsDiningKey }       from './DiningEngineAdapter';
 import { GooglePlacesAdapter }  from './GooglePlacesAdapter';
 import { YelpAdapter }          from './YelpAdapter';
+import { FoursquareAdapter }    from './FoursquareAdapter';
 import { OSMAdapter }           from './OSMAdapter';
-// FoursquareAdapter removed — Foursquare v3 API deprecated (HTTP 410).
-// 'foursquare' slot now served by YelpAdapter with deep-link fallback.
 
 export type { DiningEngineAdapter, DiningEngineResult, DiningSearchParams, RawDiningSource, RawTimeSlot } from './DiningEngineAdapter';
 export { cuisineGradient } from './DiningEngineAdapter';
@@ -46,8 +45,9 @@ const enc = (s: string) => encodeURIComponent(s);
 export const DINING_ADAPTERS: Record<string, import('./DiningEngineAdapter').DiningEngineAdapter> = {
   // ── Tier 1: Discovery (real data) ────────────────────────────────────────
   'google-places': GooglePlacesAdapter,
-  'yelp':          OSMAdapter,       // OpenStreetMap — no key needed, global coverage
-  'foursquare':    YelpAdapter,      // Foursquare API deprecated; Yelp Fusion as replacement
+  'yelp':          YelpAdapter,      // Yelp Fusion — YELP_API_KEY required
+  'foursquare':    FoursquareAdapter, // Foursquare v3 autocomplete — FOURSQUARE_API_KEY required
+  'osm':           OSMAdapter,       // OpenStreetMap — no key needed, global coverage
 
   // ── Tier 2: Reservation platforms (deep links) ────────────────────────────
   'opentable':    needsDiningKey('opentable',   'OpenTable',       OPENTABLE,  'OPENTABLE_API_KEY',

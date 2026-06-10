@@ -100,8 +100,9 @@ function parseNL(raw: string) {
 
 const ENGINES = ZONE_ENGINES['flights'];
 const AI_PICKS = new Set([
-  'amadeus', 'google-flights', 'kayak', 'skyscanner', 'kiwi',
-  'aeromexico', 'united', 'american', 'copa', 'latam', 'expedia-f',
+  'duffel', 'amadeus', 'google-flights', 'kiwi',  // real search — keys are set
+  'kayak', 'skyscanner', 'expedia-f',
+  'aeromexico', 'united', 'american', 'copa', 'latam',
 ]);
 
 // ── Spring presets ────────────────────────────────────────────────────────────

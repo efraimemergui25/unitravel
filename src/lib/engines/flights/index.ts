@@ -2,6 +2,7 @@ import type { FlightEngineAdapter, FlightSearchParams } from './FlightEngineAdap
 import { needsApiKeyAdapter }        from './FlightEngineAdapter';
 import { AmadeusAdapter }            from './AmadeusAdapter';
 import { DuffelAdapter }             from './DuffelAdapter';
+import { KiwiAdapter }               from './KiwiAdapter';
 import { SerpApiAdapter }            from './SerpApiAdapter';
 import { SerpApiBudgetAdapter }      from './SerpApiBudgetAdapter';
 
@@ -91,7 +92,7 @@ export const FLIGHT_ADAPTERS: Record<string, FlightEngineAdapter> = {
   duffel:           DuffelAdapter,
   amadeus:          AmadeusAdapter,
   'google-flights': SerpApiAdapter,
-  kiwi:             SerpApiBudgetAdapter,
+  kiwi:             KiwiAdapter,         // Kiwi Tequila API — KIWI_API_KEY required
 
   // ── Tier 1: Global Aggregators (deep links) ───────────────────────────────
   kayak:      needsApiKeyAdapter('kayak',      'Kayak',       KAYAK_SU,      'KAYAK_API_KEY',      kayakLink),
