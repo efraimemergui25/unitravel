@@ -65,13 +65,39 @@ const PROMPT_CHIPS = [
 // EARTH GLOBE — OrbitControls handles drag natively (most reliable approach)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEST_PINS = [
-  { lat: 48.85,  lon:   2.35, color: '#FF9F0A' }, // Paris
-  { lat: 35.67,  lon: 139.65, color: '#FF453A' }, // Tokyo
-  { lat: 40.71,  lon: -74.01, color: '#007AFF' }, // New York
-  { lat: 25.20,  lon:  55.27, color: '#30D158' }, // Dubai
-  { lat:-33.87,  lon: 151.21, color: '#BF5AF2' }, // Sydney
-  { lat: 41.90,  lon:  12.50, color: '#FF2D55' }, // Rome
+interface PinData { name: string; flag: string; lat: number; lon: number; color: string; }
+
+const DEST_PINS: PinData[] = [
+  { name: 'Paris',          flag: '🇫🇷', lat:  48.85, lon:   2.35, color: '#FF9F0A' },
+  { name: 'Tokyo',          flag: '🇯🇵', lat:  35.67, lon: 139.65, color: '#FF453A' },
+  { name: 'New York',       flag: '🇺🇸', lat:  40.71, lon: -74.01, color: '#007AFF' },
+  { name: 'Dubai',          flag: '🇦🇪', lat:  25.20, lon:  55.27, color: '#30D158' },
+  { name: 'Sydney',         flag: '🇦🇺', lat: -33.87, lon: 151.21, color: '#BF5AF2' },
+  { name: 'Rome',           flag: '🇮🇹', lat:  41.90, lon:  12.50, color: '#FF2D55' },
+  { name: 'Barcelona',      flag: '🇪🇸', lat:  41.38, lon:   2.17, color: '#FF9F0A' },
+  { name: 'London',         flag: '🇬🇧', lat:  51.50, lon:  -0.12, color: '#5E5CE6' },
+  { name: 'Bangkok',        flag: '🇹🇭', lat:  13.75, lon: 100.50, color: '#00C7BE' },
+  { name: 'Bali',           flag: '🇮🇩', lat:  -8.34, lon: 115.09, color: '#30D158' },
+  { name: 'Istanbul',       flag: '🇹🇷', lat:  41.01, lon:  28.97, color: '#FF9F0A' },
+  { name: 'Amsterdam',      flag: '🇳🇱', lat:  52.37, lon:   4.90, color: '#007AFF' },
+  { name: 'Singapore',      flag: '🇸🇬', lat:   1.35, lon: 103.82, color: '#30D158' },
+  { name: 'Lisbon',         flag: '🇵🇹', lat:  38.72, lon:  -9.14, color: '#FF9F0A' },
+  { name: 'Prague',         flag: '🇨🇿', lat:  50.08, lon:  14.43, color: '#5E5CE6' },
+  { name: 'Cancun',         flag: '🇲🇽', lat:  21.16, lon: -86.85, color: '#00C7BE' },
+  { name: 'Santorini',      flag: '🇬🇷', lat:  36.39, lon:  25.46, color: '#007AFF' },
+  { name: 'Marrakech',      flag: '🇲🇦', lat:  31.63, lon:  -7.99, color: '#FF9F0A' },
+  { name: 'Cape Town',      flag: '🇿🇦', lat: -33.93, lon:  18.42, color: '#FF453A' },
+  { name: 'Rio de Janeiro', flag: '🇧🇷', lat: -22.91, lon: -43.17, color: '#30D158' },
+  { name: 'Miami',          flag: '🇺🇸', lat:  25.77, lon: -80.19, color: '#FF2D55' },
+  { name: 'Maldives',       flag: '🇲🇻', lat:   4.17, lon:  73.51, color: '#00C7BE' },
+  { name: 'Kyoto',          flag: '🇯🇵', lat:  35.01, lon: 135.77, color: '#FF2D55' },
+  { name: 'Vienna',         flag: '🇦🇹', lat:  48.21, lon:  16.37, color: '#BF5AF2' },
+  { name: 'Reykjavik',      flag: '🇮🇸', lat:  64.13, lon: -21.93, color: '#5AC8FA' },
+  { name: 'Buenos Aires',   flag: '🇦🇷', lat: -34.60, lon: -58.38, color: '#FF9F0A' },
+  { name: 'Hong Kong',      flag: '🇭🇰', lat:  22.32, lon: 114.18, color: '#FF2D55' },
+  { name: 'Berlin',         flag: '🇩🇪', lat:  52.52, lon:  13.40, color: '#5E5CE6' },
+  { name: 'Toronto',        flag: '🇨🇦', lat:  43.65, lon: -79.38, color: '#007AFF' },
+  { name: 'Cairo',          flag: '🇪🇬', lat:  30.04, lon:  31.24, color: '#FF9F0A' },
 ];
 
 function latLonToXYZ(lat: number, lon: number, r: number): [number, number, number] {
@@ -84,20 +110,34 @@ function latLonToXYZ(lat: number, lon: number, r: number): [number, number, numb
   ];
 }
 
-function DestinationPins() {
+function DestinationPins({ onPinHover, onPinLeave, onPinClick }: {
+  onPinHover: (pin: PinData, x: number, y: number) => void;
+  onPinLeave: () => void;
+  onPinClick: (pin: PinData) => void;
+}) {
   return (
     <>
       {DEST_PINS.map((d, i) => {
         const pos = latLonToXYZ(d.lat, d.lon, 2.23);
         return (
-          <group key={i} position={pos}>
+          <group
+            key={i}
+            position={pos}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              const ne = e.nativeEvent as MouseEvent;
+              onPinHover(d, ne.clientX, ne.clientY);
+            }}
+            onPointerOut={() => onPinLeave()}
+            onClick={(e) => { e.stopPropagation(); onPinClick(d); }}
+          >
             <mesh>
-              <sphereGeometry args={[0.030, 12, 12]} />
+              <sphereGeometry args={[0.034, 12, 12]} />
               <meshBasicMaterial color={d.color} />
             </mesh>
             <mesh>
-              <sphereGeometry args={[0.072, 12, 12]} />
-              <meshBasicMaterial color={d.color} transparent opacity={0.22} />
+              <sphereGeometry args={[0.082, 12, 12]} />
+              <meshBasicMaterial color={d.color} transparent opacity={0.20} />
             </mesh>
           </group>
         );
@@ -125,7 +165,11 @@ function EarthMesh() {
   );
 }
 
-function GlobeScene() {
+function GlobeScene({ onPinHover, onPinLeave, onPinClick }: {
+  onPinHover: (pin: PinData, x: number, y: number) => void;
+  onPinLeave: () => void;
+  onPinClick: (pin: PinData) => void;
+}) {
   const { gl, scene } = useThree();
   useEffect(() => {
     gl.setClearColor(0x000000, 0);
@@ -136,7 +180,7 @@ function GlobeScene() {
     <>
       <Suspense fallback={null}>
         <EarthMesh />
-        <DestinationPins />
+        <DestinationPins onPinHover={onPinHover} onPinLeave={onPinLeave} onPinClick={onPinClick} />
       </Suspense>
       {/* OrbitControls — drag + autoRotate, no custom handlers needed */}
       <OrbitControls
@@ -374,6 +418,15 @@ export default function Home() {
 
   const [focusedCard, setFocusedCard] = useState<CardFocus>(null);
   const [statsPulse, setStatsPulse]   = useState(false);
+  const [hoveredPin, setHoveredPin]   = useState<(PinData & { x: number; y: number }) | null>(null);
+
+  const handlePinHover  = useCallback((pin: PinData, x: number, y: number) => setHoveredPin({ ...pin, x, y }), []);
+  const handlePinLeave  = useCallback(() => setHoveredPin(null), []);
+  const handlePinClick  = useCallback((pin: PinData) => {
+    setHoveredPin(null);
+    try { sessionStorage.setItem('unitravel:prefill:destination', pin.name); } catch {}
+    router.push('/zone/flights');
+  }, [router]);
 
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
@@ -546,13 +599,18 @@ export default function Home() {
                 width: 'min(66vmin, calc(100vw - 40px))', height: 'min(66vmin, calc(100vw - 40px))',
                 borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
                 boxShadow: '0 28px 72px rgba(50,90,200,0.20), 0 6px 28px rgba(50,90,200,0.10), 0 0 0 1px rgba(140,170,255,0.18)',
+                cursor: hoveredPin ? 'pointer' : 'default',
               }}>
                 <Canvas
                   camera={{ position: [0, 0, 6.2], fov: 44 }}
                   gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
                   style={{ width: '100%', height: '100%', background: 'transparent' }}
                 >
-                  <GlobeScene />
+                  <GlobeScene
+                    onPinHover={handlePinHover}
+                    onPinLeave={handlePinLeave}
+                    onPinClick={handlePinClick}
+                  />
                 </Canvas>
               </div>
             </motion.div>
@@ -597,6 +655,64 @@ export default function Home() {
                 )}
               </AnimatePresence>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ════ PIN TOOLTIP ════ */}
+      <AnimatePresence>
+        {hoveredPin && stage === 'globe' && (
+          <motion.div
+            key="pin-tooltip"
+            initial={{ opacity: 0, scale: 0.84, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.88, y: 3, transition: { duration: 0.12 } }}
+            transition={{ type: 'spring', stiffness: 540, damping: 30 }}
+            style={{
+              position: 'fixed',
+              left: hoveredPin.x + 16,
+              top: hoveredPin.y - 52,
+              zIndex: 200,
+              pointerEvents: 'none',
+              fontFamily: '-apple-system, "SF Pro Display", Inter, sans-serif',
+            }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 14px 8px 10px',
+              borderRadius: 100,
+              background: 'rgba(255,255,255,0.92)',
+              border: `1.5px solid ${hoveredPin.color}44`,
+              backdropFilter: 'blur(40px) saturate(1.9)',
+              WebkitBackdropFilter: 'blur(40px) saturate(1.9)',
+              boxShadow: `0 8px 28px rgba(0,0,0,0.13), 0 2px 8px ${hoveredPin.color}1A, inset 0 1px 0 rgba(255,255,255,1)`,
+              whiteSpace: 'nowrap',
+            }}>
+              {/* Colored dot */}
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: hoveredPin.color,
+                boxShadow: `0 0 0 3px ${hoveredPin.color}26`,
+                flexShrink: 0,
+              }} />
+              {/* Flag + name */}
+              <span style={{ fontSize: 13.5 }}>{hoveredPin.flag}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.015em' }}>
+                {hoveredPin.name}
+              </span>
+              {/* Divider + CTA */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                paddingInlineStart: 8,
+                borderInlineStart: '1px solid rgba(0,0,0,0.09)',
+                marginInlineStart: 2,
+              }}>
+                <Plane size={10} color={hoveredPin.color} strokeWidth={2.5} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: hoveredPin.color, letterSpacing: '-0.01em' }}>
+                  Search flights
+                </span>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

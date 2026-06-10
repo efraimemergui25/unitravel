@@ -147,6 +147,14 @@ export default function FlightsPage() {
   const [intelOpen,     setIntelOpen]     = useState(false);
   const destIntelData = lookupDest(destCity);
 
+  // Pre-fill destination from globe pin click
+  useEffect(() => {
+    try {
+      const dest = sessionStorage.getItem('unitravel:prefill:destination');
+      if (dest) { setDestCity(dest); sessionStorage.removeItem('unitravel:prefill:destination'); }
+    } catch {}
+  }, []);
+
   useEffect(() => { if (firstDest && !destCity) setDestCity(firstDest); }, [firstDest]); // eslint-disable-line
 
   // Bridge: OmniSelectorConsole Launch button → handleSearch
