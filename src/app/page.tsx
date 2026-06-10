@@ -533,37 +533,65 @@ export default function Home() {
       <AnimatePresence>
         {stage === 'globe' && (
           <motion.div key="globe"
-            exit={{ opacity: 0, scale: 1.06, filter: 'blur(14px)' }}
+            exit={{ opacity: 0, filter: 'blur(14px)' }}
             transition={{ duration: 0.28 }}
-            style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 38%, #F4F0FF 65%, #EEF4FF 100%)' }}
+            style={{
+              position: 'absolute', inset: 0, overflow: 'hidden',
+              background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 40%, #F4F0FF 68%, #EEF4FF 100%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              paddingTop: 38, paddingBottom: 40,
+            }}
           >
-            {/* ── Atmospheric halo — soft glowing ring around globe ── */}
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%',
-              width: '96vmin', height: '96vmin',
-              marginTop: '-48vmin', marginLeft: '-48vmin',
-              borderRadius: '50%', pointerEvents: 'none', zIndex: 0,
-              background: 'radial-gradient(ellipse at center, transparent 38%, rgba(100,140,255,0.09) 58%, rgba(120,160,255,0.06) 72%, transparent 86%)',
-            }} />
-
-            {/* ── Globe: motion.div handles parallax + fade-in; inner div handles circular clip ── */}
-            {/* Separating them is critical — scale+overflow:hidden crops the WebGL canvas */}
+            {/* ① Logo */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-              style={{
-                position: 'absolute', top: '50%', left: '50%',
-                width: '80vmin', height: '80vmin',
-                marginTop: '-40vmin', marginLeft: '-40vmin',
-                zIndex: 1,
-                x: springGpx, y: springGpy,
-              }}
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline' }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.20em', color: '#1C1C1E', textTransform: 'uppercase' }}>UNIT</span>
+              <span style={{ fontSize: 14, fontWeight: 300, letterSpacing: '0.30em', color: 'rgba(0,0,0,0.28)', textTransform: 'uppercase' }}>RAVEL</span>
+            </motion.div>
+
+            {/* ② Headline — own flex row, never overlaps globe */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1], delay: 0.65 }}
+              style={{ flexShrink: 0, textAlign: 'center', marginTop: 18, marginBottom: 4 }}
             >
               <div style={{
-                width: '100%', height: '100%',
-                borderRadius: '50%', overflow: 'hidden',
-                boxShadow: '0 28px 72px rgba(50,90,200,0.22), 0 6px 28px rgba(50,90,200,0.12), 0 0 0 1px rgba(140,170,255,0.20)',
+                fontSize: 'clamp(24px, 3.6vw, 50px)', fontWeight: 900,
+                letterSpacing: '-0.042em', lineHeight: 1.0,
+                background: 'linear-gradient(128deg, #1C1C1E 0%, #1C1C1E 28%, #007AFF 54%, #5856D6 74%, #BF5AF2 92%)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                whiteSpace: 'nowrap',
+              }}>The World Is Yours</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.28)', letterSpacing: '0.24em', textTransform: 'uppercase', marginTop: 10 }}>
+                Your AI Travel Operating System
+              </div>
+            </motion.div>
+
+            {/* ③ Globe — flex:1 so it fills all remaining vertical space */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              transition={{ duration: 1.4, delay: 0.15 }}
+              style={{
+                flex: 1, minHeight: 0, width: '100%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative',
+              }}
+            >
+              {/* Atmospheric halo — CSS only, behind globe */}
+              <div style={{
+                position: 'absolute',
+                width: 'min(78vmin, calc(100vw - 20px))', height: 'min(78vmin, calc(100vw - 20px))',
+                borderRadius: '50%', pointerEvents: 'none',
+                background: 'radial-gradient(ellipse at center, transparent 40%, rgba(100,140,255,0.09) 60%, rgba(120,160,255,0.05) 74%, transparent 87%)',
+              }} />
+              {/* Globe circle */}
+              <div style={{
+                width: 'min(66vmin, calc(100vw - 40px))', height: 'min(66vmin, calc(100vw - 40px))',
+                borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                boxShadow: '0 28px 72px rgba(50,90,200,0.20), 0 6px 28px rgba(50,90,200,0.10), 0 0 0 1px rgba(140,170,255,0.18)',
               }}>
                 <Canvas
                   camera={{ position: [0, 0, 6.2], fov: 44 }}
@@ -575,92 +603,46 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* ── UI overlay: logo top · hero headline upper-center · CTA bottom ── */}
-            <div style={{
-              position: 'absolute', inset: 0, zIndex: 10,
-              pointerEvents: 'none',
-            }}>
-              {/* Logo */}
-              <motion.div
-                initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1], delay: 0.55 }}
-                style={{ position: 'absolute', top: 44, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'baseline', gap: 0, pointerEvents: 'auto' }}
-              >
-                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.20em', color: '#1C1C1E', textTransform: 'uppercase' }}>UNIT</span>
-                <span style={{ fontSize: 14, fontWeight: 300, letterSpacing: '0.30em', color: 'rgba(0,0,0,0.28)', textTransform: 'uppercase' }}>RAVEL</span>
-              </motion.div>
-
-              {/* Hero headline — sits just above globe center */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.9 }}
-                style={{
-                  position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)',
-                  textAlign: 'center', pointerEvents: 'none', width: 'max-content',
-                }}
-              >
-                <div style={{
-                  fontSize: 'clamp(28px, 4.5vw, 58px)', fontWeight: 900,
-                  letterSpacing: '-0.045em', lineHeight: 0.95,
-                  background: 'linear-gradient(130deg, #1C1C1E 0%, #1C1C1E 30%, #007AFF 58%, #5856D6 78%, #BF5AF2 95%)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                  fontFamily: "-apple-system, 'SF Pro Display', Inter, sans-serif",
-                }}>
-                  The World<br />Is Yours
-                </div>
-              </motion.div>
-
-              {/* Tagline + CTA — bottom */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.0, delay: 1.2 }}
-                style={{
-                  position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
-                  textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, pointerEvents: 'auto',
-                }}
-              >
-                <p style={{ fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.28)', letterSpacing: '0.26em', textTransform: 'uppercase', margin: 0 }}>
-                  Your AI Travel Operating System
-                </p>
-                <AnimatePresence>
-                  {showTap && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 14, scale: 0.88 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.88 }}
-                      transition={{ type: 'spring', stiffness: 360, damping: 26 }}
-                      onClick={advance}
-                      whileHover={{ scale: 1.04, y: -2, boxShadow: '0 22px 60px rgba(0,80,200,0.20), 0 4px 20px rgba(0,0,0,0.09), inset 0 1.5px 0 rgba(255,255,255,1)' }}
-                      whileTap={{ scale: 0.97 }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '13px 26px 13px 18px', borderRadius: 100,
-                        background: 'rgba(255,255,255,0.94)',
-                        border: '1px solid rgba(255,255,255,1)',
-                        backdropFilter: 'blur(48px) saturate(1.9)',
-                        WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 8px 32px rgba(0,60,180,0.12), 0 2px 8px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)',
-                      }}
-                      aria-label="Enter Unitravel"
-                    >
-                      <div style={{
-                        width: 26, height: 26, borderRadius: 8,
-                        background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 3px 12px rgba(0,122,255,0.48)', flexShrink: 0,
-                      }}>
-                        <Sparkles size={11} color="#fff" strokeWidth={2.5} />
-                      </div>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1C1C1E', letterSpacing: '-0.01em' }}>
-                        Begin your journey
-                      </span>
-                      <ArrowRight size={13} color="rgba(0,0,0,0.28)" strokeWidth={2.5} />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </div>
+            {/* ④ CTA */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, delay: 1.1 }}
+              style={{ flexShrink: 0, marginTop: 18 }}
+            >
+              <AnimatePresence>
+                {showTap && (
+                  <motion.button
+                    initial={{ opacity: 0, y: 12, scale: 0.90 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.90 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                    onClick={advance}
+                    whileHover={{ scale: 1.04, y: -2, boxShadow: '0 20px 56px rgba(0,80,200,0.18), inset 0 1.5px 0 rgba(255,255,255,1)' }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '13px 26px 13px 18px', borderRadius: 100,
+                      background: 'rgba(255,255,255,0.94)', border: '1px solid rgba(255,255,255,1)',
+                      backdropFilter: 'blur(48px) saturate(1.9)', WebkitBackdropFilter: 'blur(48px) saturate(1.9)',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      boxShadow: '0 8px 32px rgba(0,60,180,0.11), 0 2px 8px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)',
+                    }}
+                    aria-label="Enter Unitravel"
+                  >
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 8,
+                      background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 3px 12px rgba(0,122,255,0.45)', flexShrink: 0,
+                    }}>
+                      <Sparkles size={11} color="#fff" strokeWidth={2.5} />
+                    </div>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1C1C1E', letterSpacing: '-0.01em' }}>Begin your journey</span>
+                    <ArrowRight size={13} color="rgba(0,0,0,0.28)" strokeWidth={2.5} />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
