@@ -69,8 +69,68 @@ const PROMPT_CHIPS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EARTH GLOBE SCENE — real texture, drag rotation, atmosphere, arc routes
+// EARTH GLOBE SCENE — real texture, drag rotation, atmosphere, stars
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Handles drag by attaching directly to gl.domElement — bypasses R3F event system
+function DragController({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
+  const { gl } = useThree();
+  useEffect(() => {
+    const canvas = gl.domElement;
+    canvas.style.cursor = 'grab';
+    const onDown = (e: PointerEvent) => {
+      dragRef.current.dragging = true;
+      dragRef.current.lastX    = e.clientX;
+      dragRef.current.velX     = 0;
+      canvas.style.cursor = 'grabbing';
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current.dragging) return;
+      const dx = e.clientX - dragRef.current.lastX;
+      dragRef.current.velX      = dx * 0.014;
+      dragRef.current.rotOffset += dx * 0.014;
+      dragRef.current.lastX     = e.clientX;
+    };
+    const onUp = () => {
+      dragRef.current.dragging = false;
+      canvas.style.cursor = 'grab';
+    };
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [gl, dragRef]);
+  return null;
+}
+
+// Deterministic starfield — no Math.random, golden-spiral distribution
+function StarField() {
+  const geo = useMemo(() => {
+    const count = 1400;
+    const pos   = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const r = 30 + (i / count) * 55;
+      const t = i * 2.3998;
+      const p = Math.acos(1 - 2 * (i / count));
+      pos[i * 3]     = r * Math.sin(p) * Math.cos(t);
+      pos[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
+      pos[i * 3 + 2] = r * Math.cos(p);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    return g;
+  }, []);
+
+  return (
+    <points geometry={geo}>
+      <pointsMaterial size={0.055} color="#FFFFFF" transparent opacity={0.50} sizeAttenuation />
+    </points>
+  );
+}
 
 function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
   const [dayMap, nightMap] = useTexture(['/earth-texture.jpg', '/earth-night.jpg']);
@@ -80,9 +140,8 @@ function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) 
 
   useFrame((_, delta) => {
     if (!dragRef.current.dragging) {
-      autoRot.current += delta * 0.06;
-      // Inertia decay
-      dragRef.current.velX   *= 0.92;
+      autoRot.current += delta * 0.055;
+      dragRef.current.velX      *= 0.92;
       dragRef.current.rotOffset += dragRef.current.velX;
     }
     const rot = autoRot.current + dragRef.current.rotOffset;
@@ -95,61 +154,26 @@ function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) 
     <group>
       <mesh ref={earthRef}>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshStandardMaterial map={dayMap} roughness={0.65} metalness={0.02} />
+        <meshStandardMaterial map={dayMap} roughness={0.62} metalness={0.02} />
       </mesh>
 
       {/* Night city-lights — AdditiveBlending: black=transparent, cities glow */}
       <mesh ref={nightRef} renderOrder={1}>
         <sphereGeometry args={[2.2, 128, 128]} />
-        <meshBasicMaterial
-          map={nightMap}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          transparent
-          opacity={0.82}
-        />
+        <meshBasicMaterial map={nightMap} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.90} />
       </mesh>
 
-      {/* Extremely thin specular rim — FrontSide only, no BackSide ring */}
-      <mesh scale={1.008}>
+      {/* Atmosphere — on dark background these look beautiful, not like a ring */}
+      <mesh scale={1.048}>
         <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial color={new THREE.Color('#88BBFF')} transparent opacity={0.04} side={THREE.FrontSide} depthWrite={false} />
+        <meshLambertMaterial color={new THREE.Color('#4477EE')} transparent opacity={0.14} side={THREE.BackSide} depthWrite={false} />
+      </mesh>
+      <mesh scale={1.10}>
+        <sphereGeometry args={[2.2, 32, 32]} />
+        <meshLambertMaterial color={new THREE.Color('#2244AA')} transparent opacity={0.06} side={THREE.BackSide} depthWrite={false} />
       </mesh>
     </group>
   );
-}
-
-function ArcRoutes({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
-  const arcGroup = useMemo(() => {
-    const pairs: [[number, number, number], [number, number, number]][] = [
-      [[0.7, 0.6, 0.4],  [-0.8, 0.3, 0.5]],
-      [[-0.5, 0.8, 0.3], [0.6, -0.5, 0.6]],
-      [[0.3, 0.9, -0.3], [-0.7, -0.4, 0.6]],
-      [[-0.9, 0.1, 0.4], [0.4, 0.7, -0.6]],
-      [[0.8, -0.6, 0.1], [-0.3, 0.8, 0.5]],
-      [[0.1, 0.5, -0.9], [0.9, 0.3, 0.3]],
-      [[-0.6, -0.7, 0.4],[0.5, 0.5, -0.7]],
-    ];
-    const colors = ['#007AFF', '#5856D6', '#5AC8FA', '#30D158', '#FF2D55', '#FF9F0A', '#BF5AF2'];
-    const g = new THREE.Group();
-    pairs.forEach(([a, b], i) => {
-      const s   = new THREE.Vector3(...a).normalize().multiplyScalar(2.30);
-      const e   = new THREE.Vector3(...b).normalize().multiplyScalar(2.30);
-      const mid = s.clone().add(e).normalize().multiplyScalar(3.6);
-      const pts = new THREE.QuadraticBezierCurve3(s, mid, e).getPoints(120);
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors[i]), transparent: true, opacity: 0.82, depthWrite: false });
-      g.add(new THREE.Line(geo, mat));
-    });
-    return g;
-  }, []);
-
-  const arcRef = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (arcRef.current) arcRef.current.rotation.y = dragRef.current.totalRot;
-  });
-
-  return <group ref={arcRef}><primitive object={arcGroup} /></group>;
 }
 
 function GlobeScene({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) {
@@ -161,20 +185,19 @@ function GlobeScene({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> })
 
   return (
     <>
-      {/* Broad ambient so the unlit side is dark but not pitch black */}
-      <ambientLight intensity={0.22} />
-      {/* Main sun — forward-left, warm tone — lights Europe/Africa well */}
-      <directionalLight position={[-3, 1.5, 6]} intensity={2.6} color="#FFF8F0" castShadow={false} />
-      {/* Secondary fill from right — keeps Americas visible */}
-      <directionalLight position={[5, 0.5, 4]}  intensity={0.9}  color="#FFFBF0" />
-      {/* Cool blue back-fill for night-side depth */}
-      <pointLight position={[0, -4, -6]} intensity={0.28} color="#1133BB" />
-      {/* Hemisphere: pale sky above, deep navy below */}
-      <hemisphereLight color="#C8D8FF" groundColor="#000820" intensity={0.36} />
+      <DragController dragRef={dragRef} />
+      <ambientLight intensity={0.15} />
+      {/* Warm sun from upper-left-front */}
+      <directionalLight position={[-2.5, 2, 6.5]} intensity={2.8} color="#FFF6E8" />
+      {/* Soft secondary from right keeps Americas from going pitch-black */}
+      <directionalLight position={[5, 0, 3]}    intensity={0.55} color="#FFFBF5" />
+      {/* Deep blue back-light for depth */}
+      <pointLight position={[0, -3, -7]}         intensity={0.22} color="#0A1F66" />
+      <hemisphereLight color="#C0CCFF" groundColor="#000510" intensity={0.28} />
       <Suspense fallback={null}>
         <EarthMesh dragRef={dragRef} />
       </Suspense>
-      <ArcRoutes dragRef={dragRef} />
+      <StarField />
     </>
   );
 }
@@ -557,40 +580,18 @@ export default function Home() {
             transition={{ duration: 0.30 }}
             style={{
               position: 'absolute', inset: 0,
-              // Apple light background — clean white-to-lavender
-              background: 'linear-gradient(160deg, #FFFFFF 0%, #F5F5F7 30%, #F0EFFE 58%, #EDF4FF 85%, #F0FFF4 100%)',
+              background: 'radial-gradient(ellipse at 50% 40%, #0D1B3E 0%, #070E22 45%, #040810 100%)',
             }}
           >
-            {/* Soft ambient blobs */}
+            {/* Deep-space nebula clouds */}
             <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: '-15%', left: '-5%', width: '55%', height: '55%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,122,255,0.10) 0%, transparent 65%)', animation: 'breathe 18s ease-in-out infinite' }} />
-              <div style={{ position: 'absolute', top: '-10%', right: '-4%', width: '50%', height: '50%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(88,86,214,0.08) 0%, transparent 65%)', animation: 'breathe 22s ease-in-out infinite', animationDelay: '6s' }} />
-              <div style={{ position: 'absolute', bottom: '-14%', left: '20%', width: '60%', height: '46%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(90,200,250,0.07) 0%, transparent 65%)', animation: 'liquid-drift 26s ease-in-out infinite', animationDelay: '10s' }} />
-              <div style={{ position: 'absolute', bottom: '8%', right: '-3%', width: '38%', height: '38%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(48,209,88,0.06) 0%, transparent 65%)', animation: 'breathe 20s ease-in-out infinite', animationDelay: '3s' }} />
+              <div style={{ position: 'absolute', top: '-20%', left: '-10%', width: '70%', height: '70%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(30,60,160,0.22) 0%, transparent 65%)', animation: 'breathe 24s ease-in-out infinite' }} />
+              <div style={{ position: 'absolute', top: '-15%', right: '-8%', width: '60%', height: '60%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(80,40,180,0.16) 0%, transparent 65%)', animation: 'breathe 28s ease-in-out infinite', animationDelay: '8s' }} />
+              <div style={{ position: 'absolute', bottom: '-10%', left: '15%', width: '65%', height: '50%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(20,50,140,0.14) 0%, transparent 65%)', animation: 'breathe 20s ease-in-out infinite', animationDelay: '4s' }} />
             </div>
 
-            {/* Three.js Earth Globe — interactive drag rotation */}
-            <div
-              style={{ position: 'absolute', inset: 0, cursor: 'grab' }}
-              onPointerDown={e => {
-                globeDragRef.current.dragging = true;
-                globeDragRef.current.lastX    = e.clientX;
-                globeDragRef.current.velX     = 0;
-                (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-              }}
-              onPointerMove={e => {
-                if (!globeDragRef.current.dragging) return;
-                const dx = e.clientX - globeDragRef.current.lastX;
-                globeDragRef.current.velX      = dx * 0.013;
-                globeDragRef.current.rotOffset += dx * 0.013;
-                globeDragRef.current.lastX     = e.clientX;
-              }}
-              onPointerUp={e => {
-                globeDragRef.current.dragging = false;
-                (e.currentTarget as HTMLElement).style.cursor = 'grab';
-              }}
-            >
+            {/* Three.js Earth Globe — DragController handles cursor/events from inside Canvas */}
+            <div style={{ position: 'absolute', inset: 0 }}>
               <Canvas
                 camera={{ position: [0, 0, 6.5], fov: 42 }}
                 gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
@@ -607,28 +608,21 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
-                style={{
-                  padding: '7px 18px', borderRadius: 100,
-                  background: 'rgba(255,255,255,0.82)',
-                  backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
-                  border: '1px solid rgba(255,255,255,0.96)',
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)',
-                  display: 'flex', alignItems: 'baseline', gap: 0,
-                }}
+                style={{ display: 'flex', alignItems: 'baseline', gap: 0 }}
               >
-                <span style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.04em', color: '#1D1D1F' }}>UNIT</span>
-                <span style={{ fontSize: 13.5, fontWeight: 300, letterSpacing: '0.05em', color: '#48484A' }}>RAVEL</span>
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase' }}>UNIT</span>
+                <span style={{ fontSize: 15, fontWeight: 300, letterSpacing: '0.28em', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' }}>RAVEL</span>
               </motion.div>
 
               {/* Tagline + CTA */}
               <motion.div
                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 1.2, delay: 0.9 }}
-                style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}
+                style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}
               >
                 <p style={{
-                  fontSize: 12, fontWeight: 600, color: 'rgba(0,122,255,0.65)',
-                  letterSpacing: '0.20em', textTransform: 'uppercase', margin: 0,
+                  fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.38)',
+                  letterSpacing: '0.28em', textTransform: 'uppercase', margin: 0,
                 }}>Your AI Travel Operating System</p>
 
                 <AnimatePresence>
@@ -639,17 +633,17 @@ export default function Home() {
                       exit={{ opacity: 0, scale: 0.88 }}
                       transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                       onClick={advance}
-                      whileHover={{ scale: 1.04, y: -3, boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 6px 20px rgba(0,0,0,0.09), inset 0 2px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.04)' }}
+                      whileHover={{ scale: 1.04, y: -3, boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1.5px 0 rgba(255,255,255,0.55)' }}
                       whileTap={{ scale: 0.97 }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 11,
-                        padding: '15px 30px 15px 22px', borderRadius: 100,
-                        background: 'rgba(255,255,255,0.62)',
-                        border: '1px solid rgba(255,255,255,0.88)',
-                        backdropFilter: 'blur(60px) saturate(2.2)',
-                        WebkitBackdropFilter: 'blur(60px) saturate(2.2)',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '14px 28px 14px 20px', borderRadius: 100,
+                        background: 'rgba(255,255,255,0.10)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        backdropFilter: 'blur(60px) saturate(2)',
+                        WebkitBackdropFilter: 'blur(60px) saturate(2)',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 10px 44px rgba(0,0,0,0.13), 0 3px 10px rgba(0,0,0,0.07), inset 0 2px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.03)',
+                        boxShadow: '0 8px 40px rgba(0,0,0,0.40), inset 0 1.5px 0 rgba(255,255,255,0.40), inset 0 -1px 0 rgba(0,0,0,0.12)',
                       }}
                       aria-label="Enter Unitravel"
                     >
@@ -657,15 +651,15 @@ export default function Home() {
                         width: 26, height: 26, borderRadius: 8,
                         background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 3px 12px rgba(0,122,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30)',
+                        boxShadow: '0 3px 14px rgba(0,122,255,0.55), inset 0 1px 0 rgba(255,255,255,0.28)',
                         flexShrink: 0,
                       }}>
                         <Sparkles size={11} color="#fff" strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.015em' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', letterSpacing: '0.01em' }}>
                         Begin your journey
                       </span>
-                      <ArrowRight size={13} color="rgba(0,0,0,0.40)" strokeWidth={2.5} />
+                      <ArrowRight size={13} color="rgba(255,255,255,0.40)" strokeWidth={2.5} />
                     </motion.button>
                   )}
                 </AnimatePresence>
