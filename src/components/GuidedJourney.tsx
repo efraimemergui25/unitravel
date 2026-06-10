@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage, type DynamicToolUIPart } from 'ai';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, LayoutGrid, Sparkles, Check } from 'lucide-react';
+import { ArrowRight, LayoutGrid, Sparkles, Check, MapPin, Users, Wallet, Clock } from 'lucide-react';
 import { useTravelEngine } from '@/store/useTravelEngine';
 import { FinancialEngine } from '@/utils/FinancialEngine';
 
@@ -26,33 +26,27 @@ interface CommitTripArgs {
 const SP  = { type: 'spring', stiffness: 380, damping: 28 } as const;
 const SPF = { type: 'spring', stiffness: 460, damping: 22 } as const;
 
-// ── Particles ─────────────────────────────────────────────────────────────────
+// ── Ambient orbs (light mode, no particles) ───────────────────────────────────
 
-function Particles() {
-  const dots = useMemo(() =>
-    Array.from({ length: 55 }, (_, i) => ({
-      id: i,
-      x: (Math.sin(i * 7.3 + 1.1) * 0.5 + 0.5) * 100,
-      y: (Math.cos(i * 5.7 + 2.3) * 0.5 + 0.5) * 100,
-      r: (Math.sin(i * 3.1) * 0.5 + 0.5) * 2 + 0.4,
-      dur: (Math.sin(i * 1.9) * 0.5 + 0.5) * 2.5 + 1.8,
-      del: (Math.sin(i * 4.7) * 0.5 + 0.5) * 4,
-    })), []);
-
+function AmbientOrbs() {
   return (
     <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-      {dots.map(d => (
-        <motion.div
-          key={d.id}
-          style={{
-            position: 'absolute',
-            left: `${d.x}%`, top: `${d.y}%`,
-            width: d.r, height: d.r, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.65)',
-          }}
-          animate={{ opacity: [0.05, 0.70, 0.05] }}
-          transition={{ duration: d.dur, repeat: Infinity, delay: d.del, ease: 'easeInOut' }}
-        />
+      {([
+        { top: '-14%', insetInlineStart: '-6%',  w: '52%', h: '58%', c: 'rgba(0,122,255,0.08)',  a: 'breathe 22s ease-in-out infinite'       },
+        { top: '-6%',  insetInlineEnd:  '-5%',   w: '44%', h: '48%', c: 'rgba(88,86,214,0.06)',  a: 'breathe 26s ease-in-out infinite', d: '8s' },
+        { bottom: '-12%', insetInlineEnd: '6%',  w: '40%', h: '42%', c: 'rgba(90,200,250,0.05)', a: 'breathe 20s ease-in-out infinite', d: '4s' },
+        { bottom: '-8%',  insetInlineStart: '4%', w: '36%', h: '36%', c: 'rgba(191,90,242,0.04)',a: 'breathe 24s ease-in-out infinite', d: '12s'},
+      ] as { top?: string; bottom?: string; insetInlineStart?: string; insetInlineEnd?: string; w: string; h: string; c: string; a: string; d?: string }[]).map((b, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          top: b.top, bottom: b.bottom,
+          insetInlineStart: b.insetInlineStart,
+          insetInlineEnd: b.insetInlineEnd,
+          width: b.w, height: b.h,
+          borderRadius: '50%',
+          background: `radial-gradient(ellipse, ${b.c} 0%, transparent 68%)`,
+          animation: b.a, animationDelay: b.d ?? '0s',
+        }} />
       ))}
     </div>
   );
@@ -62,11 +56,18 @@ function Particles() {
 
 function TypingDots() {
   return (
-    <div style={{ display: 'flex', gap: 5, padding: '12px 14px', borderRadius: '4px 16px 16px 16px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.11)', alignSelf: 'flex-start', backdropFilter: 'blur(12px)' }}>
+    <div style={{
+      display: 'flex', gap: 5, padding: '14px 16px',
+      borderRadius: '6px 18px 18px 18px',
+      background: 'rgba(255,255,255,0.95)',
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,1)',
+      alignSelf: 'flex-start',
+    }}>
       {[0, 1, 2].map(i => (
         <motion.div
           key={i}
-          style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(255,255,255,0.50)' }}
+          style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(0,122,255,0.50)' }}
           animate={{ y: [0, -6, 0], opacity: [0.40, 1, 0.40] }}
           transition={{ duration: 0.65, repeat: Infinity, delay: i * 0.14, ease: 'easeInOut' }}
         />
@@ -93,30 +94,36 @@ function Bubble({ msg }: { msg: UIMessage }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.96 }}
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={SP}
       style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 10 }}
     >
       {!isUser && (
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 14px rgba(0,122,255,0.42)' }}>
-          <Sparkles size={13} color="#fff" strokeWidth={2.2} />
+        <div style={{
+          width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+          background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(0,122,255,0.32)',
+        }}>
+          <Sparkles size={14} color="#fff" strokeWidth={2.2} />
         </div>
       )}
       <div style={{
-        maxWidth: '68%', padding: '13px 17px',
-        borderRadius: isUser ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
+        maxWidth: '72%', padding: isUser ? '12px 18px' : '16px 20px',
+        borderRadius: isUser ? '18px 4px 18px 18px' : '4px 20px 20px 20px',
         background: isUser
           ? 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)'
-          : 'rgba(255,255,255,0.09)',
-        border: isUser ? 'none' : '1px solid rgba(255,255,255,0.13)',
-        backdropFilter: isUser ? undefined : 'blur(16px)',
+          : 'rgba(255,255,255,0.97)',
+        border: isUser ? 'none' : '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: isUser ? undefined : 'blur(40px) saturate(1.8)',
+        WebkitBackdropFilter: isUser ? undefined : 'blur(40px) saturate(1.8)',
         boxShadow: isUser
-          ? '0 4px 20px rgba(0,122,255,0.38)'
-          : 'inset 0 1px 0 rgba(255,255,255,0.09)',
-        color: 'rgba(255,255,255,0.92)',
-        fontSize: 14, fontWeight: 400,
-        lineHeight: 1.58, letterSpacing: '-0.01em',
+          ? '0 6px 24px rgba(0,122,255,0.36)'
+          : '0 4px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1)',
+        color: isUser ? '#fff' : '#1D1D1F',
+        fontSize: 14.5, fontWeight: isUser ? 500 : 400,
+        lineHeight: 1.60, letterSpacing: '-0.01em',
         whiteSpace: 'pre-wrap',
       }}>
         {text}
@@ -128,62 +135,78 @@ function Bubble({ msg }: { msg: UIMessage }) {
 // ── Trip ready card ────────────────────────────────────────────────────────────
 
 function TripReadyCard({ tripData, onView }: { tripData: CommitTripArgs; onView: () => void }) {
+  const STATS = [
+    { icon: MapPin,  label: 'Destination', value: tripData.destination,                            color: '#007AFF' },
+    { icon: Clock,   label: 'Duration',    value: `${tripData.nights} nights`,                    color: '#FF9F0A' },
+    { icon: Users,   label: 'Travelers',   value: `${tripData.travelers}`,                        color: '#30D158' },
+    { icon: Wallet,  label: 'Budget',      value: `$${tripData.budget.toLocaleString()}`,          color: '#BF5AF2' },
+  ];
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.90, y: 20 }}
+      initial={{ opacity: 0, scale: 0.92, y: 24 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={SPF}
       style={{
-        background: 'rgba(255,255,255,0.10)',
-        border: '1.5px solid rgba(255,255,255,0.20)',
-        borderRadius: 22,
-        padding: '24px 22px',
-        backdropFilter: 'blur(40px)',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.35), inset 0 1.5px 0 rgba(255,255,255,0.22)',
+        background: 'rgba(255,255,255,0.98)',
+        border: '1px solid rgba(255,255,255,1)',
+        borderRadius: 26,
+        padding: '26px 24px',
+        backdropFilter: 'blur(56px) saturate(1.9)',
+        WebkitBackdropFilter: 'blur(56px) saturate(1.9)',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.10), 0 6px 24px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)',
         position: 'relative', overflow: 'hidden',
       }}
     >
-      <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #007AFF, #5856D6, #BF5AF2, #FF2D55)', borderRadius: '22px 22px 0 0' }} />
+      {/* Full-spectrum top accent */}
+      <div aria-hidden style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, height: 3, background: 'linear-gradient(90deg, #007AFF, #5856D6, #BF5AF2, #FF2D55)', borderRadius: '26px 26px 0 0', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', top: 3, insetInlineStart: '8%', insetInlineEnd: '8%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 35%, rgba(255,255,255,1) 65%, transparent)', borderRadius: 999, pointerEvents: 'none' }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <motion.div
           animate={{ rotate: [0, 360] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+          style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,122,255,0.35)' }}
         >
-          <Sparkles size={13} color="#fff" strokeWidth={2.2} />
+          <Sparkles size={14} color="#fff" strokeWidth={2.2} />
         </motion.div>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.90)', letterSpacing: '-0.02em' }}>Trip ready</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.025em' }}>Your trip is ready</div>
+          <div style={{ fontSize: 10.5, fontWeight: 500, color: '#6E6E73', marginTop: 1 }}>AI has planned everything based on your preferences</div>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
-        {[
-          { label: 'Destination', value: tripData.destination },
-          { label: 'Duration',    value: `${tripData.nights} nights` },
-          { label: 'Travelers',   value: `${tripData.travelers} ${tripData.travelers === 1 ? 'person' : 'people'}` },
-          { label: 'Budget',      value: `$${tripData.budget.toLocaleString()}` },
-        ].map(({ label, value }) => (
-          <div key={label} style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.90)', letterSpacing: '-0.01em' }}>{value}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 20 }}>
+        {STATS.map(({ icon: Icon, label, value, color }) => (
+          <div key={label} style={{
+            padding: '12px 14px', borderRadius: 16,
+            background: `${color}08`,
+            border: `1px solid ${color}18`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+              <Icon size={10} color={color} strokeWidth={2.2} />
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: color, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</div>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{value}</div>
           </div>
         ))}
       </div>
 
       <motion.button
         onClick={onView}
-        whileHover={{ scale: 1.03, boxShadow: '0 8px 30px rgba(0,122,255,0.48)' }}
-        whileTap={{ scale: 0.97 }}
+        whileHover={{ scale: 1.02, y: -1, boxShadow: '0 12px 40px rgba(0,122,255,0.40), inset 0 1.5px 0 rgba(255,255,255,0.28)' }}
+        whileTap={{ scale: 0.98 }}
         style={{
-          width: '100%', padding: '14px', borderRadius: 14,
+          width: '100%', padding: '15px', borderRadius: 16,
           background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
           border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          boxShadow: '0 4px 20px rgba(0,122,255,0.38)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+          boxShadow: '0 6px 24px rgba(0,122,255,0.32), inset 0 1.5px 0 rgba(255,255,255,0.24)',
         }}
       >
-        <Check size={15} color="#fff" strokeWidth={2.5} />
-        <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>View my trip →</span>
+        <Check size={16} color="#fff" strokeWidth={2.5} />
+        <span style={{ fontSize: 14.5, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>View my trip</span>
+        <ArrowRight size={14} color="rgba(255,255,255,0.70)" strokeWidth={2.5} />
       </motion.button>
     </motion.div>
   );
@@ -305,35 +328,51 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
       transition={{ duration: 0.32 }}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'linear-gradient(135deg, #080818 0%, #0C1640 45%, #080B1E 100%)',
+        background: 'linear-gradient(160deg, #EDF0FF 0%, #FFFFFF 40%, #F4F0FF 68%, #EEF4FF 100%)',
         display: 'flex', flexDirection: 'column',
         fontFamily: '-apple-system, "SF Pro Display", Inter, sans-serif',
       }}
     >
-      <Particles />
+      <AmbientOrbs />
 
-      {/* ── Top bar ────────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────────── */}
       <div style={{
         position: 'relative', zIndex: 10,
-        padding: '16px 20px',
+        padding: '14px 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        backdropFilter: 'blur(20px)',
+        background: 'rgba(255,255,255,0.88)',
+        backdropFilter: 'blur(40px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.9)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,122,255,0.40)' }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 9,
+            background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(0,122,255,0.32)',
+          }}>
             <Sparkles size={13} color="#fff" strokeWidth={2.2} />
           </div>
-          <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.80)', letterSpacing: '-0.03em' }}>Unit AI</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.03em', lineHeight: 1 }}>Unit AI</div>
+            <div style={{ fontSize: 9.5, fontWeight: 500, color: '#8E8E93', marginTop: 1 }}>Travel Concierge</div>
+          </div>
         </div>
 
+        {/* Progress pills */}
         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
           {Array.from({ length: 5 }).map((_, i) => (
             <motion.div
               key={i}
               animate={{
                 width: i === progress ? 22 : 6,
-                background: i < progress ? '#30D158' : i === progress ? '#007AFF' : 'rgba(255,255,255,0.14)',
+                background: i < progress
+                  ? '#30D158'
+                  : i === progress
+                    ? '#007AFF'
+                    : 'rgba(0,0,0,0.12)',
               }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               style={{ height: 5, borderRadius: 3 }}
@@ -343,28 +382,30 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
 
         <motion.button
           onClick={onSwitch}
-          whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.11)' }}
+          whileHover={{ scale: 1.04, background: 'rgba(0,0,0,0.07)' }}
           whileTap={{ scale: 0.97 }}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
-            padding: '6px 12px', borderRadius: 100,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.11)',
-            color: 'rgba(255,255,255,0.50)',
+            padding: '7px 13px', borderRadius: 100,
+            background: 'rgba(0,0,0,0.05)',
+            border: '1px solid rgba(0,0,0,0.10)',
+            color: '#3C3C43',
             fontSize: 11, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
+            letterSpacing: '-0.01em',
           }}
         >
-          <LayoutGrid size={11} />
+          <LayoutGrid size={11} color="#3C3C43" />
           Manual mode
         </motion.button>
       </div>
 
-      {/* ── Messages ───────────────────────────────────────────────── */}
+      {/* ── Messages ─────────────────────────────────────────────────── */}
       <div style={{
-        flex: 1, overflowY: 'auto', padding: '24px 20px 12px',
-        display: 'flex', flexDirection: 'column', gap: 14,
+        flex: 1, overflowY: 'auto', padding: '28px 24px 16px',
+        display: 'flex', flexDirection: 'column', gap: 16,
         scrollbarWidth: 'none', position: 'relative', zIndex: 1,
+        maxWidth: 720, width: '100%', marginInline: 'auto', boxSizing: 'border-box',
       }}>
         <AnimatePresence initial={false}>
           {messages.map(msg => (
@@ -374,9 +415,15 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
 
         <AnimatePresence>
           {isStreaming && (
-            <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={SP} style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 14px rgba(0,122,255,0.40)' }}>
-                <Sparkles size={13} color="#fff" strokeWidth={2.2} />
+            <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={SP}
+              style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(0,122,255,0.30)',
+              }}>
+                <Sparkles size={14} color="#fff" strokeWidth={2.2} />
               </div>
               <TypingDots />
             </motion.div>
@@ -396,7 +443,7 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Input area ─────────────────────────────────────────────── */}
+      {/* ── Input area ───────────────────────────────────────────────── */}
       {!tripData && (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -404,18 +451,22 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
           transition={{ delay: 0.2, ...SP }}
           style={{
             position: 'relative', zIndex: 10,
-            padding: '12px 16px 28px',
-            background: 'linear-gradient(0deg, rgba(8,8,24,0.96) 0%, rgba(8,8,24,0.75) 70%, transparent 100%)',
+            padding: '12px 24px 28px',
+            background: 'linear-gradient(0deg, rgba(245,245,250,0.97) 0%, rgba(245,245,250,0.85) 70%, transparent 100%)',
             backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            maxWidth: 720, width: '100%', marginInline: 'auto', boxSizing: 'border-box',
           }}
         >
           <div style={{
             display: 'flex', gap: 10, alignItems: 'flex-end',
-            background: 'rgba(255,255,255,0.07)',
-            border: '1.5px solid rgba(255,255,255,0.13)',
-            borderRadius: 18,
-            padding: '10px 12px 10px 16px',
-            backdropFilter: 'blur(16px)',
+            background: 'rgba(255,255,255,0.97)',
+            border: '1px solid rgba(0,0,0,0.09)',
+            borderRadius: 20,
+            padding: '12px 12px 12px 18px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)',
+            backdropFilter: 'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
           }}>
             <textarea
               value={inputVal}
@@ -426,11 +477,11 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
                   handleSend();
                 }
               }}
-              placeholder="Type your answer..."
+              placeholder="Type your answer…"
               rows={1}
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                color: 'rgba(255,255,255,0.90)', fontSize: 14, fontWeight: 400,
+                color: '#1D1D1F', fontSize: 14.5, fontWeight: 400,
                 fontFamily: 'inherit', letterSpacing: '-0.01em', lineHeight: 1.5,
                 resize: 'none', minHeight: 22, maxHeight: 120, overflowY: 'auto',
                 scrollbarWidth: 'none',
@@ -442,21 +493,24 @@ export function GuidedJourney({ onSwitch }: { onSwitch: () => void }) {
               whileHover={{ scale: inputVal.trim() ? 1.08 : 1 }}
               whileTap={{ scale: inputVal.trim() ? 0.94 : 1 }}
               style={{
-                width: 36, height: 36, borderRadius: 11, border: 'none',
+                width: 38, height: 38, borderRadius: 12, border: 'none',
                 background: inputVal.trim() && !isStreaming
                   ? 'linear-gradient(135deg, #007AFF, #5856D6)'
-                  : 'rgba(255,255,255,0.07)',
+                  : 'rgba(0,0,0,0.06)',
                 cursor: inputVal.trim() && !isStreaming ? 'pointer' : 'default',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
-                boxShadow: inputVal.trim() && !isStreaming ? '0 3px 14px rgba(0,122,255,0.40)' : 'none',
+                boxShadow: inputVal.trim() && !isStreaming ? '0 4px 16px rgba(0,122,255,0.38)' : 'none',
                 transition: 'background 0.18s, box-shadow 0.18s',
               }}
             >
-              <ArrowRight size={16} color={inputVal.trim() && !isStreaming ? '#fff' : 'rgba(255,255,255,0.22)'} strokeWidth={2.5} />
+              <ArrowRight size={16}
+                color={inputVal.trim() && !isStreaming ? '#fff' : 'rgba(0,0,0,0.22)'}
+                strokeWidth={2.5}
+              />
             </motion.button>
           </div>
-          <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10.5, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.01em' }}>
+          <div style={{ textAlign: 'center', marginTop: 9, fontSize: 10.5, color: '#AEAEB2', letterSpacing: '0.01em' }}>
             Enter to send · Shift+Enter for newline
           </div>
         </motion.div>
