@@ -110,22 +110,10 @@ function EarthMesh({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) 
         />
       </mesh>
 
-      {/* Thin inner haze */}
-      <mesh scale={1.012}>
+      {/* Extremely thin specular rim — FrontSide only, no BackSide ring */}
+      <mesh scale={1.008}>
         <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial color={new THREE.Color('#66AAFF')} transparent opacity={0.06} side={THREE.FrontSide} depthWrite={false} />
-      </mesh>
-
-      {/* Atmosphere rim glow — BackSide so it forms an edge halo */}
-      <mesh scale={1.068}>
-        <sphereGeometry args={[2.2, 64, 64]} />
-        <meshLambertMaterial color={new THREE.Color('#4488FF')} transparent opacity={0.28} side={THREE.BackSide} depthWrite={false} />
-      </mesh>
-
-      {/* Outer halo for soft depth */}
-      <mesh scale={1.13}>
-        <sphereGeometry args={[2.2, 32, 32]} />
-        <meshLambertMaterial color={new THREE.Color('#2255CC')} transparent opacity={0.10} side={THREE.BackSide} depthWrite={false} />
+        <meshLambertMaterial color={new THREE.Color('#88BBFF')} transparent opacity={0.04} side={THREE.FrontSide} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -145,12 +133,12 @@ function ArcRoutes({ dragRef }: { dragRef: React.MutableRefObject<GlobeDrag> }) 
     const colors = ['#007AFF', '#5856D6', '#5AC8FA', '#30D158', '#FF2D55', '#FF9F0A', '#BF5AF2'];
     const g = new THREE.Group();
     pairs.forEach(([a, b], i) => {
-      const s   = new THREE.Vector3(...a).normalize().multiplyScalar(2.28);
-      const e   = new THREE.Vector3(...b).normalize().multiplyScalar(2.28);
-      const mid = s.clone().add(e).normalize().multiplyScalar(3.3);
-      const pts = new THREE.QuadraticBezierCurve3(s, mid, e).getPoints(80);
+      const s   = new THREE.Vector3(...a).normalize().multiplyScalar(2.30);
+      const e   = new THREE.Vector3(...b).normalize().multiplyScalar(2.30);
+      const mid = s.clone().add(e).normalize().multiplyScalar(3.6);
+      const pts = new THREE.QuadraticBezierCurve3(s, mid, e).getPoints(120);
       const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors[i]), transparent: true, opacity: 0.55, depthWrite: false });
+      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors[i]), transparent: true, opacity: 0.82, depthWrite: false });
       g.add(new THREE.Line(geo, mat));
     });
     return g;
@@ -651,32 +639,33 @@ export default function Home() {
                       exit={{ opacity: 0, scale: 0.88 }}
                       transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                       onClick={advance}
-                      whileHover={{ scale: 1.04, y: -2, boxShadow: '0 14px 44px rgba(0,122,255,0.28), 0 0 0 1.5px rgba(0,122,255,0.24)' }}
-                      whileTap={{ scale: 0.96 }}
+                      whileHover={{ scale: 1.04, y: -3, boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 6px 20px rgba(0,0,0,0.09), inset 0 2px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.04)' }}
+                      whileTap={{ scale: 0.97 }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '14px 32px 14px 24px', borderRadius: 100,
-                        background: 'rgba(255,255,255,0.96)',
-                        border: '1.5px solid rgba(0,122,255,0.18)',
-                        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+                        display: 'flex', alignItems: 'center', gap: 11,
+                        padding: '15px 30px 15px 22px', borderRadius: 100,
+                        background: 'rgba(255,255,255,0.62)',
+                        border: '1px solid rgba(255,255,255,0.88)',
+                        backdropFilter: 'blur(60px) saturate(2.2)',
+                        WebkitBackdropFilter: 'blur(60px) saturate(2.2)',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 8px 30px rgba(0,122,255,0.14), 0 2px 8px rgba(0,0,0,0.05), inset 0 1.5px 0 rgba(255,255,255,1)',
+                        boxShadow: '0 10px 44px rgba(0,0,0,0.13), 0 3px 10px rgba(0,0,0,0.07), inset 0 2px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.03)',
                       }}
                       aria-label="Enter Unitravel"
                     >
                       <div style={{
-                        width: 28, height: 28, borderRadius: 9,
-                        background: 'linear-gradient(135deg, #007AFF, #5856D6)',
+                        width: 26, height: 26, borderRadius: 8,
+                        background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 2px 10px rgba(0,122,255,0.36)',
+                        boxShadow: '0 3px 12px rgba(0,122,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30)',
                         flexShrink: 0,
                       }}>
-                        <Sparkles size={12} color="#fff" strokeWidth={2.5} />
+                        <Sparkles size={11} color="#fff" strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.015em' }}>
                         Begin your journey
                       </span>
-                      <ArrowRight size={14} color="#007AFF" strokeWidth={2.5} />
+                      <ArrowRight size={13} color="rgba(0,0,0,0.40)" strokeWidth={2.5} />
                     </motion.button>
                   )}
                 </AnimatePresence>
@@ -866,16 +855,18 @@ export default function Home() {
                         style={{
                           marginTop: 'auto', paddingTop: 14,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                          padding: '11px 22px', borderRadius: 100,
-                          background: 'linear-gradient(135deg, #007AFF, #5856D6)',
-                          border: 'none',
-                          boxShadow: '0 4px 18px rgba(0,122,255,0.28)',
+                          padding: '12px 22px', borderRadius: 100,
+                          background: 'linear-gradient(135deg, rgba(0,122,255,0.92) 0%, rgba(88,86,214,0.92) 100%)',
+                          border: '1px solid rgba(255,255,255,0.28)',
+                          backdropFilter: 'blur(20px) saturate(1.6)',
+                          WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
+                          boxShadow: '0 6px 28px rgba(0,122,255,0.36), 0 2px 8px rgba(0,0,0,0.08), inset 0 1.5px 0 rgba(255,255,255,0.42), inset 0 -1px 0 rgba(0,0,0,0.10)',
                           cursor: 'pointer', fontFamily: 'inherit',
                           position: 'relative', zIndex: 1,
                         }}
                       >
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>Plan my trip with AI</span>
-                        <ArrowRight size={13} color="rgba(255,255,255,0.90)" strokeWidth={2.5} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.015em' }}>Plan my trip with AI</span>
+                        <ArrowRight size={13} color="rgba(255,255,255,0.80)" strokeWidth={2.5} />
                       </motion.button>
                     </motion.div>
 
@@ -1000,21 +991,23 @@ export default function Home() {
 
                       {/* CTA — goes to flights zone as default entry */}
                       <motion.button
-                        whileHover={{ scale: 1.02, boxShadow: '0 8px 28px rgba(48,209,88,0.22)', backgroundColor: 'rgba(48,209,88,0.13)', borderColor: 'rgba(48,209,88,0.35)' }}
+                        whileHover={{ scale: 1.02, y: -2, boxShadow: '0 12px 36px rgba(0,0,0,0.09), 0 4px 12px rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,1)' }}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => goTo('/zone/flights')}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                           padding: '12px 22px', borderRadius: 100,
-                          background: 'rgba(48,209,88,0.09)',
-                          border: '1.5px solid rgba(48,209,88,0.26)',
-                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.80), 0 2px 10px rgba(48,209,88,0.08)',
+                          background: 'rgba(255,255,255,0.72)',
+                          border: '1px solid rgba(255,255,255,0.92)',
+                          backdropFilter: 'blur(40px) saturate(2)',
+                          WebkitBackdropFilter: 'blur(40px) saturate(2)',
+                          boxShadow: '0 6px 28px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.03)',
                           cursor: 'pointer', fontFamily: 'inherit',
                           marginTop: 'auto',
                         }}
                       >
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#1C8A39', letterSpacing: '-0.01em' }}>Start building</span>
-                        <ArrowRight size={13} color="#1C8A39" strokeWidth={2.5} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.015em' }}>Start building</span>
+                        <ArrowRight size={13} color="rgba(0,0,0,0.40)" strokeWidth={2.5} />
                       </motion.button>
                     </motion.div>
 
