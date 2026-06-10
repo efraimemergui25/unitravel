@@ -165,10 +165,11 @@ function EarthMesh() {
   );
 }
 
-function GlobeScene({ onPinHover, onPinLeave, onPinClick }: {
+function GlobeScene({ onPinHover, onPinLeave, onPinClick, autoRotate }: {
   onPinHover: (pin: PinData, x: number, y: number) => void;
   onPinLeave: () => void;
   onPinClick: (pin: PinData) => void;
+  autoRotate: boolean;
 }) {
   const { gl, scene } = useThree();
   useEffect(() => {
@@ -186,7 +187,7 @@ function GlobeScene({ onPinHover, onPinLeave, onPinClick }: {
       <OrbitControls
         enableZoom={false}
         enablePan={false}
-        autoRotate
+        autoRotate={autoRotate}
         autoRotateSpeed={0.5}
         enableDamping
         dampingFactor={0.05}
@@ -610,6 +611,7 @@ export default function Home() {
                     onPinHover={handlePinHover}
                     onPinLeave={handlePinLeave}
                     onPinClick={handlePinClick}
+                    autoRotate={!hoveredPin}
                   />
                 </Canvas>
               </div>
