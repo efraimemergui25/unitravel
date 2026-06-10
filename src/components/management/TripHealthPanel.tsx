@@ -87,7 +87,7 @@ export function TripHealthPanel() {
         status: budgetStatus,
         score: budgetStatus === 'ok' ? 25 : budgetStatus === 'warn' ? 12 : 0,
         icon: Wallet,
-        action: !budgetSet ? { label: 'Set budget', href: '/setup' } : undefined,
+        action: !budgetSet ? { label: 'Set budget', href: '/zone/management?tab=budget' } : undefined,
       },
       {
         id: 'planning',

@@ -76,24 +76,40 @@ export function ZoneShell({
         margin: '0 12px',
         flexShrink: 0,
         borderRadius: 22,
-        background: 'rgba(255,255,255,0.88)',
-        backdropFilter: 'blur(56px) saturate(200%)',
-        WebkitBackdropFilter: 'blur(56px) saturate(200%)',
-        border: '1px solid rgba(255,255,255,0.96)',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
+        background: 'rgba(255,255,255,0.90)',
+        backdropFilter: 'blur(64px) saturate(220%)',
+        WebkitBackdropFilter: 'blur(64px) saturate(220%)',
+        border: '1px solid rgba(255,255,255,0.97)',
+        boxShadow: `0 12px 48px rgba(0,0,0,0.09), 0 3px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(255,255,255,0.70), inset 0 2px 0 rgba(255,255,255,1), inset 0 0 0 1px ${color}08`,
         overflow: 'hidden',
         position: 'relative',
       }}
     >
-      {/* Specular top */}
+      {/* Zone-color accent bar at top */}
       <div aria-hidden style={{
-        position: 'absolute', left: '4%', right: '4%', top: 0, height: 1,
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: gradient,
+        borderRadius: '22px 22px 0 0',
+        opacity: 0.88,
+        pointerEvents: 'none', zIndex: 5,
+      }} />
+
+      {/* Specular top (offset by accent bar) */}
+      <div aria-hidden style={{
+        position: 'absolute', left: '4%', right: '4%', top: 3, height: 1,
         background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 25%, rgba(255,255,255,1) 75%, transparent)',
         pointerEvents: 'none', zIndex: 4,
       }} />
 
+      {/* Subtle zone-color ambient tint overlay */}
+      <div aria-hidden style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: '55%',
+        background: `linear-gradient(180deg, ${color}07 0%, transparent 100%)`,
+        pointerEvents: 'none', zIndex: 1, borderRadius: '22px 22px 0 0',
+      }} />
+
       {/* NL hero */}
-      <div style={{ padding: '18px 18px 14px' }}>
+      <div style={{ padding: '20px 18px 14px', position: 'relative', zIndex: 2 }}>
         <NLHero
           value={nlValue} onChange={onNLChange} onApply={onNLApply}
           focused={nlFocused} onFocus={onNLFocus} onBlur={onNLBlur}
@@ -104,24 +120,24 @@ export function ZoneShell({
       </div>
 
       {/* Divider */}
-      <div style={{ height: 1, background: 'rgba(0,0,0,0.045)', marginInline: 18 }} />
+      <div style={{ height: 1, background: `linear-gradient(90deg, transparent 2%, ${color}18 25%, ${color}18 75%, transparent 98%)`, marginInline: 18, position: 'relative', zIndex: 2 }} />
 
       {/* Params row */}
       {paramsRow && (
-        <div style={{ padding: '12px 18px 0', display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', rowGap: 6 }}>
+        <div style={{ padding: '12px 18px 0', display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', rowGap: 6, position: 'relative', zIndex: 2 }}>
           {paramsRow}
         </div>
       )}
 
       {/* Extra row (verdict, etc.) */}
       {extraRow && (
-        <div style={{ padding: '10px 18px 0' }}>
+        <div style={{ padding: '10px 18px 0', position: 'relative', zIndex: 2 }}>
           {extraRow}
         </div>
       )}
 
       {/* Engine pill + Search CTA */}
-      <div style={{ padding: '12px 18px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: '12px 18px 17px', display: 'flex', alignItems: 'center', gap: 10, position: 'relative', zIndex: 2 }}>
         <motion.button
           onClick={onEnginesToggle}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
@@ -147,16 +163,18 @@ export function ZoneShell({
         <motion.button
           onClick={onSearch}
           disabled={!canSearch || isSearching}
-          whileHover={canSearch && !isSearching ? { scale: 1.03, boxShadow: `0 8px 28px ${color}55` } : {}}
+          whileHover={canSearch && !isSearching ? { scale: 1.035, boxShadow: `0 10px 32px ${color}60, 0 4px 12px ${color}30` } : {}}
           whileTap={canSearch ? { scale: 0.97 } : {}}
-          animate={{ opacity: canSearch ? 1 : 0.44 }}
+          animate={{ opacity: canSearch ? 1 : 0.42 }}
           transition={SP}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 26px', borderRadius: 14, background: canSearch ? gradient : 'rgba(0,0,0,0.10)',
-            color: 'white', fontSize: 13, fontWeight: 800, letterSpacing: '-0.015em',
+            padding: '11px 28px', borderRadius: 100, background: canSearch ? gradient : 'rgba(0,0,0,0.10)',
+            color: 'white', fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.018em',
             cursor: canSearch && !isSearching ? 'pointer' : 'default',
-            boxShadow: canSearch ? `0 4px 18px ${color}44, inset 0 1px 0 rgba(255,255,255,0.22)` : 'none',
+            boxShadow: canSearch
+              ? `0 6px 22px ${color}50, 0 2px 8px ${color}28, inset 0 1.5px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.06)`
+              : 'none',
             fontFamily: 'inherit', flexShrink: 0,
             transition: 'background 0.24s, box-shadow 0.24s',
           }}
@@ -171,7 +189,7 @@ export function ZoneShell({
             </>
           ) : (
             <>
-              <span>{canSearch ? `Search ${engineCount}` : 'Add details'}</span>
+              <span>{canSearch ? `Search ${engineCount} engines` : 'Add details'}</span>
               <ArrowRight size={13} color="rgba(255,255,255,0.9)" strokeWidth={2.5} />
             </>
           )}
@@ -212,23 +230,23 @@ function NLHero({
     <motion.div
       animate={{
         boxShadow: focused
-          ? `0 0 0 2px ${color}30, 0 4px 20px ${color}18`
-          : '0 2px 10px rgba(0,0,0,0.05)',
+          ? `0 0 0 2.5px ${color}38, 0 6px 28px ${color}22, 0 2px 8px rgba(0,0,0,0.06)`
+          : '0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
       }}
       style={{
-        display: 'flex', alignItems: 'center', gap: 11,
-        padding: '12px 16px', borderRadius: 16,
-        background: focused ? 'rgba(252,252,255,0.96)' : 'rgba(248,248,252,0.90)',
-        border: `1.5px solid ${focused ? `${color}36` : 'rgba(0,0,0,0.07)'}`,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '14px 18px', borderRadius: 18,
+        background: focused ? 'rgba(252,252,255,0.98)' : 'rgba(248,248,254,0.94)',
+        border: `1.5px solid ${focused ? `${color}42` : 'rgba(0,0,0,0.065)'}`,
         transition: 'background 0.18s, border-color 0.18s',
       }}
     >
       <motion.div
-        animate={{ color: focused ? color : '#AEAEB2', scale: focused ? 1 : 0.9 }}
-        transition={{ duration: 0.16 }}
+        animate={{ color: focused ? color : '#AEAEB2', scale: focused ? 1.08 : 0.95 }}
+        transition={{ duration: 0.18, type: 'spring', stiffness: 400, damping: 28 }}
         style={{ flexShrink: 0 }}
       >
-        <Sparkles size={16} strokeWidth={2} style={{ display: 'block' }} />
+        <Sparkles size={17} strokeWidth={2} style={{ display: 'block' }} />
       </motion.div>
 
       <input
@@ -240,8 +258,9 @@ function NLHero({
         placeholder={placeholder}
         style={{
           flex: 1, background: 'transparent', outline: 'none',
-          fontSize: 13, fontWeight: 500, color: '#1D1D1F',
-          letterSpacing: '-0.015em', fontFamily: 'inherit',
+          fontSize: 14, fontWeight: 500, color: '#1D1D1F',
+          letterSpacing: '-0.018em', fontFamily: 'inherit',
+          lineHeight: 1.4,
         }}
       />
 

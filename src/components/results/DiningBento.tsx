@@ -463,56 +463,53 @@ function LoadingSkeleton({ engineCount }: { engineCount: number }) {
 function IdleState() {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 340, damping: 28 }}
       style={{
-        display:        'flex',
-        flexDirection:  'column',
-        alignItems:     'center',
-        justifyContent: 'center',
-        gap:            16,
-        height:         '100%',
-        textAlign:      'center',
-        padding:        40,
+        height: '100%', minHeight: 340, borderRadius: 20, overflow: 'hidden',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(145deg, #FFF8ED 0%, #FFF5E4 35%, #FFF3E0 65%, #FFF0D6 100%)',
+        marginTop: 8,
       }}
     >
-      <motion.div
-        animate={{ y: [0, -8, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 56 }}
-        aria-hidden
-      >
-        🍽️
-      </motion.div>
-      <div>
-        <h2 style={{
-          margin: 0, fontSize: 20, fontWeight: 900,
-          color: 'var(--text-primary)', letterSpacing: '-0.04em',
-        }}>
-          Culinary Intelligence
-        </h2>
-        <p style={{
-          margin: '8px 0 0', fontSize: 13, fontWeight: 500,
-          color: 'var(--text-secondary)', letterSpacing: '-0.01em',
-          lineHeight: 1.55, maxWidth: 340,
-        }}>
-          Select your vibe, dietary preferences, and dining engines — then search.
-          The AI merges availability from OpenTable, Resy, and 28 other platforms
-          into a single, conflict-free time grid.
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {['🔥 Michelin tracking', '📅 Live slot merge', '🗓 Timeline sync'].map(t => (
-          <div key={t} style={{
-            fontSize: 10, fontWeight: 700,
-            paddingBlock: 5, paddingInline: 12,
-            borderRadius: 99, background: `${COLOR}0E`,
-            border: `1px solid ${COLOR}22`, color: COLOR,
-          }}>
-            {t}
-          </div>
-        ))}
+      {/* Ambient glow orbs */}
+      <div aria-hidden style={{ position: 'absolute', top: '-18%', left: '-6%', width: '58%', height: '58%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(255,159,10,0.14) 0%, transparent 65%)', animation: 'ambient-drift-a 20s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', bottom: '-15%', right: '-8%', width: '50%', height: '50%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(255,69,58,0.09) 0%, transparent 65%)', animation: 'ambient-drift-b 28s ease-in-out infinite', pointerEvents: 'none' }} />
+
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingInline: 32, textAlign: 'center' }}>
+        <motion.div
+          animate={{ y: [0, -9, 0], rotate: [0, 2, -1, 0] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 56, lineHeight: 1, filter: 'drop-shadow(0 8px 20px rgba(255,159,10,0.28))' }}
+          aria-hidden
+        >🍽️</motion.div>
+
+        <div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#1A1200', letterSpacing: '-0.04em', lineHeight: 1.15 }}>
+            What are you craving?
+          </h2>
+          <p style={{ margin: '7px 0 0', fontSize: 13, fontWeight: 500, color: '#48484A', letterSpacing: '-0.012em', lineHeight: 1.6, maxWidth: 320 }}>
+            Describe your ideal meal above — Unit merges availability from Michelin, OpenTable, Resy, and 27 more into one perfect recommendation.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {['🔥 Michelin tracked', '📅 Live reservations', '🗓 Timeline sync'].map(t => (
+            <div key={t} style={{
+              fontSize: 10.5, fontWeight: 700,
+              paddingBlock: 5, paddingInline: 12,
+              borderRadius: 99, background: `${COLOR}10`,
+              border: `1px solid ${COLOR}28`, color: '#7A3800',
+              letterSpacing: '-0.005em',
+            }}>
+              {t}
+            </div>
+          ))}
+        </div>
       </div>
     </motion.div>
   );

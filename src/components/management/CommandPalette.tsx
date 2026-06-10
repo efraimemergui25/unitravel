@@ -99,7 +99,7 @@ export function CommandPalette({ onClose, onAddExpense, onTabSwitch }: CommandPa
         else { try { await navigator.clipboard.writeText(url); } catch {} }
         onClose();
       }},
-      { id: 'act-new-trip',  label: 'Plan New Trip',   sub: 'Start from scratch',     icon: RefreshCw,        color: EMERALD, group: 'action',   action: () => { router.push('/setup'); onClose(); } },
+      { id: 'act-new-trip',  label: 'Plan New Trip',   sub: 'Start from scratch',     icon: RefreshCw,        color: EMERALD, group: 'action',   action: () => { router.push('/'); onClose(); } },
       { id: 'act-ai',        label: 'Ask AI Concierge', sub: 'Get smart suggestions', icon: Zap,              color: VIOLET,  group: 'action',   kbd: 'A', action: () => { sessionStorage.setItem('unitravel-ai-prompt', 'Help me improve my itinerary'); router.push('/zone/flights'); onClose(); } },
     ];
 

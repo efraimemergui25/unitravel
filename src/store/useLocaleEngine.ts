@@ -67,22 +67,17 @@ const PROFILES: Record<FullLocale, CulturalProfile> = {
   },
 };
 
-// ── Exchange rate (static approximation — real impl would fetch live) ──────────
-
-const EXCHANGE_RATES: Record<Currency, number> = {
-  USD: 1,
-  ILS: 3.72,  // approx. ILS per USD
-};
-
-// ── Store interface ───────────────────────────────────────────────────────────
+// ── Exchange rate ──────────────────────────────────────────────────────────────
 
 interface LocaleEngineState {
   profile:          CulturalProfile;
+  fxRates:          Record<Currency, number>;
   // Actions
   setLocale:        (locale: FullLocale) => void;
   toggleLocale:     () => void;
-  toggleDualBrain:  () => void; // public alias — fires DOM dir flip + store update
-  // Derived helpers (computed, not stored)
+  toggleDualBrain:  () => void; // public alias
+  refreshFXRates:   () => Promise<void>;
+  // Derived helpers
   formatPrice:      (usd: number) => string;
   convertPrice:     (usd: number) => number;
   formatDate:       (iso: string) => string;
@@ -94,17 +89,30 @@ export const useLocaleEngine = create<LocaleEngineState>()(
   persist(
     (set, get) => ({
       profile: PROFILES['en-US'],
+      fxRates: { USD: 1, ILS: 3.72 },
+
+      refreshFXRates: async () => {
+        if (typeof window === 'undefined') return;
+        try {
+          const res = await fetch('/api/currency?base=USD', { cache: 'no-store' });
+          if (!res.ok) return;
+          const data = await res.json() as { rates?: Record<string, number> };
+          if (data.rates?.ILS && data.rates.ILS > 0) {
+            set({ fxRates: { USD: 1, ILS: data.rates.ILS } });
+          }
+        } catch {
+          // keep fallback rates
+        }
+      },
 
       setLocale: (locale) => {
         const profile = PROFILES[locale];
 
-        // Sync direction to DOM
         if (typeof document !== 'undefined') {
           document.documentElement.dir  = profile.direction;
           document.documentElement.lang = locale.slice(0, 2);
         }
 
-        // Keep legacy useLocaleStore in sync (used by I18nProvider)
         const shortLocale = locale.startsWith('he') ? 'he' : 'en';
         useLocaleStore.getState().setLocale(shortLocale);
 
@@ -118,16 +126,15 @@ export const useLocaleEngine = create<LocaleEngineState>()(
 
       toggleDualBrain: () => get().toggleLocale(),
 
-      // Format a USD amount into the active locale's currency string
       formatPrice: (usd) => {
-        const { currency, currencySymbol, currencyThousands, currencyDecimal } = get().profile;
-        const amount = usd * EXCHANGE_RATES[currency];
+        const { currency, currencySymbol, currencyThousands } = get().profile;
+        const rates = get().fxRates;
+        const amount = usd * (rates[currency] || 1);
         const rounded = Math.round(amount);
         const formatted = rounded
           .toLocaleString('en-US', { maximumFractionDigits: 0 })
           .replace(/,/g, currencyThousands);
 
-        // ILS: symbol after number (Israeli convention: ‏100 ₪)
         return currency === 'ILS'
           ? `${formatted}${currencySymbol}`
           : `${currencySymbol}${formatted}`;
@@ -135,7 +142,8 @@ export const useLocaleEngine = create<LocaleEngineState>()(
 
       convertPrice: (usd) => {
         const { currency } = get().profile;
-        return Math.round(usd * EXCHANGE_RATES[currency]);
+        const rates = get().fxRates;
+        return Math.round(usd * (rates[currency] || 1));
       },
 
       formatDate: (iso) => {
@@ -152,7 +160,7 @@ export const useLocaleEngine = create<LocaleEngineState>()(
     }),
     {
       name: 'unitravel-locale-engine',
-      partialize: (state) => ({ profile: state.profile }),
+      partialize: (state) => ({ profile: state.profile, fxRates: state.fxRates }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         const { profile } = state;
@@ -162,6 +170,8 @@ export const useLocaleEngine = create<LocaleEngineState>()(
         }
         const shortLocale = profile.locale.startsWith('he') ? 'he' : 'en';
         useLocaleStore.getState().setLocale(shortLocale);
+        // Fire async refresh
+        setTimeout(() => state.refreshFXRates(), 1000);
       },
     },
   ),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence }           from 'framer-motion';
 import { AviationBento }                     from '@/components/results/AviationBento';
 import type { SearchState }                  from '@/components/results/AviationBento';
@@ -16,20 +16,55 @@ import {
 import { WatchButton }         from '@/components/PriceWatch';
 import { PriceCalendar }      from '@/components/PriceCalendar';
 import { DestinationIntel, lookupDest } from '@/components/DestinationIntel';
+import { EngineStatusStrip }  from '@/components/results/EngineStatusStrip';
 
 // ── IATA lookup ───────────────────────────────────────────────────────────────
 
 const CITY_TO_IATA: Record<string, string> = {
-  'New York': 'JFK', 'NYC': 'JFK', 'Los Angeles': 'LAX', 'Miami': 'MIA',
-  'Chicago': 'ORD', 'San Francisco': 'SFO', 'Boston': 'BOS', 'Seattle': 'SEA',
+  // North America
+  'New York': 'JFK', 'NYC': 'JFK', 'New York City': 'JFK', 'Manhattan': 'JFK',
+  'Los Angeles': 'LAX', 'LA': 'LAX', 'Miami': 'MIA',
+  'Chicago': 'ORD', 'San Francisco': 'SFO', 'SF': 'SFO', 'Bay Area': 'SFO',
+  'Boston': 'BOS', 'Seattle': 'SEA', 'Las Vegas': 'LAS', 'Orlando': 'MCO',
+  'Dallas': 'DFW', 'Houston': 'IAH', 'Atlanta': 'ATL', 'Denver': 'DEN',
+  'Phoenix': 'PHX', 'Minneapolis': 'MSP', 'Detroit': 'DTW', 'Philadelphia': 'PHL',
+  'Washington': 'DCA', 'DC': 'DCA', 'Washington DC': 'DCA',
+  'Portland': 'PDX', 'San Diego': 'SAN', 'Salt Lake City': 'SLC', 'Austin': 'AUS',
+  'Toronto': 'YYZ', 'Vancouver': 'YVR', 'Montreal': 'YUL', 'Calgary': 'YYC',
+  'Mexico City': 'MEX', 'Cancun': 'CUN', 'Guadalajara': 'GDL',
+  // Europe
   'London': 'LHR', 'Paris': 'CDG', 'Amsterdam': 'AMS', 'Frankfurt': 'FRA',
-  'Rome': 'FCO', 'Barcelona': 'BCN', 'Madrid': 'MAD', 'Lisbon': 'LIS',
-  'Athens': 'ATH', 'Prague': 'PRG', 'Vienna': 'VIE', 'Zurich': 'ZRH',
-  'Dubai': 'DXB', 'Singapore': 'SIN', 'Bangkok': 'BKK', 'Tokyo': 'NRT',
-  'Sydney': 'SYD', 'Seoul': 'ICN', 'Hong Kong': 'HKG', 'Mumbai': 'BOM',
-  'Istanbul': 'IST', 'Cairo': 'CAI', 'Cape Town': 'CPT', 'Nairobi': 'NBO',
-  'Tel Aviv': 'TLV', 'Jerusalem': 'TLV', 'Mexico City': 'MEX', 'Cancun': 'CUN',
-  'Toronto': 'YYZ', 'Vancouver': 'YVR', 'Montreal': 'YUL',
+  'Rome': 'FCO', 'Milan': 'MXP', 'Barcelona': 'BCN', 'Madrid': 'MAD',
+  'Lisbon': 'LIS', 'Athens': 'ATH', 'Prague': 'PRG', 'Vienna': 'VIE',
+  'Zurich': 'ZRH', 'Geneva': 'GVA', 'Brussels': 'BRU', 'Copenhagen': 'CPH',
+  'Stockholm': 'ARN', 'Oslo': 'OSL', 'Helsinki': 'HEL', 'Warsaw': 'WAW',
+  'Budapest': 'BUD', 'Bucharest': 'OTP', 'Sofia': 'SOF', 'Zagreb': 'ZAG',
+  'Berlin': 'BER', 'Munich': 'MUC', 'Hamburg': 'HAM', 'Dusseldorf': 'DUS',
+  'Edinburgh': 'EDI', 'Manchester': 'MAN', 'Dublin': 'DUB',
+  'Nice': 'NCE', 'Lyon': 'LYS', 'Marseille': 'MRS',
+  'Venice': 'VCE', 'Naples': 'NAP', 'Florence': 'FLR',
+  'Porto': 'OPO', 'Seville': 'SVQ', 'Valencia': 'VLC', 'Malaga': 'AGP',
+  'Thessaloniki': 'SKG', 'Mykonos': 'JMK', 'Santorini': 'JTR',
+  'Dubrovnik': 'DBV', 'Split': 'SPU', 'Reykjavik': 'KEF',
+  // Middle East & Africa
+  'Dubai': 'DXB', 'Abu Dhabi': 'AUH', 'Doha': 'DOH', 'Riyadh': 'RUH',
+  'Tel Aviv': 'TLV', 'Jerusalem': 'TLV', 'Haifa': 'HFA',
+  'Istanbul': 'IST', 'Cairo': 'CAI', 'Amman': 'AMM', 'Beirut': 'BEY',
+  'Cape Town': 'CPT', 'Johannesburg': 'JNB', 'Nairobi': 'NBO',
+  'Casablanca': 'CMN', 'Marrakech': 'RAK', 'Tunis': 'TUN', 'Lagos': 'LOS',
+  // Asia Pacific
+  'Singapore': 'SIN', 'Bangkok': 'BKK', 'Tokyo': 'NRT', 'Osaka': 'KIX',
+  'Seoul': 'ICN', 'Hong Kong': 'HKG', 'Mumbai': 'BOM', 'Delhi': 'DEL',
+  'New Delhi': 'DEL', 'Bangalore': 'BLR', 'Chennai': 'MAA', 'Kolkata': 'CCU',
+  'Beijing': 'PEK', 'Shanghai': 'PVG', 'Guangzhou': 'CAN', 'Chengdu': 'CTU',
+  'Taipei': 'TPE', 'Kuala Lumpur': 'KUL', 'KL': 'KUL', 'Jakarta': 'CGK',
+  'Bali': 'DPS', 'Manila': 'MNL', 'Ho Chi Minh': 'SGN', 'Saigon': 'SGN',
+  'Hanoi': 'HAN', 'Phnom Penh': 'PNH', 'Colombo': 'CMB',
+  'Sydney': 'SYD', 'Melbourne': 'MEL', 'Brisbane': 'BNE', 'Auckland': 'AKL',
+  // South America
+  'São Paulo': 'GRU', 'Sao Paulo': 'GRU', 'Rio de Janeiro': 'GIG', 'Rio': 'GIG',
+  'Buenos Aires': 'EZE', 'Santiago': 'SCL', 'Lima': 'LIM', 'Bogota': 'BOG',
+  'Medellín': 'MDE', 'Medellin': 'MDE', 'Cartagena': 'CTG',
 };
 
 function cityToIata(city: string): string {
@@ -113,13 +148,32 @@ export default function FlightsPage() {
 
   useEffect(() => { if (firstDest && !destCity) setDestCity(firstDest); }, [firstDest]); // eslint-disable-line
 
+  // Bridge: OmniSelectorConsole Launch button → handleSearch
+  const handleSearchRef = useRef<(ids?: string[]) => void>(() => {});
+  useEffect(() => { handleSearchRef.current = handleSearch; });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { zone, engineIds } = (e as CustomEvent<{ zone: string; engineIds: string[] }>).detail;
+      if (zone !== 'flights') return;
+      handleSearchRef.current(engineIds);
+    };
+    document.addEventListener('unitravel:zone-search', handler);
+    return () => document.removeEventListener('unitravel:zone-search', handler);
+  }, []);
+
   const applyNL = useCallback((raw: string) => {
     const p = parseNL(raw);
     if (p.destination) setDestCity(p.destination);
     if (p.origin)      setOriginCity(p.origin);
     if (p.travelClass) setTravelClass(p.travelClass);
     if (p.adults)      setAdults(p.adults);
-  }, []);
+    // Auto-submit if both origin and destination are now resolvable
+    const origin = p.origin ?? originCity;
+    const dest   = p.destination ?? destCity;
+    if (origin.trim().length > 0 && dest.trim().length > 0) {
+      setTimeout(() => handleSearchRef.current([...selectedEngines]), 80);
+    }
+  }, [originCity, destCity, selectedEngines]);
 
   const toggleEngine = useCallback((id: string) => {
     setSelected(prev => {
@@ -133,9 +187,10 @@ export default function FlightsPage() {
   const originIata = cityToIata(originCity);
   const destIata   = cityToIata(destCity);
 
-  const handleSearch = useCallback(async () => {
+  const handleSearch = useCallback(async (overrideEngineIds?: string[]) => {
     if (!canSearch) return;
-    const ids = [...selectedEngines];
+    const ids = overrideEngineIds ?? [...selectedEngines];
+    if (overrideEngineIds) setSelected(new Set(overrideEngineIds));
     setEngineCount(ids.length);
     setSearchState('loading');
     setScanProgress(0);
@@ -389,7 +444,7 @@ export default function FlightsPage() {
 
           {/* Search CTA */}
           <motion.button
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             disabled={!canSearch || searchState === 'loading'}
             whileHover={canSearch && searchState !== 'loading' ? { scale: 1.03, boxShadow: '0 8px 28px rgba(0,122,255,0.38)' } : {}}
             whileTap={canSearch ? { scale: 0.97 } : {}}
@@ -494,6 +549,11 @@ export default function FlightsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ══ Engine status strip — shows per-engine results ════════════════════ */}
+      {searchState === 'results' && engineStatus && engineStatus.length > 0 && (
+        <EngineStatusStrip engines={engineStatus} accentColor="#007AFF" />
+      )}
 
       {/* ══ Results ═══════════════════════════════════════════════════════════ */}
       <div style={{

@@ -14,8 +14,11 @@ import {
   ChevronLeft, ChevronRight, Plane, Hotel, UtensilsCrossed,
   Compass, Train, CloudSun, CalendarDays,
   Wallet, Clock3, Map, MoreHorizontal, MapPin,
-  Share2, Download, RefreshCw,
+  Share2, Download, RefreshCw, Globe,
 } from 'lucide-react';
+import { ConciergePanel }        from '@/components/ai/ConciergePanel';
+import { OmniSelectorConsole }  from '@/components/OmniSelectorConsole';
+import type { ZoneId }          from '@/lib/zoneEngines';
 
 // ── Zone definitions ──────────────────────────────────────────────────────────
 
@@ -475,7 +478,7 @@ function MoreOptionsMenu({
 
   const handleNewTrip = () => {
     setOpen(false);
-    router.push('/setup');
+    router.push('/');
   };
 
   const MENU_ITEMS = [
@@ -569,7 +572,7 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
   const days         = useTravelEngine(s => s.days);
   const activeDay    = useTravelEngine(s => s.activeDay);
   const totalEntities = useMemo(() => days.reduce((s, d) => s + d.entities.length, 0), [days]);
-  const { profile }  = useLocaleEngine();
+  const { profile, toggleLocale }  = useLocaleEngine();
   const isHe         = profile.locale === 'he-IL';
   const { success: toastSuccess, info: toastInfo } = useToast();
 
@@ -599,6 +602,15 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
       lastPlanZoneRef.current = pathname;
     }
   }, [pathname]);
+
+  // Derive search zone for OmniSelectorConsole left panel
+  const SEARCH_ZONE_IDS = new Set(['flights', 'lodging', 'dining', 'attractions', 'transit']);
+  const rawZoneId = (() => {
+    const m = pathname.match(/\/zone\/([^/?]+)/);
+    return m?.[1] ?? '';
+  })();
+  const isSearchZone  = SEARCH_ZONE_IDS.has(rawZoneId);
+  const currentZoneId = rawZoneId as ZoneId;
 
   // Active sub-zone ID
   const activeSubId = (() => {
@@ -690,6 +702,19 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
   // sub-zone row border follows the DISPLAYED mode, not just the active mode
   const subZoneColorRg   = displayedMode === 'plan' ? '0,122,255' : '94,92,230';
   const subZoneAccent    = displayedMode === 'plan' ? '#007AFF' : '#5E5CE6';
+
+  // Zone-specific ambient atmosphere — each zone bleeds its accent color into the background
+  const ZONE_AMBIENT: Record<string, { rgb: string; hex: string; orb1: string; orb2: string }> = {
+    flights:     { rgb: '0,122,255',    hex: '#007AFF', orb1: 'rgba(0,122,255,0.07)',    orb2: 'rgba(90,200,250,0.05)'   },
+    lodging:     { rgb: '90,200,250',   hex: '#5AC8FA', orb1: 'rgba(90,200,250,0.08)',   orb2: 'rgba(0,199,190,0.05)'    },
+    dining:      { rgb: '255,159,10',   hex: '#FF9F0A', orb1: 'rgba(255,159,10,0.08)',   orb2: 'rgba(255,69,58,0.04)'    },
+    attractions: { rgb: '48,209,88',    hex: '#30D158', orb1: 'rgba(48,209,88,0.07)',    orb2: 'rgba(0,199,190,0.05)'    },
+    transit:     { rgb: '191,90,242',   hex: '#BF5AF2', orb1: 'rgba(191,90,242,0.07)',   orb2: 'rgba(94,92,230,0.05)'    },
+    management:  { rgb: '94,92,230',    hex: '#5E5CE6', orb1: 'rgba(94,92,230,0.07)',    orb2: 'rgba(191,90,242,0.04)'   },
+    map:         { rgb: '0,199,190',    hex: '#00C7BE', orb1: 'rgba(0,199,190,0.07)',    orb2: 'rgba(48,209,88,0.04)'    },
+    conditions:  { rgb: '255,69,58',    hex: '#FF453A', orb1: 'rgba(255,69,58,0.07)',    orb2: 'rgba(255,159,10,0.05)'   },
+  };
+  const zoneAtm = ZONE_AMBIENT[rawZoneId] ?? ZONE_AMBIENT[mode === 'plan' ? 'flights' : 'management'];
 
   const totalBudget  = budget?.total ?? 0;
   const spentBudget  = budget?.spent ?? 0;
@@ -798,11 +823,13 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
           <motion.div
             aria-hidden
             animate={{
-              background: mode === 'plan'
-                ? 'linear-gradient(90deg, transparent 12%, rgba(0,122,255,0.42) 40%, rgba(0,122,255,0.42) 60%, transparent 88%)'
-                : 'linear-gradient(90deg, transparent 12%, rgba(94,92,230,0.42) 40%, rgba(94,92,230,0.42) 60%, transparent 88%)',
+              background: isSearchZone && rawZoneId
+                ? `linear-gradient(90deg, transparent 8%, rgba(${zoneAtm.rgb},0.48) 35%, rgba(${zoneAtm.rgb},0.60) 50%, rgba(${zoneAtm.rgb},0.48) 65%, transparent 92%)`
+                : mode === 'plan'
+                  ? 'linear-gradient(90deg, transparent 12%, rgba(0,122,255,0.42) 40%, rgba(0,122,255,0.42) 60%, transparent 88%)'
+                  : 'linear-gradient(90deg, transparent 12%, rgba(94,92,230,0.42) 40%, rgba(94,92,230,0.42) 60%, transparent 88%)',
             }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
+            transition={{ duration: 0.55, ease: 'easeInOut' }}
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, pointerEvents: 'none', zIndex: 4 }}
           />
 
@@ -924,6 +951,29 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
               </motion.div>
             </Link>
 
+            {/* Locale toggle — EN ↔ עב */}
+            <motion.button
+              type="button"
+              onClick={toggleLocale}
+              whileHover={{ scale: 1.10 }}
+              whileTap={{ scale: 0.86, rotate: 15 }}
+              transition={SPRING}
+              aria-label={isHe ? 'Switch to English' : 'עבור לעברית'}
+              title={isHe ? 'Switch to English' : 'Switch to Hebrew / עברית'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '0 9px', height: 33, borderRadius: 100, flexShrink: 0,
+                background: isHe ? 'rgba(0,122,255,0.08)' : 'rgba(0,0,0,0.04)',
+                border: isHe ? '1px solid rgba(0,122,255,0.20)' : '1px solid rgba(0,0,0,0.08)',
+                cursor: 'pointer',
+              }}
+            >
+              <Globe size={11} color={isHe ? '#007AFF' : '#6E6E73'} strokeWidth={2} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: isHe ? '#007AFF' : '#6E6E73', letterSpacing: '0.02em' }}>
+                {isHe ? 'EN' : 'עב'}
+              </span>
+            </motion.button>
+
             <MoreOptionsMenu trip={trip} days={days} />
           </div>
         </motion.div>
@@ -1039,68 +1089,131 @@ function ZoneLayoutInner({ children }: { children: React.ReactNode }) {
           )}
         </AnimatePresence>
 
-        {/* ── Zone content — ambient tint shifts per mode ───────────────── */}
-        <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', marginTop: 8 }}>
+        {/* ── Zone content — 3-column: [zone page] [AI concierge] ──────── */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', marginTop: 8, position: 'relative' }}>
 
-          {/* Ambient room-color — key on mode so it cross-fades independently */}
+          {/* Zone-specific ambient atmosphere — transitions on zone change */}
           <AnimatePresence initial={false}>
             <motion.div
-              key={mode}
+              key={rawZoneId || mode}
               aria-hidden
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.55, ease: 'easeInOut' }}
+              transition={{ duration: 0.65, ease: 'easeInOut' }}
               style={{
                 position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-                background: mode === 'plan'
-                  ? 'radial-gradient(ellipse at 60% 0%, rgba(0,122,255,0.055) 0%, transparent 65%)'
-                  : 'radial-gradient(ellipse at 50% 0%, rgba(94,92,230,0.07) 0%, transparent 65%)',
+                background: `radial-gradient(ellipse at 62% 0%, rgba(${zoneAtm.rgb},0.10) 0%, rgba(${zoneAtm.rgb},0.04) 40%, transparent 70%)`,
               }}
             />
           </AnimatePresence>
 
-          {/* Slow-drifting ambient orbs — CSS animations, always alive */}
+          {/* Zone-tinted drifting ambient orbs */}
           <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
             <div style={{
               position: 'absolute', top: '-18%', right: '-2%',
               width: '46%', height: '50%', borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(99,102,241,0.052) 0%, transparent 65%)',
+              background: `radial-gradient(ellipse, ${zoneAtm.orb1} 0%, transparent 65%)`,
               animation: 'ambient-drift-a 26s ease-in-out infinite',
             }} />
             <div style={{
               position: 'absolute', bottom: '-10%', left: '4%',
               width: '38%', height: '42%', borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(0,199,190,0.038) 0%, transparent 65%)',
+              background: `radial-gradient(ellipse, ${zoneAtm.orb2} 0%, transparent 65%)`,
               animation: 'ambient-drift-b 34s ease-in-out infinite',
               animationDelay: '5s',
             }} />
             <div style={{
               position: 'absolute', top: '30%', left: '-4%',
               width: '28%', height: '32%', borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(191,90,242,0.028) 0%, transparent 65%)',
+              background: `radial-gradient(ellipse, ${zoneAtm.orb1.replace(/[\d.]+\)$/, '0.04)')} 0%, transparent 65%)`,
               animation: 'ambient-drift-a 40s ease-in-out infinite',
               animationDelay: '12s',
             }} />
           </div>
 
-          {/* Content — slides per route change */}
-          <AnimatePresence mode="wait" initial={false}>
+          {/* LEFT: Engine selector — 220px, only for search zones */}
+          {isSearchZone && (
             <motion.div
-              key={pathname + (searchParams.get('tab') ?? '')}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              key={currentZoneId}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 28, delay: 0.06 }}
               style={{
-                position: 'relative', zIndex: 1,
-                height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                willChange: 'opacity, transform',
+                width:         220,
+                flexShrink:    0,
+                position:      'relative',
+                zIndex:        2,
+                marginInlineEnd: 8,
+                borderRadius:  20,
+                background:    'rgba(255,255,255,0.86)',
+                backdropFilter:'blur(56px) saturate(200%)',
+                WebkitBackdropFilter: 'blur(56px) saturate(200%)',
+                border:        '1px solid rgba(255,255,255,0.96)',
+                boxShadow:     '0 8px 40px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
+                display:       'flex',
+                flexDirection: 'column',
+                overflow:      'hidden',
               }}
             >
-              {children}
+              {/* Specular top line */}
+              <div aria-hidden style={{
+                position: 'absolute', left: '6%', right: '6%', top: 0, height: 1,
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.95) 35%, rgba(255,255,255,0.95) 65%, transparent)',
+                zIndex: 4, borderRadius: 999, pointerEvents: 'none',
+              }} />
+              <OmniSelectorConsole zone={currentZoneId} />
             </motion.div>
-          </AnimatePresence>
+          )}
+
+          {/* CENTER: Zone page content — flex:1 */}
+          <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={pathname + (searchParams.get('tab') ?? '')}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  position: 'relative', zIndex: 1,
+                  height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                  willChange: 'opacity, transform',
+                }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* RIGHT: AI Concierge — always 356px, Apple glass panel */}
+          <aside
+            style={{
+              width:         356,
+              flexShrink:    0,
+              position:      'relative',
+              zIndex:        2,
+              marginInlineStart: 8,
+              borderRadius:  20,
+              background:    'rgba(255,255,255,0.88)',
+              backdropFilter:'blur(56px) saturate(200%)',
+              WebkitBackdropFilter: 'blur(56px) saturate(200%)',
+              border:        '1px solid rgba(255,255,255,0.96)',
+              boxShadow:     '0 8px 40px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
+              display:       'flex',
+              flexDirection: 'column',
+              overflow:      'hidden',
+            }}
+          >
+            {/* Specular top line */}
+            <div aria-hidden style={{
+              position: 'absolute', left: '6%', right: '6%', top: 0, height: 1,
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.95) 35%, rgba(255,255,255,0.95) 65%, transparent)',
+              zIndex: 4, borderRadius: 999, pointerEvents: 'none',
+            }} />
+            <ConciergePanel fitParent currentZone={rawZoneId || undefined} />
+          </aside>
+
         </div>
 
       </div>

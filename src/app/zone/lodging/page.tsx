@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Calendar, Users }                    from 'lucide-react';
 import { ZoneShell, ZoneParamChip, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
 import { LodgingBento }                       from '@/components/results/LodgingBento';
@@ -8,7 +8,8 @@ import type { LodgingSearchState }            from '@/components/results/Lodging
 import { useTravelEngine }                    from '@/store/useTravelEngine';
 import { ZONE_ENGINES, resolveStatus }        from '@/lib/zoneEngines';
 import type { BentoHotel }                    from '@/app/api/hotels/route';
-import type { HotelSearchResponse }           from '@/app/api/hotels/route';
+import type { HotelSearchResponse, HotelEngineStatus } from '@/app/api/hotels/route';
+import { EngineStatusStrip }                  from '@/components/results/EngineStatusStrip';
 
 const LODGING_AI_PICKS = new Set([
   'google-hotels', 'amadeus-hotels', 'booking', 'airbnb', 'hotels-com', 'expedia-h',
@@ -133,6 +134,7 @@ export default function LodgingPage() {
   const [results,      setResults]      = useState<BentoHotel[] | null>(null);
   const [apiStatus,    setApiStatus]    = useState<'ok' | 'needs_api_key' | 'error' | null>(null);
   const [apiMessage,   setApiMessage]   = useState<string | null>(null);
+  const [engineStatus, setEngineStatus] = useState<HotelEngineStatus[] | null>(null);
 
   // Engine state
   const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(LODGING_AI_PICKS));
@@ -156,7 +158,12 @@ export default function LodgingPage() {
     if (parsed.adults)   setAdults(parsed.adults);
     if (parsed.roomType) setRoomType(parsed.roomType);
     setNlQuery('');
-  }, [nlQuery]);
+    // Auto-submit when city is resolvable
+    const city = parsed.city ?? cityName;
+    if (city.trim().length > 0) {
+      setTimeout(() => handleSearchRef.current([...selectedEngines]), 80);
+    }
+  }, [nlQuery, cityName, selectedEngines]);
 
   const handleSearch = useCallback(async (engineIds?: string[]) => {
     const ids = engineIds ?? [...selectedEngines];
@@ -188,6 +195,7 @@ export default function LodgingPage() {
       setScanProgress(100);
       setApiStatus(data.status);
       setApiMessage(data.setupMessage ?? null);
+      setEngineStatus(data.engineStatus ?? null);
 
       if (data.status === 'ok') {
         setResults(data.results);
@@ -205,6 +213,19 @@ export default function LodgingPage() {
   }, [selectedEngines, cityName, checkIn, checkOut, adults]); // eslint-disable-line
 
   const cityCode = cityToIata(cityName);
+  // Bridge: OmniSelectorConsole Launch → handleSearch
+  const handleSearchRef = useRef(handleSearch);
+  useEffect(() => { handleSearchRef.current = handleSearch; });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { zone, engineIds } = (e as CustomEvent<{ zone: string; engineIds: string[] }>).detail;
+      if (zone !== 'lodging') return;
+      handleSearchRef.current(engineIds);
+    };
+    document.addEventListener('unitravel:zone-search', handler);
+    return () => document.removeEventListener('unitravel:zone-search', handler);
+  }, []);
+
   const canSearch = cityName.trim().length >= 2;
 
   return (
@@ -282,6 +303,11 @@ export default function LodgingPage() {
         apiStatus={apiStatus}
         resultCount={results?.length}
       />
+
+      {/* ── Engine status strip ────────────────────────────────────── */}
+      {searchState === 'results' && engineStatus && engineStatus.length > 0 && (
+        <EngineStatusStrip engines={engineStatus} accentColor="#5AC8FA" />
+      )}
 
       {/* ── Results ────────────────────────────────────────────────── */}
       <div style={{

@@ -581,20 +581,52 @@ export const ExperienceBento = memo(function ExperienceBento({
   // ── Idle state ──────────────────────────────────────────────────────────────
   if (searchState === 'idle') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', gap: 14 }}>
-        <motion.div
-          animate={{ rotate: [0, 360] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-          style={{ fontSize: 36 }}
-        >
-          🎭
-        </motion.div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '-0.01em', textAlign: 'center', margin: 0 }}>
-          {destination
-            ? `Select engines to discover experiences in ${destination}`
-            : 'Add a destination to your trip to discover experiences'}
-        </p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0 }}
+        transition={SPRING}
+        style={{
+          height: '100%', minHeight: 340, borderRadius: 20, overflow: 'hidden',
+          position: 'relative', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(145deg, #EDFFF4 0%, #F0FFF6 35%, #EDFAF4 65%, #E8FFF0 100%)',
+          marginTop: 8,
+        }}
+      >
+        {/* Ambient glow orbs */}
+        <div aria-hidden style={{ position: 'absolute', top: '-18%', right: '-6%', width: '55%', height: '55%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(48,209,88,0.14) 0%, transparent 65%)', animation: 'ambient-drift-a 22s ease-in-out infinite', pointerEvents: 'none' }} />
+        <div aria-hidden style={{ position: 'absolute', bottom: '-15%', left: '-5%', width: '48%', height: '48%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,199,190,0.10) 0%, transparent 65%)', animation: 'ambient-drift-b 30s ease-in-out infinite', pointerEvents: 'none' }} />
+
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingInline: 32, textAlign: 'center' }}>
+          <motion.div
+            animate={{ y: [0, -10, 0], rotate: [0, 5, -3, 0] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ fontSize: 56, lineHeight: 1, filter: 'drop-shadow(0 8px 20px rgba(48,209,88,0.28))' }}
+            aria-hidden
+          >🎭</motion.div>
+
+          <div>
+            <p style={{ fontSize: 22, fontWeight: 900, color: '#0A1F0F', letterSpacing: '-0.04em', lineHeight: 1.15, margin: 0 }}>
+              {destination ? `Explore ${destination}` : 'What do you want to experience?'}
+            </p>
+            <p style={{ fontSize: 13, color: '#48484A', marginTop: 7, letterSpacing: '-0.012em', lineHeight: 1.6, maxWidth: 320 }}>
+              {destination
+                ? `Describe what you want to do — Unit finds tours, activities, and hidden gems across 30 global experience platforms.`
+                : 'Add a destination to your trip, then search for tours, activities, and authentic local experiences.'}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {['🌍 30 platforms', '🎯 AI curated', '📍 Local gems'].map(f => (
+              <div key={f} style={{ fontSize: 10.5, fontWeight: 700, paddingBlock: 5, paddingInline: 11, borderRadius: 99, background: 'rgba(48,209,88,0.10)', border: '1px solid rgba(48,209,88,0.24)', color: '#1A5C2A', letterSpacing: '-0.005em' }}>
+                {f}
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
     );
   }
 

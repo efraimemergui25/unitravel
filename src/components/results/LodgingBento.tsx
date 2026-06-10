@@ -963,43 +963,48 @@ const HeroBentoCard = memo(function HeroBentoCard({
 function IdleState() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={SPRING}
       style={{
-        display:        'flex',
-        flexDirection:  'column',
-        alignItems:     'center',
-        justifyContent: 'center',
-        height:         '100%',
-        minHeight:      480,
-        gap:            22,
-        textAlign:      'center',
-        paddingInline:  32,
+        height: '100%', minHeight: 340, borderRadius: 20, overflow: 'hidden',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(145deg, #E8F8FF 0%, #EFF9FF 35%, #F0F8FF 65%, #E5F6FF 100%)',
+        marginTop: 8,
       }}
     >
-      <motion.div
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 56, lineHeight: 1 }}
-        aria-hidden
-      >
-        🏨
-      </motion.div>
-      <div>
-        <p style={{ fontSize: 22, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em', lineHeight: 1.2 }}>
-          Hospitality Hub Ready
-        </p>
-        <p style={{ fontSize: 13, color: '#6E6E73', marginBlockStart: 8, letterSpacing: '-0.01em' }}>
-          Mexico City · Tulum · Riviera Maya · Cabo San Lucas
-        </p>
+      {/* Ambient glow orbs */}
+      <div aria-hidden style={{ position: 'absolute', top: '-20%', right: '-8%', width: '60%', height: '60%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(90,200,250,0.14) 0%, transparent 65%)', animation: 'ambient-drift-a 20s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', bottom: '-18%', left: '-6%', width: '52%', height: '52%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,199,190,0.10) 0%, transparent 65%)', animation: 'ambient-drift-b 26s ease-in-out infinite', pointerEvents: 'none' }} />
+
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingInline: 32, textAlign: 'center' }}>
+        <motion.div
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 56, lineHeight: 1, filter: 'drop-shadow(0 8px 20px rgba(90,200,250,0.28))' }}
+          aria-hidden
+        >🏨</motion.div>
+
+        <div>
+          <p style={{ fontSize: 22, fontWeight: 900, color: '#0D1B2A', letterSpacing: '-0.04em', lineHeight: 1.15, margin: 0 }}>
+            Where are you staying?
+          </p>
+          <p style={{ fontSize: 13, color: '#48484A', marginTop: 7, letterSpacing: '-0.012em', lineHeight: 1.6, maxWidth: 320 }}>
+            Enter your destination above — Unit scans 30 hotel platforms, strips marketing tags, and surfaces the best stays with full fee transparency.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {['🏆 Luxury ranked', '🔍 30 platforms', '💎 No hidden fees'].map(f => (
+            <div key={f} style={{ fontSize: 10.5, fontWeight: 700, paddingBlock: 5, paddingInline: 11, borderRadius: 99, background: 'rgba(90,200,250,0.10)', border: '1px solid rgba(90,200,250,0.26)', color: '#005E8A', letterSpacing: '-0.005em' }}>
+              {f}
+            </div>
+          ))}
+        </div>
       </div>
-      <p style={{ fontSize: 12, color: '#AEAEB2', maxWidth: 360, lineHeight: 1.65 }}>
-        Select your engines and launch. Unit's AI will scan up to 30 global lodging APIs,
-        deduplicate identical properties, strip marketing tags, and surface 3 hero stays — each with
-        full sentiment analysis and hidden-fee transparency.
-      </p>
     </motion.div>
   );
 }

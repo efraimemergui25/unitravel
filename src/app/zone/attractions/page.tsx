@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import { ZoneShell, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
 import { ExperienceBento }             from '@/components/results/ExperienceBento';
@@ -9,6 +9,7 @@ import { useTravelEngine }             from '@/store/useTravelEngine';
 import { useLocaleEngine }             from '@/store/useLocaleEngine';
 import { ZONE_ENGINES, resolveStatus } from '@/lib/zoneEngines';
 import type { AttractionEntity }       from '@/types/attractions';
+import { EngineStatusStrip }           from '@/components/results/EngineStatusStrip';
 
 const EXP_AI_PICKS = new Set([
   'geoapify', 'tripadvisor-a', 'viator', 'getyourguide', 'klook',
@@ -80,6 +81,7 @@ export default function AttractionsPage() {
   // Read dynamic trip context — never hardcode destinations
   const days      = useTravelEngine(s => s.days);
   const activeDay = useTravelEngine(s => s.activeDay);
+  const trip      = useTravelEngine(s => s.trip);
   const { profile }         = useLocaleEngine();
   const isRtl               = profile.direction === 'rtl';
 
@@ -93,7 +95,6 @@ export default function AttractionsPage() {
   })();
 
   const uniqueDestinations = [...new Set(days.map(d => d.destination).filter(Boolean))];
-  const hasContext         = uniqueDestinations.length > 0;
 
   // ── Search handler ─────────────────────────────────────────────────────────
 
@@ -112,9 +113,18 @@ export default function AttractionsPage() {
     progressRaf.id = requestAnimationFrame(animateProgress);
 
     try {
-      const destination = activeDestination ?? 'Paris';
+      const destination = activeDestination;
+      if (!destination) {
+        cancelAnimationFrame(progressRaf.id);
+        setApiStatus('error');
+        setApiMessage('Add a destination to your trip to search for experiences');
+        setTimeout(() => setSearchState('results'), 200);
+        return;
+      }
+
       const startDate   = days[0]?.date ?? new Date().toISOString().split('T')[0];
       const endDate     = days[days.length - 1]?.date ?? startDate;
+      const adults      = trip.travelers.length || 2;
 
       const res  = await fetch('/api/attractions', {
         method:  'POST',
@@ -122,7 +132,7 @@ export default function AttractionsPage() {
         body:    JSON.stringify({
           destination,
           engineIds: ids,
-          adults:       2,
+          adults,
           startDate,
           endDate,
           effortLevels: selectedEffort.length > 0 ? selectedEffort : undefined,
@@ -163,6 +173,19 @@ export default function AttractionsPage() {
     }
   }, [selectedEngines, activeDestination, days, nlQuery, selectedEffort, profile.currency]); // eslint-disable-line
 
+  // Bridge: OmniSelectorConsole Launch → handleSearch
+  const handleSearchRef = useRef(handleSearch);
+  useEffect(() => { handleSearchRef.current = handleSearch; });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { zone, engineIds } = (e as CustomEvent<{ zone: string; engineIds: string[] }>).detail;
+      if (zone !== 'attractions') return;
+      handleSearchRef.current(engineIds);
+    };
+    document.addEventListener('unitravel:zone-search', handler);
+    return () => document.removeEventListener('unitravel:zone-search', handler);
+  }, []);
+
   const canSearch = (activeDestination ?? '').length >= 2;
 
   return (
@@ -173,7 +196,12 @@ export default function AttractionsPage() {
         nlPlaceholder='What do you want to experience? — "private boat tour under $200", "morning hike", "cooking class"'
         nlValue={nlQuery}
         onNLChange={setNlQuery}
-        onNLApply={(v) => setNlQuery(v)}
+        onNLApply={(v) => {
+          setNlQuery(v);
+          if (activeDestination || days.some(d => d.destination)) {
+            setTimeout(() => handleSearchRef.current([...selectedEngines]), 80);
+          }
+        }}
         nlFocused={nlFocused}
         onNLFocus={() => setNlFocused(true)}
         onNLBlur={() => setNlFocused(false)}
@@ -207,6 +235,11 @@ export default function AttractionsPage() {
         resultCount={results?.length}
       />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── Engine status strip ──────────────────────────────────── */}
+        {searchState === 'results' && engineStatus && engineStatus.length > 0 && (
+          <EngineStatusStrip engines={engineStatus} accentColor="#30D158" />
+        )}
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '8px 12px 24px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.07) transparent' }}>
           <ExperienceBento

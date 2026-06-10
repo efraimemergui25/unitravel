@@ -1549,7 +1549,7 @@ function ManagementPageInner() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <motion.button whileHover={{ scale: 1.04, y: -2 }} whileTap={{ scale: 0.96 }}
-            onClick={() => router.push('/setup')}
+            onClick={() => router.push('/zone/flights')}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 16, background: 'linear-gradient(135deg, #007AFF, #5E5CE6)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 800, color: '#fff', boxShadow: '0 6px 20px rgba(0,122,255,0.35)' }}>
             <Sparkles size={16} strokeWidth={2} />
             Set up my trip

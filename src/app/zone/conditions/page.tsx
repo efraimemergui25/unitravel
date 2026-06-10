@@ -375,13 +375,13 @@ export default function ConditionsPage() {
                 Configure your trip in Setup to auto-load conditions
               </div>
             </div>
-            <a href="/setup" style={{ textDecoration: 'none' }}>
+            <a href="/zone/flights" style={{ textDecoration: 'none' }}>
               <div style={{
                 fontSize: 11, fontWeight: 700, color: '#007AFF',
                 background: 'rgba(0,122,255,0.10)', border: '1px solid rgba(0,122,255,0.22)',
                 borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
               }}>
-                Set up trip
+                Start building
               </div>
             </a>
           </motion.div>

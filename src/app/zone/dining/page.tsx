@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence }           from 'framer-motion';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Calendar, Users, UtensilsCrossed }  from 'lucide-react';
 import { ZoneShell, ZoneParamChip, ZoneEngineDrawer } from '@/components/zones/ZoneShell';
 import { DiningBento }                       from '@/components/results/DiningBento';
 import type { DiningSearchState }            from '@/components/results/DiningBento';
 import { useTravelEngine }                   from '@/store/useTravelEngine';
 import { ZONE_ENGINES, resolveStatus }       from '@/lib/zoneEngines';
-import type { MergedRestaurant }             from '@/app/api/dining/route';
+import type { MergedRestaurant, DiningEngineStatus } from '@/app/api/dining/route';
+import { EngineStatusStrip }               from '@/components/results/EngineStatusStrip';
 
 const DINING_AI_PICKS = new Set([
   'michelin', 'opentable', 'resy', 'worlds50best', 'infatuation',
@@ -18,8 +18,6 @@ const DINING_ENGINES = ZONE_ENGINES['dining'];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const COLOR  = '#FF9F0A';
-const SPRING = { type: 'spring', stiffness: 380, damping: 28 } as const;
 
 // ── NL query parser ───────────────────────────────────────────────────────────
 
@@ -138,6 +136,7 @@ export default function DiningPage() {
   const [nlFocused,     setNlFocused]     = useState(false);
   const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(DINING_AI_PICKS));
   const [enginesOpen,     setEnginesOpen]     = useState(false);
+  const [engineStatus,    setEngineStatus]    = useState<DiningEngineStatus[] | null>(null);
 
   useEffect(() => {
     const dest = [...new Set(days.map(d => d.destination))].filter(Boolean).join(', ');
@@ -153,7 +152,12 @@ export default function DiningPage() {
     if (parsed.vibes)       setSelectedVibes(parsed.vibes);
     if (parsed.diets)       setSelectedDiets(parsed.diets);
     setNlQuery('');
-  }, [nlQuery]);
+    // Auto-submit when destination is resolvable
+    const dest = parsed.destination ?? destination;
+    if (dest.trim().length > 0) {
+      setTimeout(() => handleSearchRef.current([...selectedEngines]), 80);
+    }
+  }, [nlQuery, destination, selectedEngines]);
 
   const handleSearch = useCallback(async (engineIds?: string[]) => {
     const ids = engineIds ?? [...selectedEngines];
@@ -168,11 +172,19 @@ export default function DiningPage() {
     progressRaf.id = requestAnimationFrame(animateProgress);
 
     try {
+      if (!destination.trim()) {
+        cancelAnimationFrame(progressRaf.id);
+        setApiStatus('error');
+        setApiMessage('Enter a destination to search for restaurants');
+        setTimeout(() => setSearchState('results'), 200);
+        return;
+      }
+
       const res  = await fetch('/api/dining', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          destination: destination || 'New York',
+          destination: destination.trim(),
           date,
           adults,
           vibes:     selectedVibes,
@@ -188,6 +200,7 @@ export default function DiningPage() {
       setScanProgress(100);
       setApiStatus(data.status);
       setApiMessage(data.setupMessage ?? null);
+      setEngineStatus(data.engineStatus ?? null);
 
       if (data.status === 'ok') {
         setResults(data.restaurants ?? []);
@@ -201,6 +214,19 @@ export default function DiningPage() {
       setTimeout(() => setSearchState('results'), 200);
     }
   }, [selectedEngines, destination, date, adults, selectedVibes, selectedDiets]); // eslint-disable-line
+
+  // Bridge: OmniSelectorConsole Launch → handleSearch
+  const handleSearchRef = useRef(handleSearch);
+  useEffect(() => { handleSearchRef.current = handleSearch; });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { zone, engineIds } = (e as CustomEvent<{ zone: string; engineIds: string[] }>).detail;
+      if (zone !== 'dining') return;
+      handleSearchRef.current(engineIds);
+    };
+    document.addEventListener('unitravel:zone-search', handler);
+    return () => document.removeEventListener('unitravel:zone-search', handler);
+  }, []);
 
   const canSearch = destination.trim().length >= 2;
 
@@ -228,12 +254,12 @@ export default function DiningPage() {
           <div style={{ width: 1, height: 16, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
 
           <ZoneParamChip icon={<Calendar size={11} color="#6E6E73" strokeWidth={2} />}>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Reservation date"
               style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer', width: 108 }} />
           </ZoneParamChip>
 
           <ZoneParamChip icon={<Users size={11} color="#6E6E73" strokeWidth={2} />}>
-            <select value={adults} onChange={e => setAdults(parseInt(e.target.value))}
+            <select value={adults} onChange={e => setAdults(parseInt(e.target.value))} title="Number of guests"
               style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, fontWeight: 600, color: '#1D1D1F', fontFamily: 'inherit', cursor: 'pointer' }}>
               {[1,2,3,4,5,6,8].map(n => <option key={n} value={n}>{n} {n !== 1 ? 'guests' : 'guest'}</option>)}
             </select>
@@ -263,6 +289,11 @@ export default function DiningPage() {
         resultCount={results?.length}
       />
 
+      {/* ── Engine status strip ────────────────────────────────────── */}
+      {searchState === 'results' && engineStatus && engineStatus.length > 0 && (
+        <EngineStatusStrip engines={engineStatus} accentColor="#FF9F0A" />
+      )}
+
       {/* ── Results ────────────────────────────────────────────────── */}
       <div style={{
         flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
@@ -281,47 +312,3 @@ export default function DiningPage() {
   );
 }
 
-function ScanProgressPill({ progress, engineCount }: { progress: number; engineCount: number }) {
-  const clamped = Math.min(100, Math.round(progress));
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={SPRING}
-      style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           10,
-        paddingBlock:  6,
-        paddingInline: 12,
-        borderRadius:  999,
-        background:    `${COLOR}0D`,
-        border:        `1.5px solid ${COLOR}28`,
-        flexShrink:    0,
-      }}
-    >
-      <motion.span
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
-        style={{ fontSize: 10, color: COLOR, display: 'inline-block' }}
-        aria-hidden
-      >✦</motion.span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 120 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: COLOR, letterSpacing: '-0.01em' }}>
-          Merging {engineCount} culinary engines
-        </span>
-        <div style={{ height: 3, borderRadius: 999, background: `${COLOR}1C`, overflow: 'hidden' }}>
-          <motion.div
-            animate={{ width: `${clamped}%` }}
-            transition={{ ease: 'easeOut', duration: 0.28 }}
-            style={{ height: '100%', background: `linear-gradient(90deg, ${COLOR}, #FF453A)`, borderRadius: 999 }}
-          />
-        </div>
-      </div>
-      <span style={{ fontSize: 10, fontWeight: 800, color: COLOR, minWidth: 28, textAlign: 'end' }}>
-        {clamped}%
-      </span>
-    </motion.div>
-  );
-}

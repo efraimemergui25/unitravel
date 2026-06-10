@@ -242,31 +242,54 @@ function IdleState({ from, to }: { from?: string; to?: string }) {
     );
   }
 
-  // Fallback — no photo or no route
+  // Fallback — no photo or no route: rich atmospheric idle card
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={SPRING}
       style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        height: '100%', minHeight: 320, gap: 18, textAlign: 'center', paddingInline: 32,
+        height: '100%', minHeight: 340, borderRadius: 20, overflow: 'hidden',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 0,
+        background: 'linear-gradient(145deg, #E8F2FF 0%, #EEF6FF 35%, #F0F4FF 65%, #E8EFFF 100%)',
+        marginTop: 8,
       }}
     >
-      <motion.div
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 52, lineHeight: 1 }}
-        aria-hidden
-      >✈️</motion.div>
-      <div>
-        <p style={{ fontSize: 20, fontWeight: 900, color: '#1D1D1F', letterSpacing: '-0.03em', lineHeight: 1.2, margin: 0 }}>
-          Where are you flying?
-        </p>
-        <p style={{ fontSize: 12.5, color: '#6E6E73', marginTop: 8, letterSpacing: '-0.01em', lineHeight: 1.6 }}>
-          Enter origin and destination above to see real-time prices across global engines.
-        </p>
+      {/* Ambient glow orbs */}
+      <div aria-hidden style={{ position: 'absolute', top: '-25%', left: '-10%', width: '65%', height: '65%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,122,255,0.12) 0%, transparent 65%)', animation: 'ambient-drift-a 22s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', bottom: '-20%', right: '-8%', width: '55%', height: '55%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(90,200,250,0.11) 0%, transparent 65%)', animation: 'ambient-drift-b 28s ease-in-out infinite', pointerEvents: 'none' }} />
+
+      {/* Sky horizon line */}
+      <div aria-hidden style={{ position: 'absolute', bottom: '28%', left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent 5%, rgba(0,122,255,0.12) 20%, rgba(0,122,255,0.20) 50%, rgba(0,122,255,0.12) 80%, transparent 95%)', pointerEvents: 'none' }} />
+
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingInline: 32, textAlign: 'center' }}>
+        <motion.div
+          animate={{ y: [0, -12, 0], rotate: [0, 1.5, -1, 0] }}
+          transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 56, lineHeight: 1, filter: 'drop-shadow(0 8px 20px rgba(0,122,255,0.20))' }}
+          aria-hidden
+        >✈️</motion.div>
+
+        <div>
+          <p style={{ fontSize: 22, fontWeight: 900, color: '#1A1A2E', letterSpacing: '-0.04em', lineHeight: 1.15, margin: 0 }}>
+            Where are you flying?
+          </p>
+          <p style={{ fontSize: 13, color: '#48484A', marginTop: 7, letterSpacing: '-0.012em', lineHeight: 1.6, maxWidth: 320 }}>
+            Enter origin and destination above — Unit scans 30 global fare engines simultaneously and ranks the best routes for you.
+          </p>
+        </div>
+
+        {/* Feature pills */}
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {['⚡ 30 engines live', '🔁 Real-time dedup', '🛡 No hidden fees'].map(f => (
+            <div key={f} style={{ fontSize: 10.5, fontWeight: 700, paddingBlock: 5, paddingInline: 11, borderRadius: 99, background: 'rgba(0,122,255,0.08)', border: '1px solid rgba(0,122,255,0.18)', color: '#005BBF', letterSpacing: '-0.005em' }}>
+              {f}
+            </div>
+          ))}
+        </div>
       </div>
     </motion.div>
   );

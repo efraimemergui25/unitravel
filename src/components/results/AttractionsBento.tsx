@@ -239,33 +239,50 @@ const DEMO_ATTRACTIONS: AttractionEntity[] = [
 
 function IdleState({ hasDestination }: { hasDestination: boolean }) {
   return (
-    <div style={{
-      display:        'flex',
-      flexDirection:  'column',
-      alignItems:     'center',
-      justifyContent: 'center',
-      gap:            16,
-      height:         '100%',
-      minHeight:      280,
-    }}>
-      <motion.div
-        animate={{ scale: [1, 1.06, 1], opacity: [0.55, 1, 0.55] }}
-        transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 44 }}
-      >
-        🎭
-      </motion.div>
-      <div style={{ textAlign: 'center', maxWidth: 280 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 6 }}>
-          {hasDestination ? 'Ready to discover' : 'Where are you going?'}
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={SPRING}
+      style={{
+        height: '100%', minHeight: 300, borderRadius: 20, overflow: 'hidden',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(145deg, #EDFFF6 0%, #EFFFF8 35%, #EAFFFA 65%, #E8FFF4 100%)',
+        marginTop: 8,
+      }}
+    >
+      <div aria-hidden style={{ position: 'absolute', top: '-20%', right: '-6%', width: '55%', height: '55%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(48,209,88,0.14) 0%, transparent 65%)', animation: 'ambient-drift-a 22s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', bottom: '-14%', left: '-4%', width: '46%', height: '46%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,199,190,0.10) 0%, transparent 65%)', animation: 'ambient-drift-b 28s ease-in-out infinite', pointerEvents: 'none' }} />
+
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, paddingInline: 32, textAlign: 'center' }}>
+        <motion.div
+          animate={{ y: [0, -10, 0], rotate: [0, 5, -3, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 52, lineHeight: 1, filter: 'drop-shadow(0 8px 18px rgba(48,209,88,0.24))' }}
+          aria-hidden
+        >🎭</motion.div>
+
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: '#0A1F0F', letterSpacing: '-0.04em', lineHeight: 1.15, marginBottom: 7 }}>
+            {hasDestination ? 'Ready to discover' : 'Where are you going?'}
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: '#48484A', lineHeight: 1.6, maxWidth: 300, letterSpacing: '-0.01em' }}>
+            {hasDestination
+              ? 'Select engines and search — AI cross-references weather, proximity to your lodging, and live availability.'
+              : 'Add a destination to your trip, then discover tours, activities, and hidden gems across 30 platforms.'}
+          </div>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-          {hasDestination
-            ? 'Select engines and hit Search — AI will cross-reference weather, proximity to your lodging, and real-time availability.'
-            : 'Drop a destination into the AI Concierge, then select your experience engines and search.'}
+
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {['🌿 Hidden gems', '☀️ Weather-matched', '📍 Proximity ranked'].map(f => (
+            <div key={f} style={{ fontSize: 10.5, fontWeight: 700, paddingBlock: 5, paddingInline: 11, borderRadius: 99, background: 'rgba(48,209,88,0.10)', border: '1px solid rgba(48,209,88,0.24)', color: '#1A5C2A', letterSpacing: '-0.005em' }}>
+              {f}
+            </div>
+          ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

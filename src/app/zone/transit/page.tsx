@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef }  from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence }        from 'framer-motion';
 import { MapPin, Users, Train, Zap, AlertTriangle } from 'lucide-react';
 import { TransitControl }                 from '@/components/zones/TransitControl';
@@ -84,6 +84,10 @@ export default function TransitPage() {
     if (parsed.adults)      { setAdults(parsed.adults);           pills.push(String(parsed.adults)); }
     if (pills.length) setNlPills(pills);
     setNlQuery('');
+    // Auto-submit if both origin and destination resolved — use full AI engine set
+    if (parsed.origin && parsed.destination) {
+      setTimeout(() => handleSearchRef.current(['google-maps', 'rome2rio', 'uber', 'lyft', 'citymapper', 'trainline', 'turo', 'omio']), 80);
+    }
   }, [nlQuery]);
 
   const handleSearch = useCallback(async (engineIds: string[]) => {
@@ -148,6 +152,19 @@ export default function TransitPage() {
       setSearchState('error');
     }
   }, [origin, destination, adults, isHe]);
+
+  // Bridge: OmniSelectorConsole Launch → handleSearch
+  const handleSearchRef = useRef(handleSearch);
+  useEffect(() => { handleSearchRef.current = handleSearch; });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { zone, engineIds } = (e as CustomEvent<{ zone: string; engineIds: string[] }>).detail;
+      if (zone !== 'transit') return;
+      handleSearchRef.current(engineIds);
+    };
+    document.addEventListener('unitravel:zone-search', handler);
+    return () => document.removeEventListener('unitravel:zone-search', handler);
+  }, []);
 
   const activeResults = results[activeQuery];
   const selectedOption = activeResults?.options.find(o => o.id === selectedRouteId) ?? activeResults?.options[0];

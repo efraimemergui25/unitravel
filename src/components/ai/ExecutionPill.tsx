@@ -16,11 +16,15 @@ export interface ExecutionPillProps {
 // ── Label map ─────────────────────────────────────────────────────────────────
 
 const LABELS: Record<string, (a: Record<string, unknown>) => string> = {
-  navigateWorkspace:    a => `Opening ${cap(a.zoneId as string)} Hub`,
-  executeOmniSearch:    a => `Scanning 30 engines — ${a.origin} → ${a.destination}`,
-  mutateTimeline:       a => `Placing "${a.title}" in timeline`,
-  adjustFinancialModel: _  => 'Updating budget forecast',
-  adjustDNA:            _  => 'Calibrating Travel DNA',
+  navigateWorkspace:       a => `Opening ${cap(a.zoneId as string)} Hub`,
+  executeOmniSearch:       a => `Scanning 30 engines — ${a.origin} → ${a.destination}`,
+  mutateTimeline:          a => `Placing "${a.title}" in timeline`,
+  adjustFinancialModel:    _  => 'Updating budget forecast',
+  adjustDNA:               _  => 'Calibrating Travel DNA',
+  searchFlightsInline:     a => `Searching flights${a.origin ? ` · ${a.origin}→${a.destination}` : ''}`,
+  searchHotelsInline:      a => `Searching hotels${a.cityCode ? ` · ${a.cityCode}` : ''}`,
+  commitToTimeline:        a => `Adding ${String(a.title ?? '').slice(0, 24)} to Day`,
+  commitLodgingToTimeline: a => `Booking ${String(a.hotelName ?? '').slice(0, 24)}`,
 };
 
 function cap(s: string) {

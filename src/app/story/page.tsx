@@ -434,7 +434,7 @@ function SectionCTA() {
             Start planning
             <ArrowRight size={14} color="#fff" strokeWidth={2.5} />
           </motion.button>
-          <motion.button onClick={() => router.push('/setup')} whileHover={{ scale:1.04,y:-3 }} whileTap={{ scale:0.975 }} style={{ display:'flex',alignItems:'center',gap:8,padding:'14px 28px',borderRadius:100,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',backdropFilter:'blur(16px)',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.78)',letterSpacing:'-0.01em',boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+          <motion.button onClick={() => router.push('/')} whileHover={{ scale:1.04,y:-3 }} whileTap={{ scale:0.975 }} style={{ display:'flex',alignItems:'center',gap:8,padding:'14px 28px',borderRadius:100,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',backdropFilter:'blur(16px)',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.78)',letterSpacing:'-0.01em',boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
             Build your own trip
           </motion.button>
         </div>
