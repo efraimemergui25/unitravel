@@ -546,27 +546,33 @@ export default function Home() {
               background: 'radial-gradient(ellipse at center, transparent 38%, rgba(100,140,255,0.09) 58%, rgba(120,160,255,0.06) 72%, transparent 86%)',
             }} />
 
-            {/* ── Globe circle — parallax via x/y, margin centering avoids transform conflict ── */}
+            {/* ── Globe: motion.div handles parallax + fade-in; inner div handles circular clip ── */}
+            {/* Separating them is critical — scale+overflow:hidden crops the WebGL canvas */}
             <motion.div
-              initial={{ scale: 0.06, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 52, damping: 20, delay: 0.05 }}
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
               style={{
                 position: 'absolute', top: '50%', left: '50%',
                 width: '80vmin', height: '80vmin',
                 marginTop: '-40vmin', marginLeft: '-40vmin',
-                borderRadius: '50%', overflow: 'hidden', zIndex: 1,
-                boxShadow: '0 28px 72px rgba(50,90,200,0.22), 0 6px 28px rgba(50,90,200,0.12), 0 0 0 1px rgba(140,170,255,0.20)',
+                zIndex: 1,
                 x: springGpx, y: springGpy,
               }}
             >
-              <Canvas
-                camera={{ position: [0, 0, 6.2], fov: 44 }}
-                gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-                style={{ width: '100%', height: '100%', background: 'transparent' }}
-              >
-                <GlobeScene />
-              </Canvas>
+              <div style={{
+                width: '100%', height: '100%',
+                borderRadius: '50%', overflow: 'hidden',
+                boxShadow: '0 28px 72px rgba(50,90,200,0.22), 0 6px 28px rgba(50,90,200,0.12), 0 0 0 1px rgba(140,170,255,0.20)',
+              }}>
+                <Canvas
+                  camera={{ position: [0, 0, 6.2], fov: 44 }}
+                  gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+                  style={{ width: '100%', height: '100%', background: 'transparent' }}
+                >
+                  <GlobeScene />
+                </Canvas>
+              </div>
             </motion.div>
 
             {/* ── UI overlay: logo top · hero headline upper-center · CTA bottom ── */}
