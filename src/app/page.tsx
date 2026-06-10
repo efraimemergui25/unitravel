@@ -12,7 +12,7 @@ import { useTexture, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   Plane, Hotel, UtensilsCrossed, Compass, Train, CloudSun,
-  MessageSquare, LayoutGrid, ArrowRight, Sparkles, Mic, Zap,
+  ArrowRight, Sparkles, Mic,
 } from 'lucide-react';
 import { useTravelEngine } from '@/store/useTravelEngine';
 import { GuidedJourney }    from '@/components/GuidedJourney';
@@ -154,27 +154,6 @@ function GlobeScene() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPLIT TITLE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function SplitTitle({ text, delay = 0 }: { text: string; delay?: number }) {
-  return (
-    <span style={{ display: 'inline-block' }}>
-      {text.split('').map((ch, i) => (
-        <motion.span
-          key={i}
-          initial={{ opacity: 0, y: 40, rotateX: -45, scale: 0.82 }}
-          animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 360, damping: 28, delay: delay + i * 0.028 }}
-          style={{ display: 'inline-block', transformOrigin: 'bottom center' }}
-        >
-          {ch === ' ' ? ' ' : ch}
-        </motion.span>
-      ))}
-    </span>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAT COUNTER
@@ -393,10 +372,8 @@ export default function Home() {
 
   const [showGuidedJourney, setShowGuidedJourney] = useState(false);
 
-  const [focusedCard, setFocusedCard]     = useState<CardFocus>(null);
-  const [hoveredZone, setHoveredZone]     = useState<number | null>(null);
-  const [aiInputFocused, setAiInputFocused] = useState(false);
-  const [statsPulse, setStatsPulse]       = useState(false);
+  const [focusedCard, setFocusedCard] = useState<CardFocus>(null);
+  const [statsPulse, setStatsPulse]   = useState(false);
 
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
@@ -404,12 +381,6 @@ export default function Home() {
   const sy = useSpring(my, { stiffness: 48, damping: 18 });
   const tx = useTransform(sx, [-0.5, 0.5], [-8, 8]);
   const ty = useTransform(sy, [-0.5, 0.5], [-5, 5]);
-
-  // Globe parallax — subtle independent layer shift on mouse move
-  const gpx = useTransform(mx, [-0.5, 0.5], [-20, 20]);
-  const gpy = useTransform(my, [-0.5, 0.5], [-14, 14]);
-  const springGpx = useSpring(gpx, { stiffness: 42, damping: 20 });
-  const springGpy = useSpring(gpy, { stiffness: 42, damping: 20 });
 
   const advTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref keeps advance() current inside the keyboard effect
@@ -508,23 +479,6 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   if (!mounted) return null;
-
-  const aiRecede     = focusedCard === 'manual';
-  const manualRecede = focusedCard === 'ai';
-
-  // ─── Shared Apple light card style ───────────────────────────────────────
-  const cardBase = {
-    flex: '1 1 0',
-    padding: '22px',
-    borderRadius: 22,
-    background: 'rgba(255,255,255,0.96)',
-    backdropFilter: 'blur(40px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-    display: 'flex', flexDirection: 'column' as const, gap: 0,
-    position: 'relative' as const, overflow: 'hidden',
-    cursor: 'default',
-    border: '1px solid rgba(255,255,255,0.98)',
-  };
 
   return createPortal(
     <div onMouseMove={onMouseMove} style={{ position: 'fixed', inset: 0, zIndex: 9999, overflow: 'hidden' }}>
@@ -706,291 +660,160 @@ export default function Home() {
               </motion.div>
             </motion.div>
 
-            {/* MAIN CONTENT */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 28px 20px', overflowY: 'auto' }}>
-              <motion.div style={{ x: tx, y: ty, width: '100%', maxWidth: 940 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* MAIN CONTENT — single column, clear hierarchy */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '72px 24px 28px', overflowY: 'auto' }}>
+              <motion.div style={{ x: tx, y: ty, width: '100%', maxWidth: 680 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
 
-                  {/* Badge */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.92 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 30, delay: 0.08 }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px 7px 8px', borderRadius: 100, background: 'rgba(0,122,255,0.06)', border: '1px solid rgba(0,122,255,0.16)', boxShadow: '0 2px 14px rgba(0,122,255,0.07), inset 0 1px 0 rgba(255,255,255,0.90)', marginBottom: 14 }}
-                  >
-                    <div style={{ width: 20, height: 20, borderRadius: 7, background: 'linear-gradient(135deg, #007AFF, #5856D6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,122,255,0.32)', flexShrink: 0 }}>
-                      <Zap size={10} color="#fff" strokeWidth={2.5} />
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#007AFF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      151+ Live Engines · Zero Hidden Fees · Real-time AI
-                    </span>
-                  </motion.div>
-
-                  {/* Wordmark */}
-                  <h1 style={{ fontSize: 'clamp(3.0rem,6.2vw,5.2rem)', fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 0.92, margin: '0 0 8px', textAlign: 'center', background: 'linear-gradient(140deg, #1D1D1F 0%, #1D1D1F 20%, #007AFF 48%, #5856D6 70%, #BF5AF2 88%, #FF2D55 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', perspective: '900px' }}>
-                    <SplitTitle text="Unitravel." delay={0.10} />
-                  </h1>
-
-                  {/* Tagline */}
-                  <motion.p
-                    initial={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
-                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                    transition={{ duration: 0.46, delay: 0.30, ease: [0.22, 1, 0.36, 1] }}
-                    style={{ fontSize: 17, fontWeight: 400, color: '#48484A', margin: '0 0 22px', letterSpacing: '-0.012em', textAlign: 'center', lineHeight: 1.4 }}
-                  >
-                    Every flight, stay, and experience — unified by intelligence.
-                  </motion.p>
-
-                  {/* TWO-PATH CARDS */}
+                  {/* ① Hero headline — warm, human, travel-forward */}
                   <motion.div
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.58, ease: [0.22, 1, 0.36, 1], delay: 0.42 }}
-                    style={{ display: 'flex', gap: 14, width: '100%', alignItems: 'stretch' }}
+                    transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
+                    style={{ textAlign: 'center', marginBottom: 22 }}
                   >
-
-                    {/* ── AI CHAT CARD — Apple light, blue accent ── */}
-                    <motion.div
-                      onMouseEnter={() => setFocusedCard('ai')}
-                      onMouseLeave={() => setFocusedCard(null)}
-                      animate={{
-                        opacity:   aiRecede ? 0.48 : 1,
-                        scale:     aiRecede ? 0.992 : focusedCard === 'ai' ? 1.007 : 1,
-                        filter:    aiRecede ? 'blur(1.5px) brightness(0.94)' : 'blur(0px) brightness(1)',
-                        boxShadow: focusedCard === 'ai'
-                          ? '0 24px 72px rgba(0,122,255,0.18), 0 8px 24px rgba(0,0,0,0.07), inset 0 1.5px 0 rgba(255,255,255,1)'
-                          : '0 8px 40px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
-                      }}
-                      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                      style={{
-                        ...cardBase,
-                        border: '1px solid rgba(0,122,255,0.14)',
-                      }}
-                    >
-                      {/* Blue gradient top accent */}
-                      <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #007AFF, #5856D6, #BF5AF2)', borderRadius: '22px 22px 0 0', pointerEvents: 'none' }} />
-
-                      {/* Specular top line */}
-                      <div aria-hidden style={{ position: 'absolute', left: '6%', right: '6%', top: 3, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 35%, rgba(255,255,255,1) 65%, transparent)', borderRadius: 999, pointerEvents: 'none' }} />
-
-                      {/* Very subtle blue ambient glow */}
-                      <div aria-hidden style={{ position: 'absolute', top: '-30%', left: '-10%', width: '70%', height: '60%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,122,255,0.06) 0%, transparent 65%)', pointerEvents: 'none' }} />
-
-                      {/* Card header */}
-                      <motion.div
-                        animate={{ opacity: aiInputFocused ? 0.35 : 1, y: aiInputFocused ? -2 : 0 }}
-                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, position: 'relative', zIndex: 1, marginTop: 6 }}
-                      >
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, rgba(0,122,255,0.10) 0%, rgba(88,86,214,0.10) 100%)', border: '1px solid rgba(0,122,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,122,255,0.10)', flexShrink: 0 }}>
-                          <MessageSquare size={18} color="#007AFF" strokeWidth={1.8} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 15.5, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.030em', lineHeight: 1.2 }}>Chat with Unit AI</div>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: '#6E6E73', letterSpacing: '-0.005em', marginTop: 1 }}>Your personal AI travel concierge</div>
-                        </div>
-                        <motion.button
-                          animate={{ opacity: aiInputFocused ? 0 : 1 }}
-                          transition={{ duration: 0.18 }}
-                          whileHover={{ scale: 1.06 }}
-                          whileTap={{ scale: 0.96 }}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px 5px 7px', borderRadius: 100, background: 'rgba(0,122,255,0.07)', border: '1px solid rgba(0,122,255,0.16)', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
-                        >
-                          <Mic size={11} color="#007AFF" strokeWidth={2} />
-                          <span style={{ fontSize: 10, fontWeight: 600, color: '#007AFF', letterSpacing: '0.01em' }}>or speak</span>
-                        </motion.button>
-                      </motion.div>
-
-                      <motion.p
-                        animate={{ opacity: aiInputFocused ? 0 : 1, y: aiInputFocused ? -4 : 0 }}
-                        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ fontSize: 12.5, color: '#6E6E73', margin: '0 0 14px', letterSpacing: '-0.005em', lineHeight: 1.55, position: 'relative', zIndex: 1 }}
-                      >
-                        Tell Unit where you want to go — it curates flights, stays, dining, and every detail. Instantly.
-                      </motion.p>
-
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <AIChatInput
-                          onSend={() => setShowGuidedJourney(true)}
-                          cardHovered={focusedCard === 'ai'}
-                          onFocusChange={setAiInputFocused}
-                        />
-                      </div>
-
-                      {/* CTA */}
-                      <motion.button
-                        animate={{ opacity: aiInputFocused ? 1 : 0.88 }}
-                        whileHover={{ scale: 1.02, opacity: 1 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => setShowGuidedJourney(true)}
-                        transition={{ duration: 0.16 }}
-                        style={{
-                          marginTop: 'auto', paddingTop: 14,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                          padding: '12px 22px', borderRadius: 100,
-                          background: 'linear-gradient(135deg, rgba(0,122,255,0.92) 0%, rgba(88,86,214,0.92) 100%)',
-                          border: '1px solid rgba(255,255,255,0.28)',
-                          backdropFilter: 'blur(20px) saturate(1.6)',
-                          WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
-                          boxShadow: '0 6px 28px rgba(0,122,255,0.36), 0 2px 8px rgba(0,0,0,0.08), inset 0 1.5px 0 rgba(255,255,255,0.42), inset 0 -1px 0 rgba(0,0,0,0.10)',
-                          cursor: 'pointer', fontFamily: 'inherit',
-                          position: 'relative', zIndex: 1,
-                        }}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.015em' }}>Plan my trip with AI</span>
-                        <ArrowRight size={13} color="rgba(255,255,255,0.80)" strokeWidth={2.5} />
-                      </motion.button>
-                    </motion.div>
-
-                    {/* ── BUILD MANUALLY CARD — Apple light, neutral ── */}
-                    <motion.div
-                      onMouseEnter={() => setFocusedCard('manual')}
-                      onMouseLeave={() => { setFocusedCard(null); setHoveredZone(null); }}
-                      animate={{
-                        opacity:   manualRecede ? 0.48 : 1,
-                        scale:     manualRecede ? 0.992 : focusedCard === 'manual' ? 1.007 : 1,
-                        filter:    manualRecede ? 'blur(1.5px) brightness(0.96)' : 'blur(0px) brightness(1)',
-                        boxShadow: focusedCard === 'manual'
-                          ? '0 20px 60px rgba(0,0,0,0.11), 0 6px 18px rgba(0,0,0,0.06), inset 0 1.5px 0 rgba(255,255,255,1)'
-                          : '0 8px 40px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
-                      }}
-                      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                      style={{
-                        ...cardBase,
-                        border: '1px solid rgba(0,0,0,0.07)',
-                      }}
-                    >
-                      {/* Neutral top accent */}
-                      <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #30D158, #00C7BE, #5AC8FA)', borderRadius: '22px 22px 0 0', pointerEvents: 'none' }} />
-
-                      {/* Specular */}
-                      <div aria-hidden style={{ position: 'absolute', left: '6%', right: '6%', top: 3, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 35%, rgba(255,255,255,1) 65%, transparent)', borderRadius: 999, pointerEvents: 'none' }} />
-
-                      {/* Card header */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, marginTop: 6 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(48,209,88,0.08)', border: '1px solid rgba(48,209,88,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(48,209,88,0.10)', flexShrink: 0 }}>
-                          <LayoutGrid size={18} color="#1C8A39" strokeWidth={1.8} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 15.5, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.030em', lineHeight: 1.2 }}>Build your trip</div>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: '#6E6E73', letterSpacing: '-0.005em', marginTop: 1 }}>Search every engine, your way</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 100, background: 'rgba(48,209,88,0.08)', border: '1px solid rgba(48,209,88,0.22)', flexShrink: 0 }}>
-                          <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#30D158', flexShrink: 0, animation: 'pulse-glow 2.4s ease-in-out infinite' }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#1C8A39', whiteSpace: 'nowrap' }}>Best time: Now</span>
-                        </div>
-                      </div>
-
-                      <p style={{ fontSize: 12.5, color: '#6E6E73', margin: '0 0 14px', letterSpacing: '-0.005em', lineHeight: 1.55 }}>
-                        Access 151+ live engines across all 6 zones — full control, zero compromise.
-                      </p>
-
-                      {/* Zone grid with Common Fate ripple */}
-                      <div
-                        onMouseLeave={() => setHoveredZone(null)}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, marginBottom: 14 }}
-                      >
-                        {ZONES.map((zone, i) => {
-                          const Icon = zone.icon;
-                          const isHovered  = hoveredZone === i;
-                          const sameRow    = hoveredZone !== null && Math.floor(i / 3) === Math.floor(hoveredZone / 3) && !isHovered;
-                          const otherRow   = hoveredZone !== null && Math.floor(i / 3) !== Math.floor(hoveredZone / 3);
-
-                          return (
-                            <motion.button
-                              key={zone.label}
-                              initial={{ opacity: 0, scale: 0.88, y: 5 }}
-                              animate={{
-                                opacity:         !isHovered && otherRow ? 0.60 : 1,
-                                scale:           isHovered ? 1.05 : sameRow ? 1.02 : otherRow ? 0.97 : 1,
-                                y:               isHovered ? -3 : sameRow ? -1 : otherRow ? 1 : 0,
-                                backgroundColor: isHovered ? zone.bg : 'rgba(245,245,247,0.90)',
-                                borderColor:     isHovered ? zone.border : 'rgba(0,0,0,0.06)',
-                                boxShadow:       isHovered
-                                  ? `0 5px 18px ${zone.color}22, inset 0 1px 0 rgba(255,255,255,1)`
-                                  : '0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)',
-                              }}
-                              transition={{
-                                duration: 0.20,
-                                delay:    sameRow ? 0.02 : otherRow ? 0.04 : 0,
-                                ease:     [0.22, 1, 0.36, 1],
-                                opacity:  { delay: 0.60 + i * 0.04 },
-                              }}
-                              onMouseEnter={() => setHoveredZone(i)}
-                              onMouseLeave={() => setHoveredZone(null)}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => goTo(zone.href)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                padding: '7px 10px', borderRadius: 11,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                border: '1px solid',
-                              }}
-                            >
-                              <Icon size={13} color={zone.color} strokeWidth={2} />
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{zone.label}</span>
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Template chips — pre-populate store and navigate to management */}
-                      <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
-                        {TEMPLATES.map((t, i) => (
-                          <motion.button
-                            key={t.label}
-                            initial={{ opacity: 0, scale: 0.92 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.72 + i * 0.07, type: 'spring', stiffness: 400, damping: 30 }}
-                            whileHover={{ scale: 1.04, y: -2, boxShadow: `0 6px 20px ${t.color}22` }}
-                            whileTap={{ scale: 0.96 }}
-                            onClick={() => applyTemplate(t)}
-                            style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'center',
-                              padding: '8px 14px', borderRadius: 12,
-                              background: `${t.color}08`,
-                              border: `1.5px solid ${t.color}20`,
-                              cursor: 'pointer', fontFamily: 'inherit',
-                              flex: '1 1 0',
-                              transition: 'border-color 0.15s',
-                            }}
-                          >
-                            <span style={{ fontSize: 11, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em' }}>{t.label}</span>
-                            <span style={{ fontSize: 9.5, fontWeight: 500, color: '#8E8E93', marginTop: 2 }}>{t.sub}</span>
-                          </motion.button>
-                        ))}
-                      </div>
-
-                      {/* CTA — goes to flights zone as default entry */}
-                      <motion.button
-                        whileHover={{ scale: 1.02, y: -2, boxShadow: '0 12px 36px rgba(0,0,0,0.09), 0 4px 12px rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,1)' }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => goTo('/zone/flights')}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                          padding: '12px 22px', borderRadius: 100,
-                          background: 'rgba(255,255,255,0.72)',
-                          border: '1px solid rgba(255,255,255,0.92)',
-                          backdropFilter: 'blur(40px) saturate(2)',
-                          WebkitBackdropFilter: 'blur(40px) saturate(2)',
-                          boxShadow: '0 6px 28px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.03)',
-                          cursor: 'pointer', fontFamily: 'inherit',
-                          marginTop: 'auto',
-                        }}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.015em' }}>Start building</span>
-                        <ArrowRight size={13} color="rgba(0,0,0,0.40)" strokeWidth={2.5} />
-                      </motion.button>
-                    </motion.div>
-
+                    <h1 style={{
+                      fontSize: 'clamp(2.4rem, 5vw, 4.2rem)', fontWeight: 900,
+                      letterSpacing: '-0.052em', lineHeight: 1.0, margin: 0,
+                      background: 'linear-gradient(138deg, #1C1C1E 0%, #1C1C1E 24%, #007AFF 52%, #5856D6 72%, #BF5AF2 90%)',
+                      WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                    }}>Where to next?</h1>
+                    <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.42)', marginTop: 10, marginBottom: 0, letterSpacing: '-0.012em', fontWeight: 400, lineHeight: 1.45 }}>
+                      Tell Unit your dream — flights, stays, dining and experiences,<br />all searched at once.
+                    </p>
                   </motion.div>
 
-                  {/* STATS STRIP */}
+                  {/* ② Full-width AI glass card — the hero action */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 22 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.60, ease: [0.22, 1, 0.36, 1], delay: 0.18 }}
+                    onMouseEnter={() => setFocusedCard('ai')}
+                    onMouseLeave={() => setFocusedCard(null)}
+                    style={{
+                      width: '100%', padding: '18px 18px 16px',
+                      borderRadius: 26,
+                      background: 'rgba(255,255,255,0.97)',
+                      backdropFilter: 'blur(52px) saturate(2)',
+                      WebkitBackdropFilter: 'blur(52px) saturate(2)',
+                      border: '1px solid rgba(255,255,255,1)',
+                      boxShadow: focusedCard === 'ai'
+                        ? '0 28px 80px rgba(0,100,255,0.16), 0 6px 24px rgba(0,0,0,0.07), inset 0 1.5px 0 rgba(255,255,255,1)'
+                        : '0 10px 44px rgba(0,0,0,0.08), 0 2px 10px rgba(0,0,0,0.04), inset 0 1.5px 0 rgba(255,255,255,1)',
+                      marginBottom: 20, position: 'relative', overflow: 'hidden',
+                    }}
+                  >
+                    {/* Full-spectrum top accent */}
+                    <div aria-hidden style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, height: 2.5, background: 'linear-gradient(90deg, #007AFF, #5856D6, #BF5AF2, #FF2D55)', borderRadius: '26px 26px 0 0', pointerEvents: 'none' }} />
+                    <div aria-hidden style={{ position: 'absolute', top: 2.5, insetInlineStart: '8%', insetInlineEnd: '8%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,1) 35%, rgba(255,255,255,1) 65%, transparent)', borderRadius: 999, pointerEvents: 'none' }} />
+
+                    <AIChatInput
+                      onSend={() => setShowGuidedJourney(true)}
+                      cardHovered={focusedCard === 'ai'}
+                      onFocusChange={() => {}}
+                    />
+
+                    <motion.button
+                      onClick={() => setShowGuidedJourney(true)}
+                      whileHover={{ scale: 1.01, boxShadow: '0 14px 44px rgba(0,122,255,0.38), inset 0 1.5px 0 rgba(255,255,255,0.30)' }}
+                      whileTap={{ scale: 0.98 }}
+                      style={{
+                        width: '100%', marginTop: 12, padding: '13px 0', borderRadius: 16,
+                        background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                        border: 'none',
+                        boxShadow: '0 6px 24px rgba(0,122,255,0.30), inset 0 1.5px 0 rgba(255,255,255,0.26)',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#fff', letterSpacing: '-0.016em' }}>Plan my trip with AI</span>
+                      <ArrowRight size={13} color="rgba(255,255,255,0.72)" strokeWidth={2.5} />
+                    </motion.button>
+                  </motion.div>
+
+                  {/* ③ Zone pills — discover by category */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.55, delay: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ width: '100%', marginBottom: 18 }}
+                  >
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'rgba(0,0,0,0.28)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 11, textAlign: 'center' }}>
+                      Explore by category
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {ZONES.map((zone, i) => {
+                        const Icon = zone.icon;
+                        return (
+                          <motion.button
+                            key={zone.label}
+                            initial={{ opacity: 0, scale: 0.86, y: 6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            transition={{ delay: 0.38 + i * 0.055, type: 'spring', stiffness: 420, damping: 28 }}
+                            whileHover={{ scale: 1.07, y: -3, boxShadow: `0 12px 30px ${zone.color}28, inset 0 1px 0 rgba(255,255,255,1)` }}
+                            whileTap={{ scale: 0.94 }}
+                            onClick={() => goTo(zone.href)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 7,
+                              padding: '9px 17px', borderRadius: 100,
+                              background: `${zone.bg}`,
+                              border: `1.5px solid ${zone.border}`,
+                              backdropFilter: 'blur(24px)',
+                              boxShadow: `0 2px 12px ${zone.color}16, inset 0 1px 0 rgba(255,255,255,0.90)`,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            <Icon size={14} color={zone.color} strokeWidth={2} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.012em', whiteSpace: 'nowrap' }}>{zone.label}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+                  {/* ④ Ready-made trip templates */}
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.48, delay: 0.80, ease: [0.22, 1, 0.36, 1] }}
-                    style={{ display: 'flex', alignItems: 'center', marginTop: 14, padding: '11px 28px', borderRadius: 100, background: 'rgba(255,255,255,0.80)', border: '1px solid rgba(255,255,255,0.96)', backdropFilter: 'blur(16px)', boxShadow: '0 2px 14px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)' }}
+                    transition={{ duration: 0.50, delay: 0.58, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ width: '100%', marginBottom: 18 }}
+                  >
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'rgba(0,0,0,0.28)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 11, textAlign: 'center' }}>
+                      Ready-made trips
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                      {TEMPLATES.map((t, i) => (
+                        <motion.button
+                          key={t.label}
+                          initial={{ opacity: 0, scale: 0.90 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.62 + i * 0.07, type: 'spring', stiffness: 400, damping: 28 }}
+                          whileHover={{ scale: 1.06, y: -3, boxShadow: `0 14px 36px ${t.color}24, inset 0 1px 0 rgba(255,255,255,0.90)` }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => applyTemplate(t)}
+                          style={{
+                            flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            padding: '11px 16px', borderRadius: 18,
+                            background: `${t.color}08`,
+                            border: `1.5px solid ${t.color}22`,
+                            backdropFilter: 'blur(24px)',
+                            boxShadow: `0 2px 14px ${t.color}10, inset 0 1px 0 rgba(255,255,255,0.90)`,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <span style={{ fontSize: 12, fontWeight: 800, color: '#1C1C1E', letterSpacing: '-0.022em' }}>{t.label}</span>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.40)', marginTop: 3 }}>{t.sub}</span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+
+                  {/* ⑤ Stats strip */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.46, delay: 0.78, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ display: 'flex', alignItems: 'center', padding: '11px 28px', borderRadius: 100, background: 'rgba(255,255,255,0.82)', border: '1px solid rgba(255,255,255,0.96)', backdropFilter: 'blur(20px)', boxShadow: '0 2px 16px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)' }}
                   >
                     {([
                       { value: '151+', label: 'Live Engines' },
@@ -999,13 +822,8 @@ export default function Home() {
                       { value: '∞',    label: 'Trip Combos'  },
                     ] as { value: string; label: string }[]).map((s, i) => (
                       <div key={s.label} style={{ display: 'flex', alignItems: 'center' }}>
-                        {i > 0 && <div style={{ width: 1, height: 28, background: 'rgba(0,0,0,0.07)', margin: '0 28px' }} />}
-                        <StatCounter
-                          target={s.value}
-                          label={s.label}
-                          delay={0.86 + i * 0.08}
-                          pulse={statsPulse}
-                        />
+                        {i > 0 && <div style={{ width: 1, height: 26, background: 'rgba(0,0,0,0.07)', margin: '0 24px' }} />}
+                        <StatCounter target={s.value} label={s.label} delay={0.84 + i * 0.08} pulse={statsPulse} />
                       </div>
                     ))}
                   </motion.div>
