@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowRight, LayoutGrid, Sparkles, Check,
   MapPin, Users, Wallet, Clock, Mic, MicOff, RefreshCw,
+  Plane, Hotel, UtensilsCrossed, Compass, Map,
 } from 'lucide-react';
 import { useTravelEngine } from '@/store/useTravelEngine';
 import { FinancialEngine } from '@/utils/FinancialEngine';
@@ -101,11 +102,11 @@ function getRawDestination(msgs: UIMessage[]): string | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const QUICK_REPLIES: Record<NonNullable<QuickReplyContext>, string[]> = {
-  destination: ['Paris 🇫🇷', 'Tokyo 🇯🇵', 'New York 🗽', 'Dubai 🌆', 'Barcelona 🌊', 'Surprise me ✨'],
+  destination: ['Paris 🇫🇷', 'Tokyo 🇯🇵', 'New York', 'Dubai 🇦🇪', 'Barcelona 🇪🇸', 'Surprise me'],
   dates:       ['Weekend (3 nights)', '5 nights', '1 week', '2 weeks', '1 month'],
-  travelers:   ['Just me 🧳', '2 people ❤️', '3–4 people 👥', 'Family (5+) 👨‍👩‍👧‍👦'],
+  travelers:   ['Just me', '2 people', '3–4 people', 'Family (5+)'],
   budget:      ['$1,500', '$3,000', '$5,000', '$10,000', '$20,000+'],
-  style:       ['Luxury & relax 🍾', 'Adventure 🏔️', 'Culture & food 🎭', 'Family fun 🎢', 'Backpacker 🎒'],
+  style:       ['Luxury & relax', 'Adventure', 'Culture & food', 'Family fun', 'Backpacker'],
 };
 
 function detectQuickReplyContext(lastAIMsg: string): QuickReplyContext {
@@ -142,8 +143,8 @@ function getBudgetSignal(input: string, destKey: string | null, collectedNights?
   const benchmark = 180 * factor;
   const ratio = perPersonPerDay / benchmark;
 
-  if (ratio >= 1.2) return { level: 'green',  msg: `$${budget.toLocaleString()} — Comfortable, excellent options await ✨` };
-  if (ratio >= 0.65) return { level: 'yellow', msg: `$${budget.toLocaleString()} — Solid budget, smart choices will shine 👍` };
+  if (ratio >= 1.2) return { level: 'green',  msg: `$${budget.toLocaleString()} — Comfortable, excellent options await` };
+  if (ratio >= 0.65) return { level: 'yellow', msg: `$${budget.toLocaleString()} — Solid budget, smart choices will shine` };
   return { level: 'red', msg: `$${budget.toLocaleString()} — Tight — consider a bit more for a fuller experience` };
 }
 
@@ -444,11 +445,11 @@ function QuickReplies({ context, onSelect }: { context: QuickReplyContext; onSel
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ZONE_ACTIONS = [
-  { emoji: '✈️', label: 'Search Flights',    zone: 'flights',     color: '#007AFF', bg: 'rgba(0,122,255,0.07)',   border: 'rgba(0,122,255,0.18)'  },
-  { emoji: '🏨', label: 'Browse Hotels',     zone: 'lodging',     color: '#5AC8FA', bg: 'rgba(90,200,250,0.07)',  border: 'rgba(90,200,250,0.20)' },
-  { emoji: '🍽️', label: 'Find Restaurants', zone: 'dining',      color: '#FF9F0A', bg: 'rgba(255,159,10,0.07)',  border: 'rgba(255,159,10,0.18)' },
-  { emoji: '⭐', label: 'Experiences',       zone: 'attractions', color: '#30D158', bg: 'rgba(48,209,88,0.07)',   border: 'rgba(48,209,88,0.18)'  },
-  { emoji: '🗺️', label: 'Full Itinerary',   zone: 'management',  color: '#BF5AF2', bg: 'rgba(191,90,242,0.07)',  border: 'rgba(191,90,242,0.18)' },
+  { Icon: Plane,           label: 'Search Flights',    zone: 'flights',     color: '#007AFF', bg: 'rgba(0,122,255,0.07)',   border: 'rgba(0,122,255,0.18)'  },
+  { Icon: Hotel,           label: 'Browse Hotels',     zone: 'lodging',     color: '#5AC8FA', bg: 'rgba(90,200,250,0.07)',  border: 'rgba(90,200,250,0.20)' },
+  { Icon: UtensilsCrossed, label: 'Find Restaurants',  zone: 'dining',      color: '#FF9F0A', bg: 'rgba(255,159,10,0.07)',  border: 'rgba(255,159,10,0.18)' },
+  { Icon: Compass,         label: 'Experiences',       zone: 'attractions', color: '#30D158', bg: 'rgba(48,209,88,0.07)',   border: 'rgba(48,209,88,0.18)'  },
+  { Icon: Map,             label: 'Full Itinerary',    zone: 'management',  color: '#BF5AF2', bg: 'rgba(191,90,242,0.07)',  border: 'rgba(191,90,242,0.18)' },
 ];
 
 function PostCommitActions({ onNavigate }: { onNavigate: (zone: string) => void }) {
@@ -481,7 +482,7 @@ function PostCommitActions({ onNavigate }: { onNavigate: (zone: string) => void 
               cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            <span style={{ fontSize: 13 }}>{a.emoji}</span>
+            <a.Icon size={14} color={a.color} strokeWidth={2} />
             <span style={{ fontSize: 12, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>{a.label}</span>
           </motion.button>
         ))}
@@ -611,8 +612,8 @@ function ResumeBanner({ onContinue, onFresh }: { onContinue: () => void; onFresh
 // ─────────────────────────────────────────────────────────────────────────────
 
 const WELCOME_DEST_CHIPS = [
-  'Paris 🇫🇷', 'Tokyo 🇯🇵', 'New York 🗽', 'Dubai 🌆',
-  'Barcelona 🌊', 'Bali 🌿', 'London 🎭', 'Maldives 🐠',
+  'Paris 🇫🇷', 'Tokyo 🇯🇵', 'New York', 'Dubai 🇦🇪',
+  'Barcelona 🇪🇸', 'Bali 🇮🇩', 'London 🇬🇧', 'Maldives 🇲🇻',
 ];
 
 function WelcomeHero({ onSelect }: { onSelect: (t: string) => void }) {
