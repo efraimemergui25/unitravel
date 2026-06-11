@@ -461,6 +461,8 @@ export default function Home() {
   useEffect(() => {
     const t1 = setTimeout(() => setShowTap(true), 1400);
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); advanceRef.current(); }
     };
     window.addEventListener('keydown', onKey);
@@ -887,7 +889,7 @@ export default function Home() {
                       </motion.button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 7, justifyContent: 'center', flexWrap: 'nowrap' }}>
                       {ZONES.map((zone, i) => {
                         const Icon = zone.icon;
                         return (
@@ -900,8 +902,8 @@ export default function Home() {
                             whileTap={{ scale: 0.94 }}
                             onClick={() => goTo(zone.href)}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 7,
-                              padding: '10px 18px', borderRadius: 100,
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              padding: '9px 13px', borderRadius: 100,
                               background: zone.bg,
                               border: `1.5px solid ${zone.border}`,
                               backdropFilter: 'blur(24px)',
@@ -909,8 +911,8 @@ export default function Home() {
                               cursor: 'pointer', fontFamily: 'inherit',
                             }}
                           >
-                            <Icon size={14} color={zone.color} strokeWidth={2} />
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.014em', whiteSpace: 'nowrap' }}>{zone.label}</span>
+                            <Icon size={13} color={zone.color} strokeWidth={2} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.012em', whiteSpace: 'nowrap' }}>{zone.label}</span>
                           </motion.button>
                         );
                       })}
